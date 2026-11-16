@@ -2,7 +2,7 @@
 
 Naira and dollar (USDC) payments for Nigeria, with **Hum**: phone-to-phone proximity payments over sound, Bluetooth and QR. Works on any phone, no NFC needed.
 
-> Status: **Milestone 1 (Sound spike)**. All designed screens are built as static UI; the sound modem and a two-phone test bench (Settings → Developer → Sound lab) are in place.
+> Status: **MVP feature-complete on devnet (milestones 0–6).** Hum payments in naira (mock ledger) and USDC (Solana devnet) over sound, Bluetooth, QR and a typed code, with safety checks. Ready for two-phone testing.
 
 ## Stack
 
@@ -123,6 +123,45 @@ Server code runs as Vercel functions in `api/` (Firebase Admin SDK, credentials 
 Requests carry the user's Firebase ID token. Each user is rate-limited per action per minute. Clients read hum and claim status from Firestore (sender: their hum and its claims; receiver: their own claim); only the server writes.
 
 `npm run typecheck` checks the app and the server (`api/tsconfig.json`, Node types).
+
+## Channels
+
+The sender broadcasts the code over every channel at once; the receiver claims with whichever decodes first.
+
+| Channel      | Where        | Notes                                                             |
+| ------------ | ------------ | ----------------------------------------------------------------- |
+| Sound        | Android, web | 18–20 kHz modem (above)                                           |
+| Bluetooth LE | Android      | `modules/faara-ble`: service data at ultra-low power, RSSI-ranked |
+| QR code      | Android, web | Shown after 3 s with no claim; scanned with `expo-camera`         |
+| Typed code   | Android, web | Six digits, issued with every hum; strictly rate-limited          |
+
+## Wallet and payments
+
+- **Keys:** 12-word BIP-39 phrase; Solana key at `m/44'/501'/0'/0'` (SLIP-0010), created on the device. Android keeps it in the OS keystore; the web encrypts it with the PIN (devnet only).
+- **Approval:** fingerprint (Android, if enabled in Settings) or the six-digit PIN; five wrong PINs lock for five minutes.
+- **USDC:** the phone signs a `TransferChecked` (creating the recipient's token account if needed) and sends it to devnet; `POST /api/hums/settle` verifies the transfer on-chain before marking the payment settled. Test funds: SOL from the Wallet screen or faucet.solana.com, USDC from faucet.circle.com (Solana Devnet).
+- **Naira:** `NairaProvider` interface with a Firestore mock ledger (`api/_lib/naira.ts`); accounts open with ₦200,000 of test money. Swap in the BaaS partner's implementation later.
+
+## Safety checks
+
+Run on the server after each claim and shown on the sender's list and Confirm screen: account age, payment history between the two people, and Webacy wallet risk for USDC recipients. The most severe finding wins.
+
+## Server configuration (Vercel environment variables)
+
+| Variable                   | Required | Purpose                                                          |
+| -------------------------- | -------- | ---------------------------------------------------------------- |
+| `FIREBASE_SERVICE_ACCOUNT` | Yes      | Service account JSON for the Admin SDK. Never commit it.         |
+| `WEBACY_API_KEY`           | No       | Enables wallet risk checks; without it badges say "not checked". |
+| `WEBACY_CHAIN`             | No       | Webacy chain id for Solana (default `sol`).                      |
+| `SOLANA_RPC_URL`           | No       | Devnet RPC for verifying transfers (default public devnet).      |
+
+The app reads `EXPO_PUBLIC_API_URL` (API base for native builds; defaults to production) and `EXPO_PUBLIC_SOLANA_RPC_URL`.
+
+Firestore rules live in `firestore.rules`; publish them in the Firebase console after changes.
+
+## Native code checks
+
+`tools/kotlin-check/check.sh` type-checks the Kotlin in `modules/` against the Android 15 framework and Expo API stand-ins, without the Android SDK. Run it after changing native code.
 
 ## Theming
 
