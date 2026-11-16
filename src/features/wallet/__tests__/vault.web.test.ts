@@ -1,8 +1,6 @@
 /**
  * @jest-environment node
  */
-import { webcrypto } from 'node:crypto';
-
 import { MAX_PIN_ATTEMPTS, PinLockedError, WrongPinError } from '../vault.types';
 
 // Minimal browser globals for the web vault.
@@ -16,7 +14,7 @@ Object.assign(globalThis, {
     },
   },
 });
-if (!globalThis.crypto?.subtle) Object.assign(globalThis, { crypto: webcrypto });
+// Node 22 provides WebCrypto (`globalThis.crypto.subtle`) natively.
 
 // The vault reads `window` and `crypto` when called, so it can be imported after the stubs.
 // eslint-disable-next-line import/first
