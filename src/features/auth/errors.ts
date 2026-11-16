@@ -4,6 +4,14 @@ import { PHONE_AUTH_TEST_NUMBERS_ONLY } from '@/lib/firebase';
 
 /** Turns Firebase and app errors into messages fit for the user. */
 export function authErrorMessage(error: unknown): string {
+  const message = friendlyMessage(error);
+  // While in test mode, show the raw Firebase code so setup problems can be diagnosed.
+  if (PHONE_AUTH_TEST_NUMBERS_ONLY && error instanceof FirebaseError)
+    return `${message} (${error.code})`;
+  return message;
+}
+
+function friendlyMessage(error: unknown): string {
   if (error instanceof FirebaseError) {
     switch (error.code) {
       case 'auth/invalid-phone-number':
@@ -20,7 +28,11 @@ export function authErrorMessage(error: unknown): string {
       case 'auth/network-request-failed':
         return 'No connection. Check your internet and try again.';
       case 'auth/operation-not-allowed':
-        return 'Phone sign-in is not enabled for this project yet.';
+        return /region/i.test(error.message)
+          ? 'Sign-in codes can’t be sent to this country yet (Firebase SMS region policy).'
+          : 'Phone sign-in is not enabled for this project yet.';
+      case 'auth/billing-not-enabled':
+        return 'Phone sign-in needs billing enabled on the Firebase project.';
       case 'auth/captcha-check-failed':
       case 'auth/invalid-app-credential':
       case 'auth/missing-app-credential':
