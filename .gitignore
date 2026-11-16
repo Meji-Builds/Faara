@@ -45,3 +45,6 @@ yarn-error.*
 
 # Native type-check cache
 .cache/
+
+# Vercel local build output
+.vercel/

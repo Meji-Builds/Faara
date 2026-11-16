@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -70,9 +70,9 @@ export default function HummingScreen() {
       });
   }, [amount, currency, note, setSession]);
 
-  // Issue the hum when the screen opens.
+  // Issue the hum when the screen opens (with a real amount; a page refresh loses the draft).
   useEffect(() => {
-    if (!session) startHum();
+    if (!session && amount > 0) startHum();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on first open
   }, []);
 
@@ -147,6 +147,8 @@ export default function HummingScreen() {
       : showFallback
         ? 'Still humming. If their phone can’t hear it, they can scan this or type the code in Receive.'
         : 'Faara is humming a one-time code. Your wallet address and amount never leave your phone.';
+
+  if (!session && amount <= 0) return <Redirect href="/hum" />;
 
   return (
     <Screen

@@ -9,6 +9,10 @@ import { MockNairaLedger } from './naira';
 import { fetchParsedTransaction } from './solanaRpc';
 import { fetchWalletRisk } from './webacy';
 
+// A stray background rejection (e.g. a credential refresh) must not take the whole
+// function down with a non-JSON 500; log it so it shows up in Vercel's logs.
+process.on('unhandledRejection', (reason) => console.error('Unhandled rejection', reason));
+
 let service: HumService | undefined;
 
 function humService(): HumService {
