@@ -13,7 +13,7 @@ const RESEND_SECONDS = 60;
 /** Sign-up step 2: confirm the number with the code, then create the profile. */
 export default function VerifyScreen() {
   const router = useRouter();
-  const { pending, setPending } = useAuth();
+  const { status, pending, setPending, refreshProfile } = useAuth();
   const [code, setCode] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +24,12 @@ export default function VerifyScreen() {
     restart();
   }, [restart]);
 
+  useEffect(() => {
+    if (status !== 'ready') return;
+    setPending(null);
+    router.replace('/home');
+  }, [status, router, setPending]);
+
   if (!pending?.signUp) return <Redirect href="/sign-up" />;
   const { signUp, phoneE164 } = pending;
 
@@ -33,8 +39,8 @@ export default function VerifyScreen() {
     try {
       const credential = await pending.confirm(code);
       await createProfile(credential.user.uid, { ...signUp, phone: phoneE164 });
-      setPending(null);
-      router.replace('/home');
+      // Stay busy: Home opens once the new profile is read back (effect above).
+      refreshProfile();
     } catch (cause) {
       setError(authErrorMessage(cause));
       setVerifying(false);

@@ -21,7 +21,8 @@ const CHECK_DELAY_MS = 400;
 
 export default function SignUpScreen() {
   const router = useRouter();
-  const { status, user, profileFailed, signOut, setPending } = useAuth();
+  const { status, user, profileFailed, refreshProfile, signOut, setPending } = useAuth();
+  const uid = user?.uid;
   // Phone already verified but the profile was never created (e.g. app closed mid sign-up).
   const finishing = status === 'needsProfile' && user !== null;
 
@@ -48,7 +49,7 @@ export default function SignUpScreen() {
       if (!cancelled) setLookup({ username, result });
     };
     const timer = setTimeout(() => {
-      isUsernameAvailable(username)
+      isUsernameAvailable(username, uid)
         .then((free) => record(free ? 'available' : 'taken'))
         // If the check can't run, allow submitting; the server re-checks atomically.
         .catch(() => record('unknown'));
@@ -57,7 +58,7 @@ export default function SignUpScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [username, usernameValid]);
+  }, [username, usernameValid, uid]);
 
   const usernameOk = availability === 'available' || availability === 'unknown';
   const canSubmit =
@@ -66,23 +67,28 @@ export default function SignUpScreen() {
     usernameOk &&
     agreed;
 
+  // Leave sign-up as soon as the profile exists.
+  useEffect(() => {
+    if (status === 'ready') router.replace('/home');
+  }, [status, router]);
+
   const submit = async () => {
     setError(null);
     setSubmitting(true);
     try {
       if (finishing) {
         await createProfile(user.uid, { fullName, username, phone: user.phoneNumber ?? '' });
-        router.replace('/home');
-      } else {
-        const pending = await requestPhoneCode(phone);
-        setPending({ ...pending, signUp: { fullName: fullName.trim(), username } });
-        router.push('/verify');
+        // Stay busy: Home opens once the new profile is read back (effect above).
+        refreshProfile();
+        return;
       }
+      const pending = await requestPhoneCode(phone);
+      setPending({ ...pending, signUp: { fullName: fullName.trim(), username } });
+      router.push('/verify');
     } catch (cause) {
       setError(authErrorMessage(cause));
-    } finally {
-      setSubmitting(false);
     }
+    setSubmitting(false);
   };
 
   return (

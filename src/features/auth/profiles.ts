@@ -32,9 +32,10 @@ export interface UserProfile {
 const userRef = (uid: string) => doc(db, 'users', uid);
 const usernameRef = (username: string) => doc(db, 'usernames', username);
 
-export async function isUsernameAvailable(username: string): Promise<boolean> {
+/** True if nobody holds the username, or `uid` (the current user) already holds it. */
+export async function isUsernameAvailable(username: string, uid?: string): Promise<boolean> {
   const snapshot = await getDoc(usernameRef(username));
-  return !snapshot.exists();
+  return !snapshot.exists() || (uid !== undefined && snapshot.data().uid === uid);
 }
 
 export interface NewProfile {
@@ -70,7 +71,12 @@ export async function createProfile(uid: string, profile: NewProfile): Promise<v
 async function saveProfile(uid: string, profile: NewProfile): Promise<void> {
   await runTransaction(db, async (tx) => {
     const reservation = await tx.get(usernameRef(profile.username));
-    if (reservation.exists()) throw new UsernameTakenError(profile.username);
+    if (reservation.exists()) {
+      // A retry after a save that succeeded but wasn't noticed: nothing left to do.
+      const existing = await tx.get(userRef(uid));
+      if (reservation.data().uid === uid && existing.exists()) return;
+      throw new UsernameTakenError(profile.username);
+    }
     tx.set(usernameRef(profile.username), { uid, createdAt: serverTimestamp() });
     tx.set(userRef(uid), {
       fullName: profile.fullName.trim(),

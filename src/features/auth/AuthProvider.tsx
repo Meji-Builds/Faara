@@ -34,6 +34,8 @@ interface AuthContextValue {
   profile: UserProfile | null;
   /** The profile couldn't be loaded (no connection or database unavailable). */
   profileFailed: boolean;
+  /** Re-reads the profile, e.g. right after creating it. */
+  refreshProfile: () => void;
   /** A code request in progress, shared between the request and verify screens. */
   pending: (PendingVerification & { signUp?: SignUpDetails }) | null;
   setPending: (pending: AuthContextValue['pending']) => void;
@@ -43,6 +45,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const PROFILE_TIMEOUT_MS = 8000;
+const PROFILE_RETRY_MS = 5000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -54,6 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     failed: boolean;
   } | null>(null);
   const [pending, setPending] = useState<AuthContextValue['pending']>(null);
+  // Bumped to restart the profile listener (Firestore listeners stop for good after an error).
+  const [listenerGeneration, setListenerGeneration] = useState(0);
+  const refreshProfile = useCallback(() => setListenerGeneration((n) => n + 1), []);
 
   useEffect(
     () =>
@@ -68,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const uid = user.uid;
     let settled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     // Firestore waits silently when it can't reach the database (offline, or the database
     // doesn't exist), so stop waiting after a while and report a failure instead of hanging.
     const timeout = setTimeout(() => {
@@ -82,13 +89,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       () => {
         settled = true;
         setSnapshot({ uid, profile: null, failed: true });
+        retry = setTimeout(refreshProfile, PROFILE_RETRY_MS);
       },
     );
     return () => {
       clearTimeout(timeout);
+      if (retry) clearTimeout(retry);
       unsubscribe();
     };
-  }, [user]);
+  }, [user, listenerGeneration, refreshProfile]);
 
   const profileResolved = user !== null && snapshot?.uid === user.uid;
   const profile = profileResolved ? (snapshot?.profile ?? null) : null;
@@ -110,8 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : 'needsProfile';
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, profile, profileFailed, pending, setPending, signOut }),
-    [status, user, profile, profileFailed, pending, signOut],
+    () => ({ status, user, profile, profileFailed, refreshProfile, pending, setPending, signOut }),
+    [status, user, profile, profileFailed, refreshProfile, pending, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
