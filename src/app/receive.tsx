@@ -5,7 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import type { ClaimChannel, ClaimHumResponse, ShapeTriple } from '@shared/hum';
 
 import { ShapeGlyph } from '@/components/brand';
-import { HumPulse, QrScanner } from '@/components/hum';
+import { HumPulse, WaveScanner } from '@/components/hum';
 import { AppText, Button, Card, Header, OtpField, Screen, TextTabs } from '@/components/ui';
 import { estimateDistanceFromRssi, useBleScan } from '@/features/ble';
 import { claimHum, watchClaim, watchHum, type HumClaim, type HumState } from '@/features/hum';
@@ -136,16 +136,16 @@ export default function ReceiveScreen() {
             options={METHODS}
             value={method}
             onChange={setMethod}
-            labels={{ listen: 'Listen', scan: 'Scan QR', manual: 'Enter code' }}
+            labels={{ listen: 'Listen', scan: 'Scan', manual: 'Enter code' }}
           />
         </View>
       ) : null}
       <View style={styles.body}>
         {phase.kind === 'listening' && method === 'scan' ? (
           <View style={styles.method}>
-            <QrScanner onToken={(token) => submitClaim({ token }, 'qr')} />
+            <WaveScanner onToken={(token) => submitClaim({ token }, 'qr')} />
             <AppText color="textMuted" align="center">
-              Point the camera at the QR code on the sender’s screen.
+              Point the camera at the spinning hum ring on the sender’s screen and hold steady.
             </AppText>
           </View>
         ) : phase.kind === 'listening' && method === 'manual' ? (

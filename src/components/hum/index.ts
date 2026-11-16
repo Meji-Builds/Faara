@@ -3,4 +3,4 @@ export { ClaimantCard, formatDistance, type ClaimantView } from './ClaimantCard'
 export { CurrencyToggle } from './CurrencyToggle';
 export { HumPulse } from './HumPulse';
 export { FallbackCode } from './FallbackCode';
-export { QrScanner } from './QrScanner';
+export { WaveScanner } from './WaveScanner';

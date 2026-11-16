@@ -15,7 +15,7 @@ import { apiErrorMessage } from '@/lib/api/client';
 import { initials } from '@/lib/money';
 import { fonts, radii, useTheme } from '@/theme';
 
-/** Show the QR / manual code if nobody has claimed within this long. */
+/** Show the hum ring and manual code if nobody has claimed within this long. */
 const FALLBACK_AFTER_MS = 3000;
 const AVATAR_TONES = ['soft', 'gold', 'surface'] as const;
 
@@ -145,7 +145,7 @@ export default function HummingScreen() {
     : expired && claims.length === 0
       ? 'The code expired before a phone claimed it. Hold the phones closer and hum again.'
       : showFallback
-        ? 'Still humming. If their phone can’t hear it, they can scan this or type the code in Receive.'
+        ? 'Still humming. If their phone can’t hear it, they can scan the ring or type the code in Receive.'
         : 'Faara is humming a one-time code. Your wallet address and amount never leave your phone.';
 
   if (!session && amount <= 0) return <Redirect href="/hum" />;

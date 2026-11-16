@@ -128,12 +128,16 @@ Requests carry the user's Firebase ID token. Each user is rate-limited per actio
 
 The sender broadcasts the code over every channel at once; the receiver claims with whichever decodes first.
 
-| Channel      | Where        | Notes                                                             |
-| ------------ | ------------ | ----------------------------------------------------------------- |
-| Sound        | Android, web | 18–20 kHz modem (above)                                           |
-| Bluetooth LE | Android      | `modules/faara-ble`: service data at ultra-low power, RSSI-ranked |
-| QR code      | Android, web | Shown after 3 s with no claim; scanned with `expo-camera`         |
-| Typed code   | Android, web | Six digits, issued with every hum; strictly rate-limited          |
+| Channel      | Where        | Notes                                                                                       |
+| ------------ | ------------ | ------------------------------------------------------------------------------------------- |
+| Sound        | Android, web | 18–20 kHz modem (above)                                                                     |
+| Bluetooth LE | Android      | `modules/faara-ble`: service data at ultra-low power, RSSI-ranked                           |
+| Hum ring     | Android, web | Shown after 3 s with no claim: Faara's own animated visual code, read by the in-app scanner |
+| Typed code   | Android, web | Six digits, issued with every hum; strictly rate-limited                                    |
+
+### Hum ring
+
+A Faara-specific visual code (`src/features/wavecode`): 39 bars radiating from the hum mark, each one of six lengths, plus an empty slot that marks the start. It carries the 10-character code with a CRC-15 and five Reed-Solomon parity symbols. The ring spins and shimmers while shown; the scanner finds the centre disc, corrects for viewing angle, and reads the bars at any rotation. Web scans live camera frames; Android takes quiet stills in a loop (about one attempt a second). Try it under Settings → Developer → Hum ring lab.
 
 ## Wallet and payments
 

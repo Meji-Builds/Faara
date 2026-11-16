@@ -1,4 +1,4 @@
-import { Bluetooth, QrCode, Sun, Volume2, type LucideIcon } from 'lucide-react-native';
+import { Bluetooth, ScanLine, Sun, Volume2, type LucideIcon } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Card } from '@/components/ui';
@@ -17,7 +17,7 @@ const CHANNEL_META: Record<ChannelId, { label: string; detail?: string; Icon: Lu
   sound: { label: 'Sound', detail: '18–20 kHz', Icon: Volume2 },
   bluetooth: { label: 'Bluetooth LE', Icon: Bluetooth },
   light: { label: 'Light flash', Icon: Sun },
-  qr: { label: 'QR code', Icon: QrCode },
+  qr: { label: 'Hum ring', Icon: ScanLine },
 };
 
 export function ChannelList({ channels }: { channels: ChannelStatus[] }) {

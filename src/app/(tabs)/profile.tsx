@@ -1,13 +1,13 @@
 import { useRouter } from 'expo-router';
 import { Settings, ShieldCheck } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 
-import { HumCode } from '@/components/brand';
 import { AppText, Avatar, Button, Card, IconButton, ListRow, Screen } from '@/components/ui';
 import { useAuth, useProfile } from '@/features/auth';
 import { initials } from '@/lib/money';
 import { maskPhone, normalizePhoneInput } from '@/lib/phone';
-import { radii, useTheme } from '@/theme';
+import { palette, radii, useTheme } from '@/theme';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -55,11 +55,11 @@ export default function ProfileScreen() {
           </AppText>
         </View>
         <View style={styles.qr} accessibilityLabel="Your Faara QR code">
-          <HumCode
+          <QRCode
             value={`https://faara.app/@${profile.username}`}
-            size={96}
-            animated={false}
-            accessibilityLabel="Your Faara code"
+            size={76}
+            color={palette.deepGreen}
+            backgroundColor="#EAF7F2"
           />
         </View>
       </Card>

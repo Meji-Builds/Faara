@@ -104,7 +104,7 @@ export default function SettingsScreen() {
             value="Hum test bench"
             onPress={() => router.push('/lab/sound')}
           />
-          <ListRow label="Hum code preview" onPress={() => router.push('/lab/code')} />
+          <ListRow label="Hum ring lab" onPress={() => router.push('/lab/code')} />
         </Card>
       </Section>
     </Screen>
