@@ -1,11 +1,21 @@
 import { Redirect, useRouter } from 'expo-router';
 import { Check, Upload } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { Share, StyleSheet, View } from 'react-native';
+
+import type { ClaimChannel } from '@shared/hum';
+import { explorerTxUrl } from '@shared/solana';
 
 import { AdireBand, Rings } from '@/components/brand';
 import { AppText, Button, Screen } from '@/components/ui';
 import { useHumDraft } from '@/features/hum';
 import { fonts, palette, radii, useTheme } from '@/theme';
+
+const CHANNEL_LABEL: Record<ClaimChannel, string> = {
+  sound: 'Sound',
+  bluetooth: 'Bluetooth',
+  qr: 'QR code',
+  manual: 'Typed code',
+};
 
 /** "AbC123xyz…" → "HUM-ABC1-23XY": short, readable reference from the payment id. */
 function referenceFor(paymentId: string): string {
@@ -16,10 +26,24 @@ function referenceFor(paymentId: string): string {
 export default function SuccessScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { amountLabel, note, session, chosen, reset } = useHumDraft();
+  const { amountLabel, note, session, chosen, claims, settlement, reset } = useHumDraft();
 
-  if (!session || !chosen) return <Redirect href="/hum" />;
+  if (!session || !chosen || !settlement) return <Redirect href="/hum" />;
   const recipient = { name: chosen.recipient.fullName };
+  const channel = claims.find((claim) => claim.id === chosen.claimId)?.channel ?? 'sound';
+  const reference = referenceFor(session.paymentId);
+  const seconds = (settlement.elapsedMs / 1000).toFixed(1);
+
+  const shareReceipt = () => {
+    const lines = [
+      `Faara receipt ${reference}`,
+      `${amountLabel} to ${recipient.name} (@${chosen.recipient.username})`,
+      note ? `For: ${note}` : null,
+      `Paid: ${new Date(settlement.settledAt).toLocaleString()}`,
+      settlement.signature ? `Solana transaction: ${explorerTxUrl(settlement.signature)}` : null,
+    ].filter(Boolean);
+    Share.share({ message: lines.join('\n') }).catch(() => undefined);
+  };
 
   const done = () => {
     reset();
@@ -28,9 +52,9 @@ export default function SuccessScreen() {
 
   const rows: [string, string, boolean?][] = [
     ['For', note || '—'],
-    ['Sent by', 'Sound'],
+    ['Sent by', CHANNEL_LABEL[channel]],
     ['Fee', 'Free'],
-    ['Reference', referenceFor(session.paymentId), true],
+    ['Reference', reference, true],
   ];
 
   return (
@@ -50,6 +74,7 @@ export default function SuccessScreen() {
           <View style={styles.actions}>
             <Button
               label="Receipt"
+              onPress={shareReceipt}
               variant="outline"
               tone="accent"
               icon={<Upload size={20} color={palette.electricTeal} strokeWidth={1.75} />}
@@ -73,7 +98,7 @@ export default function SuccessScreen() {
             </AppText>
           </AppText>
           <AppText variant="body" color="onBrandMuted" align="center">
-            Test payment: no money moves until wallets are connected
+            Settled in {seconds} seconds
           </AppText>
         </View>
 

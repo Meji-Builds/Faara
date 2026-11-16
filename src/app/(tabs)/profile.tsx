@@ -81,10 +81,12 @@ export default function ProfileScreen() {
           label="Dollar wallet (Solana)"
           value={
             <AppText variant="body" color="gold" style={styles.mono}>
-              {sampleAccounts.solanaAddressShort}
+              {profile.walletAddress
+                ? `${profile.walletAddress.slice(0, 4)}…${profile.walletAddress.slice(-4)}`
+                : 'Not set up'}
             </AppText>
           }
-          onPress={() => undefined}
+          onPress={() => router.push('/wallet')}
         />
         <ListRow label="Invite friends" onPress={() => undefined} />
         <ListRow label="Help and support" onPress={() => undefined} />

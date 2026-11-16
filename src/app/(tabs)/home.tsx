@@ -64,7 +64,11 @@ export default function HomeScreen() {
             router.push('/receive');
           }}
         />
-        <QuickAction label="Add money" icon={<Plus {...iconProps} />} />
+        <QuickAction
+          label="Add money"
+          icon={<Plus {...iconProps} />}
+          onPress={() => router.push('/wallet')}
+        />
       </View>
 
       <View style={styles.sectionHeader}>

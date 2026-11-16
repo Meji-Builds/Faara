@@ -38,6 +38,21 @@ service cloud.firestore {
         && request.resource.data.walletAddress is string
         && request.resource.data.walletAddress.matches('^[1-9A-HJ-NP-Za-km-z]{32,44}$');
       allow delete: if false;
+
+      // Settled payments, written by the server for both people.
+      match /activity/{paymentId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow write: if false;
+      }
+    }
+
+    // Mock naira ledger: people can read their own balance; only the server moves money.
+    match /ledgerAccounts/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+    match /ledgerEntries/{reference} {
+      allow read, write: if false;
     }
 
     // Username reservations make usernames unique. Anyone may check whether one exists.
@@ -82,6 +97,9 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /humManualCodes/{code} {
+      allow read, write: if false;
+    }
+    match /settlements/{signature} {
       allow read, write: if false;
     }
     match /rateLimits/{key} {

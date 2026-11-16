@@ -1,39 +1,159 @@
+import type { Keypair } from '@solana/web3.js';
 import { Redirect, useRouter } from 'expo-router';
 import { ArrowRight, Fingerprint, ShieldQuestion } from 'lucide-react-native';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ShapeGlyph } from '@/components/brand';
-import { AppText, Avatar, Button, Card, Header, ListRow, Screen } from '@/components/ui';
+import { AppText, Avatar, Button, Card, Header, ListRow, OtpField, Screen } from '@/components/ui';
 import { freeTransfers } from '@/data/fixtures';
-import { useHumDraft } from '@/features/hum';
+import { cancelHum, settleHum, useHumDraft } from '@/features/hum';
+import { PIN_LENGTH, sendUsdc, solanaErrorMessage, useApproval } from '@/features/wallet';
+import { apiErrorMessage, ApiRequestError } from '@/lib/api/client';
 import { CURRENCY_SYMBOL, groupDigits, initials } from '@/lib/money';
 import { fonts, palette, radii, useTheme } from '@/theme';
 
 export default function ConfirmScreen() {
   const router = useRouter();
   const { colors, scheme } = useTheme();
-  const { currency, amount, note, chosen } = useHumDraft();
+  const { currency, amount, amountLabel, note, session, chosen, setSettlement, reset } =
+    useHumDraft();
+  const { biometricsEnabled, approveWithBiometrics, approveWithPin } = useApproval();
+  const [stage, setStage] = useState<'review' | 'pin' | 'paying'>('review');
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  if (!chosen) return <Redirect href="/hum" />;
+  if (!chosen || !session) return <Redirect href="/hum" />;
 
   const recipient = {
     name: chosen.recipient.fullName,
     firstName: chosen.recipient.fullName.split(/\s+/)[0] ?? chosen.recipient.fullName,
   };
   const amountText = groupDigits(currency === 'USDC' ? amount.toFixed(2) : String(amount));
-  // Biometric / PIN approval and settlement arrive with milestones 4 and 6.
-  const approve = () => router.replace('/hum/success');
+
+  /** Approved: send the money (USDC on-chain, naira on the ledger), then settle. */
+  const pay = async (signer: Keypair) => {
+    setStage('paying');
+    setError(null);
+    const startedAt = Date.now();
+    try {
+      let signature: string | undefined;
+      if (currency === 'USDC') {
+        if (!chosen.recipient.walletAddress) throw new Error('Recipient has no dollar wallet');
+        signature = await sendUsdc(
+          signer,
+          chosen.recipient.walletAddress,
+          Math.round(amount * 100),
+        );
+      }
+      const result = await settleHum(session.paymentId, signature);
+      setSettlement({ ...result, elapsedMs: Date.now() - startedAt });
+      router.replace('/hum/success');
+    } catch (cause) {
+      setError(
+        cause instanceof ApiRequestError ? apiErrorMessage(cause) : solanaErrorMessage(cause),
+      );
+      setStage('review');
+    }
+  };
+
+  const confirmWithFingerprint = async () => {
+    setError(null);
+    try {
+      const signer = await approveWithBiometrics(`Pay ${amountLabel} to ${recipient.name}`);
+      if (signer) await pay(signer);
+      else setStage('pin');
+    } catch {
+      setStage('pin');
+    }
+  };
+
+  const confirmWithPin = async () => {
+    setError(null);
+    try {
+      const signer = await approveWithPin(pin);
+      setPin('');
+      await pay(signer);
+    } catch (cause) {
+      setPin('');
+      setError(cause instanceof Error ? cause.message : 'Wrong PIN.');
+    }
+  };
+
+  const cancel = async () => {
+    await cancelHum(session.paymentId).catch(() => undefined);
+    reset();
+    router.dismissTo('/home');
+  };
+
+  const footer =
+    stage === 'pin' ? (
+      <>
+        <AppText variant="label" color="textMuted" align="center">
+          Enter your PIN to pay {amountLabel}
+        </AppText>
+        <OtpField
+          value={pin}
+          onChangeText={setPin}
+          length={PIN_LENGTH}
+          secure
+          autoFocus
+          accessibilityLabel="PIN"
+        />
+        <Button label="Pay" disabled={pin.length !== PIN_LENGTH} onPress={confirmWithPin} />
+        {biometricsEnabled ? (
+          <Button label="Use fingerprint instead" variant="text" onPress={confirmWithFingerprint} />
+        ) : null}
+      </>
+    ) : (
+      <>
+        {biometricsEnabled ? (
+          <>
+            <Button
+              label="Confirm with fingerprint"
+              icon={<Fingerprint size={24} color={palette.nearBlack} strokeWidth={1.75} />}
+              loading={stage === 'paying'}
+              onPress={confirmWithFingerprint}
+            />
+            <Button
+              label="Use PIN instead"
+              variant="text"
+              disabled={stage === 'paying'}
+              onPress={() => setStage('pin')}
+              style={styles.pin}
+            />
+          </>
+        ) : (
+          <Button
+            label="Confirm with PIN"
+            loading={stage === 'paying'}
+            onPress={() => setStage('pin')}
+          />
+        )}
+        <Button
+          label="Shapes don’t match? Cancel"
+          variant="text"
+          disabled={stage === 'paying'}
+          onPress={cancel}
+        />
+      </>
+    );
 
   return (
     <Screen
       footer={
         <>
-          <Button
-            label="Confirm with fingerprint"
-            icon={<Fingerprint size={24} color={palette.nearBlack} strokeWidth={1.75} />}
-            onPress={approve}
-          />
-          <Button label="Use PIN instead" variant="text" onPress={approve} style={styles.pin} />
+          {error ? (
+            <AppText variant="label" color="gold" align="center">
+              {error}
+            </AppText>
+          ) : null}
+          {stage === 'paying' ? (
+            <AppText variant="label" color="textMuted" align="center">
+              {currency === 'USDC' ? 'Sending on the Solana network…' : 'Paying…'}
+            </AppText>
+          ) : null}
+          {footer}
         </>
       }
     >

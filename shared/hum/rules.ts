@@ -37,10 +37,11 @@ export const RATE_LIMITS = {
   /** Six-digit codes are guessable, so typed claims are limited much harder. */
   claimManual: 6,
   chooseRecipient: 20,
+  settleHum: 20,
 } as const;
 export type RateLimitedAction = keyof typeof RATE_LIMITS;
 
-export type HumStatus = 'open' | 'chosen' | 'cancelled';
+export type HumStatus = 'open' | 'chosen' | 'cancelled' | 'settled';
 export type ClaimChannel = 'sound' | 'bluetooth' | 'qr' | 'manual';
 export const CLAIM_CHANNELS: readonly ClaimChannel[] = ['sound', 'bluetooth', 'qr', 'manual'];
 

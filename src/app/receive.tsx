@@ -107,7 +107,7 @@ export default function ReceiveScreen() {
           (hum?.status === 'cancelled' ||
             (hum?.status === 'chosen' && hum.chosenClaimId !== claimId))) ? (
           <Button label="Listen again" onPress={listenAgain} />
-        ) : myClaim?.status === 'chosen' ? (
+        ) : myClaim?.status === 'chosen' || myClaim?.status === 'settled' ? (
           <Button label="Done" onPress={() => router.back()} />
         ) : phase.kind === 'listening' && method === 'manual' ? (
           <Button
@@ -249,6 +249,14 @@ function Claimed({
       <Status
         title={`${senderFirst} chose someone else`}
         message="Another phone nearby caught the same hum and was picked. Nothing was paid to you."
+      />
+    );
+  }
+  if (myClaim?.status === 'settled') {
+    return (
+      <Status
+        title="Hummed."
+        message={`${amount} from ${claim.sender.fullName} is with you${claim.note ? ` · ${claim.note}` : ''}.`}
       />
     );
   }

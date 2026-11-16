@@ -45,7 +45,19 @@ export interface ChooseRecipientRequest {
 
 export interface ChooseRecipientResponse {
   shapes: ShapeTriple;
-  recipient: { fullName: string; username: string };
+  /** `walletAddress` is the recipient's Solana address (needed to send USDC). */
+  recipient: { fullName: string; username: string; walletAddress: string | null };
+}
+
+export interface SettleHumRequest {
+  paymentId: string;
+  /** Solana transaction signature; required for USDC hums. */
+  signature?: string;
+}
+
+export interface SettleHumResponse {
+  settledAt: number;
+  signature: string | null;
 }
 
 export interface CancelHumRequest {

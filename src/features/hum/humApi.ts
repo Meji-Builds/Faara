@@ -7,6 +7,7 @@ import type {
   CreateHumResponse,
   HumCurrency,
   HumStatus,
+  SettleHumResponse,
   ShapeTriple,
 } from '@shared/hum';
 
@@ -30,6 +31,10 @@ export function chooseRecipient(paymentId: string, claimId: string) {
   return postJson<ChooseRecipientResponse>('/api/hums/choose', { paymentId, claimId });
 }
 
+export function settleHum(paymentId: string, signature?: string) {
+  return postJson<SettleHumResponse>('/api/hums/settle', { paymentId, signature });
+}
+
 export function cancelHum(paymentId: string) {
   return postJson<{ ok: true }>('/api/hums/cancel', { paymentId });
 }
@@ -40,7 +45,8 @@ export interface HumClaim {
   fullName: string;
   username: string;
   distanceCm: number | null;
-  status: 'pending' | 'chosen' | 'not-chosen';
+  channel: ClaimChannel;
+  status: 'pending' | 'chosen' | 'not-chosen' | 'settled';
   shapes: ShapeTriple | null;
   createdAt: number;
 }
@@ -65,6 +71,7 @@ function toClaim(id: string, data: Record<string, unknown>): HumClaim {
     fullName: String(data.fullName ?? ''),
     username: String(data.username ?? ''),
     distanceCm: typeof data.distanceCm === 'number' ? data.distanceCm : null,
+    channel: (data.channel as ClaimChannel) ?? 'sound',
     status: (data.status as HumClaim['status']) ?? 'pending',
     shapes: (data.shapes as ShapeTriple | null) ?? null,
     createdAt: Number(data.createdAt ?? 0),

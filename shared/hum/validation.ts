@@ -3,6 +3,7 @@ import type {
   ChooseRecipientRequest,
   ClaimHumRequest,
   CreateHumRequest,
+  SettleHumRequest,
 } from './api';
 import {
   CLAIM_CHANNELS,
@@ -93,4 +94,16 @@ export function parseChooseRecipient(body: unknown): ChooseRecipientRequest {
 export function parseCancelHum(body: unknown): CancelHumRequest {
   const data = requireRecord(body);
   return { paymentId: requireId(data.paymentId, 'paymentId') };
+}
+
+const SIGNATURE_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{64,90}$/;
+
+export function parseSettleHum(body: unknown): SettleHumRequest {
+  const data = requireRecord(body);
+  const paymentId = requireId(data.paymentId, 'paymentId');
+  if (data.signature === undefined) return { paymentId };
+  if (typeof data.signature !== 'string' || !SIGNATURE_PATTERN.test(data.signature)) {
+    throw new ValidationError('signature is invalid.');
+  }
+  return { paymentId, signature: data.signature };
 }

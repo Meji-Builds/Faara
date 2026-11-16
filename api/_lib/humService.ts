@@ -18,10 +18,21 @@ import {
   type HumCurrency,
   type HumStatus,
   type RateLimitedAction,
+  type SettleHumRequest,
+  type SettleHumResponse,
+  type ActivityEntry,
   type ShapeTriple,
 } from '../../shared/hum';
 
+import {
+  USDC_MINT,
+  centsToUsdcBaseUnits,
+  verifyTransfer,
+  type ParsedTransaction,
+} from '../../shared/solana';
+
 import { ApiError } from './errors';
+import type { NairaProvider } from './naira';
 import type { DocumentStore, StoreTransaction } from './store';
 
 /**
@@ -32,6 +43,8 @@ import type { DocumentStore, StoreTransaction } from './store';
  *   humTokens/{token}                     token → paymentId lookup, server-only
  *   humManualCodes/{code}                 six-digit code → paymentId lookup, server-only
  *   rateLimits/{uid}_{action}             fixed one-minute windows, server-only
+ *   settlements/{signature}               Solana signatures already used, server-only
+ *   users/{uid}/activity/{paymentId}      settled payments, readable by that user
  */
 
 export interface HumDoc {
@@ -48,6 +61,11 @@ export interface HumDoc {
   claimCount: number;
   chosenClaimId: string | null;
   shapes: ShapeTriple | null;
+  /** Solana addresses, recorded when the hum is created / the recipient is chosen. */
+  senderWallet: string | null;
+  recipientWallet: string | null;
+  settledAt: number | null;
+  signature: string | null;
 }
 
 export interface ClaimDoc {
@@ -57,7 +75,7 @@ export interface ClaimDoc {
   channel: ClaimChannel;
   distanceCm: number | null;
   createdAt: number;
-  status: 'pending' | 'chosen' | 'not-chosen';
+  status: 'pending' | 'chosen' | 'not-chosen' | 'settled';
   shapes: ShapeTriple | null;
 }
 
@@ -69,6 +87,7 @@ interface TokenDoc {
 interface ProfileDoc {
   fullName: string;
   username: string;
+  walletAddress?: string;
 }
 
 interface RateLimitDoc {
@@ -82,6 +101,9 @@ export interface HumServiceDeps {
   /** Uniform random integer in [0, n), from a CSPRNG in production. */
   randomInt: (n: number) => number;
   newId: () => string;
+  naira: NairaProvider;
+  /** Fetches a confirmed transaction in `jsonParsed` form, or null if not found. */
+  fetchTransaction: (signature: string) => Promise<ParsedTransaction | null>;
 }
 
 const TOKEN_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -93,6 +115,8 @@ const humPath = (id: string) => `hums/${id}`;
 const claimPath = (id: string, claimId: string) => `hums/${id}/claims/${claimId}`;
 const tokenPath = (token: string) => `humTokens/${token}`;
 const manualCodePath = (code: string) => `humManualCodes/${code}`;
+const settlementPath = (signature: string) => `settlements/${signature}`;
+const activityPath = (uid: string, paymentId: string) => `users/${uid}/activity/${paymentId}`;
 const userPath = (uid: string) => `users/${uid}`;
 const ratePath = (uid: string, action: RateLimitedAction) => `rateLimits/${uid}_${action}`;
 
@@ -104,6 +128,9 @@ export class HumService {
     await this.consumeRate(uid, 'createHum');
     return store.transaction(async (tx) => {
       const profile = await this.requireProfile(tx, uid);
+      if (request.currency === 'USDC' && !profile.walletAddress) {
+        throw new ApiError('failed-precondition', 'Set up your dollar wallet first.');
+      }
 
       // Find an unused token. Collisions are vanishingly rare (32^10 space), but cheap to rule out.
       let token: string | null = null;
@@ -139,6 +166,10 @@ export class HumService {
         claimCount: 0,
         chosenClaimId: null,
         shapes: null,
+        senderWallet: profile.walletAddress ?? null,
+        recipientWallet: null,
+        settledAt: null,
+        signature: null,
       };
       tx.set(humPath(paymentId), hum);
       tx.set(tokenPath(token), { paymentId, expiresAt: hum.expiresAt } satisfies TokenDoc);
@@ -218,25 +249,125 @@ export class HumService {
       const claim = await tx.get<ClaimDoc>(claimPath(request.paymentId, request.claimId));
       if (!claim) throw new ApiError('not-found', 'That person’s claim was not found.');
 
-      const recipient = { fullName: claim.fullName, username: claim.username };
-      if (hum.status === 'chosen') {
+      const recipientProfile = await tx.get<ProfileDoc>(userPath(request.claimId));
+      const walletAddress = recipientProfile?.walletAddress ?? null;
+      const recipient = { fullName: claim.fullName, username: claim.username, walletAddress };
+      if (hum.status === 'chosen' || hum.status === 'settled') {
         if (hum.chosenClaimId === request.claimId && hum.shapes)
-          return { shapes: hum.shapes, recipient };
+          return {
+            shapes: hum.shapes,
+            recipient: { ...recipient, walletAddress: hum.recipientWallet },
+          };
         throw new ApiError('already-chosen', 'You already chose who gets paid.');
       }
       if (hum.status === 'cancelled')
         throw new ApiError('failed-precondition', 'This hum was cancelled.');
       if (now() > hum.chooseBy)
         throw new ApiError('expired', 'This hum has expired. Start a new one.');
+      if (hum.currency === 'USDC' && !walletAddress) {
+        throw new ApiError(
+          'failed-precondition',
+          `${claim.fullName} hasn’t set up a dollar wallet yet. Pay in naira instead.`,
+        );
+      }
 
       const shapes = pickShapes(randomInt);
       tx.update(humPath(request.paymentId), {
         status: 'chosen',
         chosenClaimId: request.claimId,
         shapes,
+        recipientWallet: walletAddress,
       });
       tx.update(claimPath(request.paymentId, request.claimId), { status: 'chosen', shapes });
       return { shapes, recipient };
+    });
+  }
+
+  /**
+   * Completes a chosen hum. USDC: verifies the on-chain transfer (exact amount, sender's to
+   * recipient's wallet; each signature settles one hum). Naira: moves money on the ledger.
+   * Safe to retry: a settled hum returns its existing result.
+   */
+  async settleHum(uid: string, request: SettleHumRequest): Promise<SettleHumResponse> {
+    const { store, now, naira, fetchTransaction } = this.deps;
+    await this.consumeRate(uid, 'settleHum');
+
+    const hum = await store.transaction((tx) => tx.get<HumDoc>(humPath(request.paymentId)));
+    if (!hum || hum.senderUid !== uid) throw new ApiError('not-found', 'Hum not found.');
+    if (hum.status === 'settled')
+      return { settledAt: hum.settledAt ?? now(), signature: hum.signature };
+    if (hum.status === 'cancelled')
+      throw new ApiError('failed-precondition', 'This hum was cancelled.');
+    if (hum.status !== 'chosen' || !hum.chosenClaimId) {
+      throw new ApiError('failed-precondition', 'Choose who gets paid first.');
+    }
+    const claimId = hum.chosenClaimId;
+
+    let signature: string | null = null;
+    if (hum.currency === 'USDC') {
+      if (!request.signature)
+        throw new ApiError('invalid-argument', 'A transaction signature is required.');
+      if (!hum.senderWallet || !hum.recipientWallet) {
+        throw new ApiError('failed-precondition', 'Wallet details are missing for this payment.');
+      }
+      const check = verifyTransfer(await fetchTransaction(request.signature), {
+        mint: USDC_MINT,
+        senderOwner: hum.senderWallet,
+        recipientOwner: hum.recipientWallet,
+        amount: centsToUsdcBaseUnits(hum.amountMinor),
+      });
+      if (!check.ok) throw new ApiError('failed-precondition', check.reason);
+      signature = request.signature;
+    } else {
+      // Idempotent on the payment id, so a retry after a partial failure never pays twice.
+      await naira.transfer({
+        fromUid: uid,
+        toUid: claimId,
+        amountKobo: hum.amountMinor,
+        reference: request.paymentId,
+      });
+    }
+
+    return store.transaction(async (tx) => {
+      const current = await tx.get<HumDoc>(humPath(request.paymentId));
+      if (!current) throw new ApiError('not-found', 'Hum not found.');
+      if (current.status === 'settled')
+        return { settledAt: current.settledAt ?? now(), signature: current.signature };
+      if (signature && (await tx.get(settlementPath(signature)))) {
+        throw new ApiError(
+          'failed-precondition',
+          'That transaction has already paid for another hum.',
+        );
+      }
+      const recipient = await tx.get<ClaimDoc>(claimPath(request.paymentId, claimId));
+      const settledAt = now();
+
+      tx.update(humPath(request.paymentId), { status: 'settled', settledAt, signature });
+      tx.update(claimPath(request.paymentId, claimId), { status: 'settled' });
+      if (signature) tx.set(settlementPath(signature), { paymentId: request.paymentId, settledAt });
+
+      const base = {
+        kind: 'hum' as const,
+        paymentId: request.paymentId,
+        amountMinor: current.amountMinor,
+        currency: current.currency,
+        note: current.note,
+        createdAt: settledAt,
+        signature,
+      };
+      tx.set(activityPath(uid, request.paymentId), {
+        ...base,
+        direction: 'out',
+        counterpartyName: recipient?.fullName ?? '',
+        counterpartyUsername: recipient?.username ?? '',
+      } satisfies ActivityEntry);
+      tx.set(activityPath(claimId, request.paymentId), {
+        ...base,
+        direction: 'in',
+        counterpartyName: current.senderName,
+        counterpartyUsername: current.senderUsername,
+      } satisfies ActivityEntry);
+      return { settledAt, signature };
     });
   }
 
@@ -244,7 +375,10 @@ export class HumService {
     await this.deps.store.transaction(async (tx) => {
       const hum = await tx.get<HumDoc>(humPath(request.paymentId));
       if (!hum || hum.senderUid !== uid) throw new ApiError('not-found', 'Hum not found.');
-      if (hum.status === 'open') tx.update(humPath(request.paymentId), { status: 'cancelled' });
+      // Cancelling is allowed until money moves (e.g. the matching shapes didn't match).
+      if (hum.status === 'open' || hum.status === 'chosen') {
+        tx.update(humPath(request.paymentId), { status: 'cancelled' });
+      }
     });
   }
 

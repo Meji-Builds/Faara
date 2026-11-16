@@ -23,8 +23,10 @@ export interface HumDraft {
   chosen: {
     claimId: string;
     shapes: ShapeTriple;
-    recipient: { fullName: string; username: string };
+    recipient: { fullName: string; username: string; walletAddress: string | null };
   } | null;
+  /** Set once the payment is settled. */
+  settlement: { settledAt: number; signature: string | null; elapsedMs: number } | null;
 }
 
 interface HumDraftContextValue extends HumDraft {
@@ -36,6 +38,7 @@ interface HumDraftContextValue extends HumDraft {
   setNote: (note: string) => void;
   setSession: (session: CreateHumResponse | null) => void;
   setChosen: (chosen: HumDraft['chosen']) => void;
+  setSettlement: (settlement: HumDraft['settlement']) => void;
   reset: () => void;
 }
 
@@ -46,6 +49,7 @@ const INITIAL_DRAFT: HumDraft = {
   session: null,
   claims: [],
   chosen: null,
+  settlement: null,
 };
 
 const HumDraftContext = createContext<HumDraftContextValue | null>(null);
@@ -71,8 +75,10 @@ export function HumDraftProvider({ children }: { children: ReactNode }) {
       setCurrency: (currency) => setDraft((d) => ({ ...d, currency, amountInput: '0' })),
       setAmountInput: (amountInput) => setDraft((d) => ({ ...d, amountInput })),
       setNote: (note) => setDraft((d) => ({ ...d, note })),
-      setSession: (session) => setDraft((d) => ({ ...d, session, claims: [], chosen: null })),
+      setSession: (session) =>
+        setDraft((d) => ({ ...d, session, claims: [], chosen: null, settlement: null })),
       setChosen: (chosen) => setDraft((d) => ({ ...d, chosen })),
+      setSettlement: (settlement) => setDraft((d) => ({ ...d, settlement })),
       reset: () => setDraft(INITIAL_DRAFT),
     };
   }, [draft]);

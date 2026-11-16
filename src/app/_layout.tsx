@@ -102,6 +102,7 @@ function RootStack() {
         <Stack.Screen name="hum" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="settings" />
         <Stack.Screen name="receive" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="wallet" />
       </Stack.Protected>
       <Stack.Screen name="lab/sound" />
     </Stack>

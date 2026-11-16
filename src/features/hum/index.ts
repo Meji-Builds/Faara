@@ -4,6 +4,7 @@ export {
   chooseRecipient,
   claimHum,
   createHum,
+  settleHum,
   watchClaim,
   watchClaims,
   watchHum,

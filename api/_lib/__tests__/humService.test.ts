@@ -7,16 +7,25 @@ import {
 } from '../../../shared/hum';
 import { ApiError } from '../errors';
 import { HumService, type ClaimDoc, type HumDoc } from '../humService';
+import { MockNairaLedger } from '../naira';
 import { MemoryStore } from '../store';
+import type { ParsedTransaction } from '../../../shared/solana';
+
+const SENDER_WALLET = 'SenderWa11et1111111111111111111111111111111';
+const TOLU_WALLET = 'ToLuWa11et111111111111111111111111111111111';
+const SIGNATURE = '5'.repeat(88);
 
 function setup() {
   const store = new MemoryStore();
   let clock = 1_000_000;
   let seed = 7;
   let ids = 0;
+  const transactions = new Map<string, ParsedTransaction>();
   const service = new HumService({
     store,
     now: () => clock,
+    naira: new MockNairaLedger(store, () => clock),
+    fetchTransaction: async (signature) => transactions.get(signature) ?? null,
     // Deterministic mulberry32 so runs are reproducible.
     randomInt: (n) => {
       seed = (seed + 0x6d2b79f5) >>> 0;
@@ -27,14 +36,19 @@ function setup() {
     },
     newId: () => `pay${++ids}`,
   });
-  const addUser = (uid: string, fullName: string, username: string) =>
-    store.docs.set(`users/${uid}`, { fullName, username });
-  addUser('sender', 'Ada Okafor', 'ada.ok');
-  addUser('tolu', 'Tolu Adebayo', 'tolu.a');
+  const addUser = (uid: string, fullName: string, username: string, walletAddress?: string) =>
+    store.docs.set(`users/${uid}`, {
+      fullName,
+      username,
+      ...(walletAddress ? { walletAddress } : {}),
+    });
+  addUser('sender', 'Ada Okafor', 'ada.ok', SENDER_WALLET);
+  addUser('tolu', 'Tolu Adebayo', 'tolu.a', TOLU_WALLET);
   addUser('kola', 'Kola Musa', 'kolamusa');
   return {
     store,
     service,
+    transactions,
     addUser,
     advance: (ms: number) => (clock += ms),
     hum: (id: string) => store.docs.get(`hums/${id}`) as HumDoc,
@@ -135,7 +149,11 @@ describe('HumService', () => {
     const chosen = await service.chooseRecipient('sender', { paymentId, claimId: 'tolu' });
     expect(new Set(chosen.shapes).size).toBe(3);
     chosen.shapes.forEach((shape) => expect(BRAND_SHAPES).toContain(shape));
-    expect(chosen.recipient).toEqual({ fullName: 'Tolu Adebayo', username: 'tolu.a' });
+    expect(chosen.recipient).toEqual({
+      fullName: 'Tolu Adebayo',
+      username: 'tolu.a',
+      walletAddress: TOLU_WALLET,
+    });
     expect(hum(paymentId)).toMatchObject({
       status: 'chosen',
       chosenClaimId: 'tolu',
@@ -227,6 +245,121 @@ describe('HumService manual codes', () => {
     await expectApiError(
       service.claimHum('tolu', { manualCode: created.manualCode, channel: 'manual' }),
       'expired',
+    );
+  });
+});
+
+/** A jsonParsed transaction moving `amount` USDC base units between two wallets. */
+function usdcTransfer(from: string, to: string, amount: bigint): ParsedTransaction {
+  const entry = (owner: string, value: bigint) => ({
+    owner,
+    mint: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+    uiTokenAmount: { amount: value.toString() },
+  });
+  return {
+    meta: {
+      err: null,
+      preTokenBalances: [entry(from, 100_000_000n), entry(to, 0n)],
+      postTokenBalances: [entry(from, 100_000_000n - amount), entry(to, amount)],
+    },
+  };
+}
+
+async function chosenHum(currency: 'NGN' | 'USDC', amount: number) {
+  const env = setup();
+  const created = await env.service.createHum('sender', { amount, currency });
+  await env.service.claimHum('tolu', { token: created.token, channel: 'sound' });
+  await env.service.chooseRecipient('sender', { paymentId: created.paymentId, claimId: 'tolu' });
+  return { ...env, paymentId: created.paymentId };
+}
+
+describe('HumService settlement', () => {
+  it('moves naira on the ledger once, and records activity for both people', async () => {
+    const { service, store, hum, claim, paymentId } = await chosenHum('NGN', 12_500);
+    const result = await service.settleHum('sender', { paymentId });
+    expect(hum(paymentId)).toMatchObject({ status: 'settled', settledAt: result.settledAt });
+    expect(claim(paymentId, 'tolu')?.status).toBe('settled');
+    expect(store.docs.get('ledgerAccounts/sender')).toMatchObject({
+      balanceKobo: 20_000_000 - 1_250_000,
+    });
+    expect(store.docs.get('ledgerAccounts/tolu')).toMatchObject({
+      balanceKobo: 20_000_000 + 1_250_000,
+    });
+    expect(store.docs.get(`users/sender/activity/${paymentId}`)).toMatchObject({
+      direction: 'out',
+      counterpartyUsername: 'tolu.a',
+    });
+    expect(store.docs.get(`users/tolu/activity/${paymentId}`)).toMatchObject({
+      direction: 'in',
+      counterpartyUsername: 'ada.ok',
+    });
+
+    // Retrying does not pay twice.
+    await expect(service.settleHum('sender', { paymentId })).resolves.toEqual(result);
+    expect(store.docs.get('ledgerAccounts/tolu')).toMatchObject({
+      balanceKobo: 20_000_000 + 1_250_000,
+    });
+  });
+
+  it('refuses naira payments above the balance', async () => {
+    const { service, paymentId } = await chosenHum('NGN', 5_000_000);
+    await expectApiError(service.settleHum('sender', { paymentId }), 'failed-precondition');
+  });
+
+  it('only lets the sender settle, and only after choosing', async () => {
+    const env = setup();
+    const { paymentId, token } = await env.service.createHum('sender', ngn);
+    await expectApiError(env.service.settleHum('sender', { paymentId }), 'failed-precondition');
+    await env.service.claimHum('tolu', { token, channel: 'sound' });
+    await env.service.chooseRecipient('sender', { paymentId, claimId: 'tolu' });
+    await expectApiError(env.service.settleHum('tolu', { paymentId }), 'not-found');
+  });
+
+  it('settles USDC only with a matching on-chain transfer', async () => {
+    const { service, transactions, hum, paymentId } = await chosenHum('USDC', 40.5);
+    await expectApiError(service.settleHum('sender', { paymentId }), 'invalid-argument');
+
+    transactions.set(SIGNATURE, usdcTransfer(SENDER_WALLET, TOLU_WALLET, 40_000_000n));
+    await expectApiError(
+      service.settleHum('sender', { paymentId, signature: SIGNATURE }),
+      'failed-precondition',
+    );
+
+    transactions.set(SIGNATURE, usdcTransfer(SENDER_WALLET, TOLU_WALLET, 40_500_000n));
+    const result = await service.settleHum('sender', { paymentId, signature: SIGNATURE });
+    expect(result.signature).toBe(SIGNATURE);
+    expect(hum(paymentId)).toMatchObject({ status: 'settled', signature: SIGNATURE });
+  });
+
+  it('never lets one transaction pay for two hums', async () => {
+    const env = await chosenHum('USDC', 40.5);
+    env.transactions.set(SIGNATURE, usdcTransfer(SENDER_WALLET, TOLU_WALLET, 40_500_000n));
+    await env.service.settleHum('sender', { paymentId: env.paymentId, signature: SIGNATURE });
+
+    const second = await env.service.createHum('sender', { amount: 40.5, currency: 'USDC' });
+    await env.service.claimHum('tolu', { token: second.token, channel: 'sound' });
+    await env.service.chooseRecipient('sender', { paymentId: second.paymentId, claimId: 'tolu' });
+    await expectApiError(
+      env.service.settleHum('sender', { paymentId: second.paymentId, signature: SIGNATURE }),
+      'failed-precondition',
+    );
+  });
+
+  it('requires wallets for USDC hums', async () => {
+    const env = setup();
+    env.addUser('nowallet', 'No Wallet', 'nowallet');
+    await expectApiError(
+      env.service.createHum('nowallet', { amount: 5, currency: 'USDC' }),
+      'failed-precondition',
+    );
+    const { paymentId, token } = await env.service.createHum('sender', {
+      amount: 5,
+      currency: 'USDC',
+    });
+    await env.service.claimHum('kola', { token, channel: 'sound' });
+    await expectApiError(
+      env.service.chooseRecipient('sender', { paymentId, claimId: 'kola' }),
+      'failed-precondition',
     );
   });
 });

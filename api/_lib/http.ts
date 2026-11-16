@@ -5,16 +5,24 @@ import { ValidationError, type ApiErrorBody } from '../../shared/hum';
 import { ApiError } from './errors';
 import { adminDb, firestoreStore, verifyIdToken } from './firebaseAdmin';
 import { HumService } from './humService';
+import { MockNairaLedger } from './naira';
+import { fetchParsedTransaction } from './solanaRpc';
 
 let service: HumService | undefined;
 
 function humService(): HumService {
-  service ??= new HumService({
-    store: firestoreStore(adminDb()),
-    now: () => Date.now(),
-    randomInt: (n) => randomInt(n),
-    newId: () => randomBytes(15).toString('base64url'),
-  });
+  if (!service) {
+    const store = firestoreStore(adminDb());
+    const now = () => Date.now();
+    service = new HumService({
+      store,
+      now,
+      randomInt: (n) => randomInt(n),
+      newId: () => randomBytes(15).toString('base64url'),
+      naira: new MockNairaLedger(store, now),
+      fetchTransaction: fetchParsedTransaction,
+    });
+  }
   return service;
 }
 
