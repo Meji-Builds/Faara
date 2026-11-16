@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -17,6 +18,7 @@ interface Preferences {
 }
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { preference, setPreference } = useTheme();
   const [prefs, setPrefs] = useState<Preferences>({
     readyToReceive: true,
@@ -89,6 +91,17 @@ export default function SettingsScreen() {
           <ListRow
             label="Offers and news"
             trailing={toggle('notifyOffers', 'Offers and news notifications')}
+          />
+        </Card>
+      </Section>
+
+      {/* Internal test tools during the build-out; remove before public release. */}
+      <Section title="Developer">
+        <Card divided>
+          <ListRow
+            label="Sound lab"
+            value="Hum test bench"
+            onPress={() => router.push('/lab/sound')}
           />
         </Card>
       </Section>

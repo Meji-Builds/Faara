@@ -14,3 +14,5 @@ export { Screen } from './Screen';
 export { TextField } from './TextField';
 export { Toggle } from './Toggle';
 export { EmptyState } from './EmptyState';
+export { Meter } from './Meter';
+export { TextTabs } from './TextTabs';

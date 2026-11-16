@@ -2,7 +2,7 @@
 
 Naira and dollar (USDC) payments for Nigeria, with **Hum**: phone-to-phone proximity payments over sound, Bluetooth and QR. Works on any phone, no NFC needed.
 
-> Status: **Milestone 0 (Setup)**. All designed screens are built as static UI with sample data, for Android and web.
+> Status: **Milestone 1 (Sound spike)**. All designed screens are built as static UI; the sound modem and a two-phone test bench (Settings → Developer → Sound lab) are in place.
 
 ## Stack
 
@@ -51,6 +51,7 @@ src/
     (auth)/            Welcome, Sign up, Log in
     (tabs)/            Home, Activity, Invoices, Profile + custom tab bar
     hum/               Amount → Humming → Pick recipient → Confirm → Success
+    lab/sound.tsx      Sound lab (two-phone test bench)
     settings.tsx
   components/
     brand/             Wordmark, HumMark, AdireBand, Rings, ShapeGlyph
@@ -60,11 +61,35 @@ src/
     navigation/        Bottom tab bar with the centre Hum button
     settings/          Theme picker
   features/hum/        Hum draft state shared across the hum flow
+  features/sound/      Hum modem, audio engine, broadcaster/listener hooks
+modules/faara-audio/   Android native module for raw audio I/O
   theme/               Palette, semantic colour tokens (dark + light), type, spacing
   lib/                 Money formatting, keypad input, helpers
   data/fixtures.ts     Sample data until the backend is wired up
 assets/images/         App icon, adaptive icon, splash, favicon
 ```
+
+## Sound channel (Hum)
+
+The sender broadcasts a one-time 10-character code; the amount and wallet address never leave the phone.
+
+| Layer      | Choice                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| Band       | 18–20 kHz, near-ultrasonic                                                                   |
+| Sync       | 80 ms linear chirp, found with an FFT matched filter; also measures the speaker/mic response |
+| Modulation | 32-FSK, 62.5 Hz tone spacing, 36 ms symbols (32 ms integration window)                       |
+| Payload    | Crockford base32 code: 10 symbols of 5 bits                                                  |
+| Integrity  | CRC-15 over the payload, then Reed-Solomon over GF(32) with 6 parity symbols                 |
+| Frame      | 19 symbols, 774 ms; repeats every 874 ms while humming                                       |
+
+The modem (`src/features/sound/modem`) is plain TypeScript with no platform dependencies. Tests run it through a simulated acoustic channel: talking nearby, in-band noise, room echo, an uneven speaker response, 48 → 44.1 kHz resampling and clock drift.
+
+Audio I/O sits behind one interface (`src/features/sound/audio`):
+
+- **Android:** local Expo module `modules/faara-audio` (Kotlin). It records with the `UNPROCESSED` source (falling back to `VOICE_RECOGNITION`) so voice processing doesn't strip the tones, and plays looped PCM through `AudioTrack`.
+- **Web:** Web Audio with echo cancellation, noise suppression and auto gain turned off; capture runs in an AudioWorklet.
+
+To test, install a build on two phones, open **Settings → Developer → Sound lab**, start humming on one and listening on the other.
 
 ## Theming
 
@@ -82,12 +107,12 @@ Type: Bricolage Grotesque (headings, amounts), Inter (UI), JetBrains Mono (codes
 
 ## Roadmap
 
-| #   | Milestone      | Status      |
-| --- | -------------- | ----------- |
-| 0   | Setup          | In progress |
-| 1   | Sound spike    | Next        |
-| 2   | Hum backend    |             |
-| 3   | Bluetooth + QR |             |
-| 4   | Wallet         |             |
-| 5   | Safety         |             |
-| 6   | Naira mock     |             |
+| #   | Milestone      | Status  |
+| --- | -------------- | ------- |
+| 0   | Setup          | Done    |
+| 1   | Sound spike    | Testing |
+| 2   | Hum backend    |         |
+| 3   | Bluetooth + QR |         |
+| 4   | Wallet         |         |
+| 5   | Safety         |         |
+| 6   | Naira mock     |         |

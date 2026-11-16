@@ -1,0 +1,7 @@
+{
+  "name": "faara-audio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Raw microphone capture and looped PCM playback for Faara's sound channel.",
+  "main": "index.ts"
+}
