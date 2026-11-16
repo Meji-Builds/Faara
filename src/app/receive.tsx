@@ -107,7 +107,18 @@ export default function ReceiveScreen() {
           (hum?.status === 'cancelled' ||
             (hum?.status === 'chosen' && hum.chosenClaimId !== claimId))) ? (
           <Button label="Listen again" onPress={listenAgain} />
-        ) : myClaim?.status === 'chosen' || myClaim?.status === 'settled' ? (
+        ) : myClaim?.status === 'settled' && paymentId ? (
+          <>
+            <Button label="Done" onPress={() => router.back()} />
+            <Button
+              label="View receipt"
+              variant="text"
+              onPress={() =>
+                router.push({ pathname: '/receipt/[paymentId]', params: { paymentId } })
+              }
+            />
+          </>
+        ) : myClaim?.status === 'chosen' ? (
           <Button label="Done" onPress={() => router.back()} />
         ) : phase.kind === 'listening' && method === 'manual' ? (
           <Button

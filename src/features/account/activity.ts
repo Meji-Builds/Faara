@@ -33,3 +33,16 @@ export function watchActivity(
     () => onChange([]),
   );
 }
+
+/** One settled payment from the user's activity feed (null if not found). */
+export function watchActivityEntry(
+  uid: string,
+  paymentId: string,
+  onChange: (entry: ActivityEntry | null) => void,
+): Unsubscribe {
+  return onSnapshot(
+    doc(db, 'users', uid, 'activity', paymentId),
+    (snapshot) => onChange(snapshot.exists() ? (snapshot.data() as ActivityEntry) : null),
+    () => onChange(null),
+  );
+}

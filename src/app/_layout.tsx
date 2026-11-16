@@ -104,6 +104,7 @@ function RootStack() {
         <Stack.Screen name="receive" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="wallet" />
         <Stack.Screen name="send" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="receipt/[paymentId]" />
       </Stack.Protected>
       <Stack.Screen name="lab/sound" />
     </Stack>

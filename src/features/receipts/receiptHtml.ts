@@ -58,7 +58,8 @@ export function receiptHtml(data: ReceiptData): string {
   .label { color: #A8F0E1; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin-top: 22px; }
   .amount { font-weight: 800; font-size: 40px; letter-spacing: -1.5px; margin-top: 6px; }
   .status { color: #14E0C1; font-weight: 600; margin-top: 6px; }
-  .band { display: flex; gap: 6px; align-items: center; padding: 10px 28px; background: #0B3D2E; }
+  .band { display: flex; gap: 6px; align-items: center; padding: 10px 28px; background: #0B3D2E; overflow: hidden; }
+  .band i, .band b { flex-shrink: 0; }
   .band i { width: 5px; height: 5px; border-radius: 50%; background: #1B6A55; display: block; }
   .band b { width: 12px; height: 2px; border-radius: 1px; background: #1B6A55; display: block; }
   table { width: 100%; border-collapse: collapse; }

@@ -472,6 +472,7 @@ export class HumService {
 
       const base = {
         kind: current.kind ?? 'hum',
+        channel: recipient?.channel ?? 'sound',
         paymentId: request.paymentId,
         amountMinor: current.amountMinor,
         currency: current.currency,

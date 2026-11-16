@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { History } from 'lucide-react-native';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
@@ -16,7 +17,11 @@ export function toTransactionView(entry: ActivityEntry, index: number): Transact
   return {
     id: `${entry.paymentId}-${entry.direction}`,
     counterparty: entry.counterpartyName || `@${entry.counterpartyUsername}`,
-    description: ['Hum', entry.currency === 'USDC' ? 'USDC' : null, entry.note || null]
+    description: [
+      entry.kind === 'transfer' ? 'Sent by username' : 'Hum',
+      entry.currency === 'USDC' ? 'USDC' : null,
+      entry.note || null,
+    ]
       .filter(Boolean)
       .join(' · '),
     amount: entry.direction === 'in' ? major : -major,
@@ -34,6 +39,7 @@ interface ActivityListProps {
 
 export function ActivityList({ entries, limit }: ActivityListProps) {
   const { colors } = useTheme();
+  const router = useRouter();
   if (entries === null) return <ActivityIndicator color={colors.accent} style={styles.loading} />;
   if (entries.length === 0) {
     return (
@@ -51,7 +57,15 @@ export function ActivityList({ entries, limit }: ActivityListProps) {
           key={`${entry.paymentId}-${entry.direction}`}
           style={index > 0 && [styles.separator, { borderTopColor: colors.border }]}
         >
-          <TransactionRow transaction={toTransactionView(entry, index)} />
+          <TransactionRow
+            transaction={toTransactionView(entry, index)}
+            onPress={() =>
+              router.push({
+                pathname: '/receipt/[paymentId]',
+                params: { paymentId: entry.paymentId },
+              })
+            }
+          />
         </View>
       ))}
     </View>

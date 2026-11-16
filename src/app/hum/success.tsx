@@ -1,48 +1,42 @@
 import { Redirect, useRouter } from 'expo-router';
-import { Check, Upload } from 'lucide-react-native';
-import { Share, StyleSheet, View } from 'react-native';
+import { Check, Download } from 'lucide-react-native';
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import type { ClaimChannel } from '@shared/hum';
 import { explorerTxUrl } from '@shared/solana';
 
 import { AdireBand, Rings } from '@/components/brand';
 import { AppText, Button, Screen } from '@/components/ui';
 import { useHumDraft } from '@/features/hum';
+import { CHANNEL_LABEL, downloadReceipt, receiptReference } from '@/features/receipts';
 import { fonts, palette, radii, useTheme } from '@/theme';
-
-const CHANNEL_LABEL: Record<ClaimChannel, string> = {
-  sound: 'Sound',
-  bluetooth: 'Bluetooth',
-  qr: 'QR code',
-  manual: 'Typed code',
-};
-
-/** "AbC123xyz…" → "HUM-ABC1-23XY": short, readable reference from the payment id. */
-function referenceFor(paymentId: string): string {
-  const clean = paymentId.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-  return `HUM-${clean.slice(0, 4)}-${clean.slice(4, 8)}`;
-}
 
 export default function SuccessScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { amountLabel, note, session, chosen, claims, settlement, reset } = useHumDraft();
+  const { amountLabel, note, currency, session, chosen, claims, settlement, reset } = useHumDraft();
+  const [receiptError, setReceiptError] = useState<string | null>(null);
 
   if (!session || !chosen || !settlement) return <Redirect href="/hum" />;
   const recipient = { name: chosen.recipient.fullName };
   const channel = claims.find((claim) => claim.id === chosen.claimId)?.channel ?? 'sound';
-  const reference = referenceFor(session.paymentId);
+  const reference = receiptReference(session.paymentId);
   const seconds = (settlement.elapsedMs / 1000).toFixed(1);
 
-  const shareReceipt = () => {
-    const lines = [
-      `Faara receipt ${reference}`,
-      `${amountLabel} to ${recipient.name} (@${chosen.recipient.username})`,
-      note ? `For: ${note}` : null,
-      `Paid: ${new Date(settlement.settledAt).toLocaleString()}`,
-      settlement.signature ? `Solana transaction: ${explorerTxUrl(settlement.signature)}` : null,
-    ].filter(Boolean);
-    Share.share({ message: lines.join('\n') }).catch(() => undefined);
+  const saveReceipt = () => {
+    setReceiptError(null);
+    downloadReceipt({
+      reference,
+      direction: 'out',
+      amountLabel,
+      counterpartyName: recipient.name,
+      counterpartyUsername: chosen.recipient.username,
+      note,
+      settledAt: settlement.settledAt,
+      channelLabel: CHANNEL_LABEL[channel],
+      currency,
+      explorerUrl: settlement.signature ? explorerTxUrl(settlement.signature) : null,
+    }).catch(() => setReceiptError('Couldn’t create the receipt. Try again.'));
   };
 
   const done = () => {
@@ -71,17 +65,24 @@ export default function SuccessScreen() {
         lightStatusBar
         edges={['bottom']}
         footer={
-          <View style={styles.actions}>
-            <Button
-              label="Receipt"
-              onPress={shareReceipt}
-              variant="outline"
-              tone="accent"
-              icon={<Upload size={20} color={palette.electricTeal} strokeWidth={1.75} />}
-              style={styles.action}
-            />
-            <Button label="Done" onPress={done} style={styles.action} />
-          </View>
+          <>
+            {receiptError ? (
+              <AppText variant="label" color="goldOnBrand" align="center">
+                {receiptError}
+              </AppText>
+            ) : null}
+            <View style={styles.actions}>
+              <Button
+                label="Receipt"
+                onPress={saveReceipt}
+                variant="outline"
+                tone="accent"
+                icon={<Download size={20} color={palette.electricTeal} strokeWidth={1.75} />}
+                style={styles.action}
+              />
+              <Button label="Done" onPress={done} style={styles.action} />
+            </View>
+          </>
         }
       >
         <View style={styles.hero}>

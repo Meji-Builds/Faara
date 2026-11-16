@@ -1,5 +1,5 @@
 import { Store } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar } from '@/components/ui';
 import type { AvatarTone } from '@/data/fixtures';
@@ -20,12 +20,18 @@ export interface TransactionView {
 /** Merchant icon colour on the gold avatar fill; constant across themes. */
 const MERCHANT_ICON_COLOR = '#3A2600';
 
-export function TransactionRow({ transaction }: { transaction: TransactionView }) {
+export function TransactionRow({
+  transaction,
+  onPress,
+}: {
+  transaction: TransactionView;
+  onPress?: () => void;
+}) {
   const { counterparty, description, amount, currency, when, tone, isMerchant } = transaction;
   const incoming = amount > 0;
   const decimals = currency === 'USDC' ? 2 : undefined;
 
-  return (
+  const row = (
     <View
       style={styles.row}
       accessible
@@ -59,9 +65,22 @@ export function TransactionRow({ transaction }: { transaction: TransactionView }
       </View>
     </View>
   );
+
+  if (!onPress) return row;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityHint="Opens the receipt"
+      onPress={onPress}
+      style={({ pressed }) => pressed && styles.pressed}
+    >
+      {row}
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
+  pressed: { opacity: 0.7 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
   details: { flex: 1, gap: 2 },
   amount: { alignItems: 'flex-end', gap: 2 },
