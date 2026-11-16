@@ -21,11 +21,13 @@ function setup() {
   let seed = 7;
   let ids = 0;
   const transactions = new Map<string, ParsedTransaction>();
+  const walletRisks = new Map<string, { score: number; topIssue: string | null }>();
   const service = new HumService({
     store,
     now: () => clock,
     naira: new MockNairaLedger(store, () => clock),
     fetchTransaction: async (signature) => transactions.get(signature) ?? null,
+    walletRisk: async (address: string) => walletRisks.get(address) ?? null,
     // Deterministic mulberry32 so runs are reproducible.
     randomInt: (n) => {
       seed = (seed + 0x6d2b79f5) >>> 0;
@@ -49,6 +51,8 @@ function setup() {
     store,
     service,
     transactions,
+    walletRisks,
+    advanceClock: (ms: number) => (clock += ms),
     addUser,
     advance: (ms: number) => (clock += ms),
     hum: (id: string) => store.docs.get(`hums/${id}`) as HumDoc,
@@ -361,5 +365,42 @@ describe('HumService settlement', () => {
       env.service.chooseRecipient('sender', { paymentId, claimId: 'kola' }),
       'failed-precondition',
     );
+  });
+});
+
+describe('HumService safety assessment', () => {
+  it('flags new accounts and stores the badge on the claim', async () => {
+    const env = setup();
+    env.store.docs.set('users/tolu', {
+      fullName: 'Tolu Adebayo',
+      username: 'tolu.a',
+      createdAt: 1_000_000 - 3 * 86_400_000,
+    });
+    const { paymentId, token } = await env.service.createHum('sender', ngn);
+    await env.service.claimHum('tolu', { token, channel: 'sound' });
+    const safety = await env.service.assessClaim(paymentId, 'tolu');
+    expect(safety).toMatchObject({ level: 'caution', headline: 'New account · 3 days old' });
+    expect(env.claim(paymentId, 'tolu')?.safety).toEqual(safety);
+  });
+
+  it('uses the wallet check for USDC and counts past payments', async () => {
+    const env = await chosenHum('USDC', 10);
+    env.walletRisks.set(TOLU_WALLET, { score: 4, topIssue: null });
+    env.transactions.set(SIGNATURE, usdcTransfer(SENDER_WALLET, TOLU_WALLET, 10_000_000n));
+    await env.service.settleHum('sender', { paymentId: env.paymentId, signature: SIGNATURE });
+
+    const next = await env.service.createHum('sender', { amount: 1, currency: 'USDC' });
+    await env.service.claimHum('tolu', { token: next.token, channel: 'sound' });
+    await expect(env.service.assessClaim(next.paymentId, 'tolu')).resolves.toMatchObject({
+      level: 'low',
+      headline: 'Wallet checked · Low risk',
+      detail: 'Paid 1× before',
+    });
+
+    env.walletRisks.set(TOLU_WALLET, { score: 91, topIssue: 'Drainer' });
+    await expect(env.service.assessClaim(next.paymentId, 'tolu')).resolves.toMatchObject({
+      level: 'high',
+      headline: 'High risk · Drainer',
+    });
   });
 });

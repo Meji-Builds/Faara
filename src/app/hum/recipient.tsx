@@ -22,6 +22,7 @@ export default function PickRecipientScreen() {
     username: claim.username,
     distanceCm: claim.distanceCm,
     tone: AVATAR_TONES[index % AVATAR_TONES.length] ?? 'soft',
+    safety: claim.safety,
   }));
 
   // Preselect only when exactly one phone claimed; otherwise the sender must choose.

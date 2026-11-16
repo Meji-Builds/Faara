@@ -7,6 +7,7 @@ import type {
   CreateHumResponse,
   HumCurrency,
   HumStatus,
+  SafetyResult,
   SettleHumResponse,
   ShapeTriple,
 } from '@shared/hum';
@@ -49,6 +50,8 @@ export interface HumClaim {
   status: 'pending' | 'chosen' | 'not-chosen' | 'settled';
   shapes: ShapeTriple | null;
   createdAt: number;
+  /** Safety badge for the sender, filled in by the server shortly after the claim. */
+  safety: SafetyResult | null;
 }
 
 export interface HumState {
@@ -75,6 +78,7 @@ function toClaim(id: string, data: Record<string, unknown>): HumClaim {
     status: (data.status as HumClaim['status']) ?? 'pending',
     shapes: (data.shapes as ShapeTriple | null) ?? null,
     createdAt: Number(data.createdAt ?? 0),
+    safety: (data.safety as SafetyResult | undefined) ?? null,
   };
 }
 

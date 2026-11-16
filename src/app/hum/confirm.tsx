@@ -1,6 +1,12 @@
 import type { Keypair } from '@solana/web3.js';
 import { Redirect, useRouter } from 'expo-router';
-import { ArrowRight, Fingerprint, ShieldQuestion } from 'lucide-react-native';
+import {
+  ArrowRight,
+  Fingerprint,
+  ShieldCheck,
+  ShieldQuestion,
+  TriangleAlert,
+} from 'lucide-react-native';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -16,7 +22,7 @@ import { fonts, palette, radii, useTheme } from '@/theme';
 export default function ConfirmScreen() {
   const router = useRouter();
   const { colors, scheme } = useTheme();
-  const { currency, amount, amountLabel, note, session, chosen, setSettlement, reset } =
+  const { currency, amount, amountLabel, note, session, chosen, claims, setSettlement, reset } =
     useHumDraft();
   const { biometricsEnabled, approveWithBiometrics, approveWithPin } = useApproval();
   const [stage, setStage] = useState<'review' | 'pin' | 'paying'>('review');
@@ -29,6 +35,7 @@ export default function ConfirmScreen() {
     name: chosen.recipient.fullName,
     firstName: chosen.recipient.fullName.split(/\s+/)[0] ?? chosen.recipient.fullName,
   };
+  const safety = claims.find((claim) => claim.id === chosen.claimId)?.safety ?? null;
   const amountText = groupDigits(currency === 'USDC' ? amount.toFixed(2) : String(amount));
 
   /** Approved: send the money (USDC on-chain, naira on the ledger), then settle. */
@@ -233,9 +240,30 @@ export default function ConfirmScreen() {
           labelColor="textMuted"
           value={
             <View style={styles.safety}>
-              <ShieldQuestion size={18} color={colors.textMuted} strokeWidth={1.75} />
-              <AppText variant="bodyStrong" color="textMuted">
-                Not checked yet
+              {safety?.level === 'low' ? (
+                <ShieldCheck size={18} color={colors.accentText} strokeWidth={1.75} />
+              ) : safety?.level === 'caution' || safety?.level === 'high' ? (
+                <TriangleAlert size={18} color={colors.gold} strokeWidth={1.75} />
+              ) : (
+                <ShieldQuestion size={18} color={colors.textMuted} strokeWidth={1.75} />
+              )}
+              <AppText
+                variant="bodyStrong"
+                color={
+                  safety?.level === 'low'
+                    ? 'accentText'
+                    : safety?.level === 'caution' || safety?.level === 'high'
+                      ? 'gold'
+                      : 'textMuted'
+                }
+              >
+                {safety?.level === 'low'
+                  ? 'Low risk'
+                  : safety?.level === 'high'
+                    ? 'High risk'
+                    : safety?.level === 'caution'
+                      ? 'Check first'
+                      : 'Not checked'}
               </AppText>
             </View>
           }

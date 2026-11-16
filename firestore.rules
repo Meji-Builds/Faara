@@ -102,6 +102,9 @@ service cloud.firestore {
     match /settlements/{signature} {
       allow read, write: if false;
     }
+    match /paymentPairs/{pair} {
+      allow read, write: if false;
+    }
     match /rateLimits/{key} {
       allow read, write: if false;
     }

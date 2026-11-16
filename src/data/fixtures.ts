@@ -75,7 +75,4 @@ export const recentTransactions: Transaction[] = [
   },
 ];
 
-/** Result of the wallet safety check (Webacy / DD.xyz, milestone 5). */
-export type WalletRisk = { level: 'low'; history: string } | { level: 'warning'; reason: string };
-
 export const freeTransfers = { used: 7, limit: 10 };

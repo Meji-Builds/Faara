@@ -1,4 +1,5 @@
 import {
+  assessSafety,
   HUM_CHOOSE_TTL_MS,
   HUM_TOKEN_TTL_MS,
   MANUAL_CODE_LENGTH,
@@ -21,6 +22,7 @@ import {
   type SettleHumRequest,
   type SettleHumResponse,
   type ActivityEntry,
+  type SafetyResult,
   type ShapeTriple,
 } from '../../shared/hum';
 
@@ -77,6 +79,7 @@ export interface ClaimDoc {
   createdAt: number;
   status: 'pending' | 'chosen' | 'not-chosen' | 'settled';
   shapes: ShapeTriple | null;
+  safety?: SafetyResult;
 }
 
 interface TokenDoc {
@@ -88,7 +91,15 @@ interface ProfileDoc {
   fullName: string;
   username: string;
   walletAddress?: string;
+  /** Firestore Timestamp in production; epoch ms in tests. */
+  createdAt?: { toMillis(): number } | number;
 }
+
+interface PairDoc {
+  count: number;
+}
+
+const DAY_MS = 86_400_000;
 
 interface RateLimitDoc {
   windowStart: number;
@@ -104,6 +115,8 @@ export interface HumServiceDeps {
   naira: NairaProvider;
   /** Fetches a confirmed transaction in `jsonParsed` form, or null if not found. */
   fetchTransaction: (signature: string) => Promise<ParsedTransaction | null>;
+  /** External wallet risk (Webacy), or null when unavailable. */
+  walletRisk: (address: string) => Promise<{ score: number; topIssue: string | null } | null>;
 }
 
 const TOKEN_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -117,6 +130,8 @@ const tokenPath = (token: string) => `humTokens/${token}`;
 const manualCodePath = (code: string) => `humManualCodes/${code}`;
 const settlementPath = (signature: string) => `settlements/${signature}`;
 const activityPath = (uid: string, paymentId: string) => `users/${uid}/activity/${paymentId}`;
+/** Settled payments from one person to another, for "Paid N× before". */
+const pairPath = (fromUid: string, toUid: string) => `paymentPairs/${fromUid}_${toUid}`;
 const userPath = (uid: string) => `users/${uid}`;
 const ratePath = (uid: string, action: RateLimitedAction) => `rateLimits/${uid}_${action}`;
 
@@ -340,11 +355,13 @@ export class HumService {
         );
       }
       const recipient = await tx.get<ClaimDoc>(claimPath(request.paymentId, claimId));
+      const pair = await tx.get<PairDoc>(pairPath(uid, claimId));
       const settledAt = now();
 
       tx.update(humPath(request.paymentId), { status: 'settled', settledAt, signature });
       tx.update(claimPath(request.paymentId, claimId), { status: 'settled' });
       if (signature) tx.set(settlementPath(signature), { paymentId: request.paymentId, settledAt });
+      tx.set(pairPath(uid, claimId), { count: (pair?.count ?? 0) + 1 } satisfies PairDoc);
 
       const base = {
         kind: 'hum' as const,
@@ -369,6 +386,42 @@ export class HumService {
       } satisfies ActivityEntry);
       return { settledAt, signature };
     });
+  }
+
+  /**
+   * Runs the safety check for a claimant (from the sender's point of view) and stores the
+   * result on the claim. Called right after a claim; failures leave the claim unassessed.
+   */
+  async assessClaim(paymentId: string, claimId: string): Promise<SafetyResult | null> {
+    const { store, now, walletRisk } = this.deps;
+    const read = await store.transaction(async (tx) => {
+      const hum = await tx.get<HumDoc>(humPath(paymentId));
+      if (!hum) return null;
+      const profile = await tx.get<ProfileDoc>(userPath(claimId));
+      const pair = await tx.get<PairDoc>(pairPath(hum.senderUid, claimId));
+      return { hum, profile, paidBefore: pair?.count ?? 0 };
+    });
+    if (!read) return null;
+
+    const createdAt = read.profile?.createdAt;
+    const createdMs = typeof createdAt === 'number' ? createdAt : (createdAt?.toMillis() ?? null);
+    const address = read.profile?.walletAddress;
+    const wallet = read.hum.currency === 'USDC' && address ? await walletRisk(address) : null;
+    const safety = assessSafety(
+      {
+        accountAgeDays: createdMs === null ? null : (now() - createdMs) / DAY_MS,
+        paidBefore: read.paidBefore,
+        wallet,
+      },
+      now(),
+    );
+
+    await store.transaction(async (tx) => {
+      if (await tx.get<ClaimDoc>(claimPath(paymentId, claimId))) {
+        tx.update(claimPath(paymentId, claimId), { safety });
+      }
+    });
+    return safety;
   }
 
   async cancelHum(uid: string, request: CancelHumRequest): Promise<void> {

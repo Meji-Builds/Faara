@@ -7,6 +7,7 @@ import { adminDb, firestoreStore, verifyIdToken } from './firebaseAdmin';
 import { HumService } from './humService';
 import { MockNairaLedger } from './naira';
 import { fetchParsedTransaction } from './solanaRpc';
+import { fetchWalletRisk } from './webacy';
 
 let service: HumService | undefined;
 
@@ -21,6 +22,7 @@ function humService(): HumService {
       newId: () => randomBytes(15).toString('base64url'),
       naira: new MockNairaLedger(store, now),
       fetchTransaction: fetchParsedTransaction,
+      walletRisk: fetchWalletRisk,
     });
   }
   return service;

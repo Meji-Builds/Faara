@@ -2,7 +2,9 @@ import { Check, ShieldCheck, ShieldQuestion, TriangleAlert } from 'lucide-react-
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar } from '@/components/ui';
-import type { AvatarTone, WalletRisk } from '@/data/fixtures';
+import type { SafetyResult } from '@shared/hum';
+
+import type { AvatarTone } from '@/data/fixtures';
 import { initials } from '@/lib/money';
 import { fonts, palette, radii, useTheme } from '@/theme';
 
@@ -20,8 +22,8 @@ export interface ClaimantView {
   /** Rough estimate from signal strength; null when unknown (e.g. QR or manual code). */
   distanceCm: number | null;
   tone: AvatarTone;
-  /** Wallet safety result; undefined until the safety check runs. */
-  risk?: WalletRisk;
+  /** Safety badge; null until the server's check finishes. */
+  safety: SafetyResult | null;
 }
 
 interface ClaimantCardProps {
@@ -31,15 +33,16 @@ interface ClaimantCardProps {
   onSelect: () => void;
 }
 
-function riskLabel(risk: WalletRisk | undefined): string {
-  if (!risk) return 'Wallet not checked yet.';
-  return risk.level === 'low' ? 'Wallet checked, low risk.' : `Warning: ${risk.reason}.`;
+function safetyLabel(safety: SafetyResult | null): string {
+  if (!safety) return 'Safety check in progress.';
+  const prefix = safety.level === 'high' || safety.level === 'caution' ? 'Warning: ' : '';
+  return `${prefix}${safety.headline}${safety.detail ? `, ${safety.detail}` : ''}.`;
 }
 
 export function ClaimantCard({ claimant, selected, closest, onSelect }: ClaimantCardProps) {
   const { colors } = useTheme();
   const distance = claimant.distanceCm === null ? null : formatDistance(claimant.distanceCm);
-  const { risk } = claimant;
+  const { safety } = claimant;
   const distanceText = distance
     ? `about ${distance.value} ${distance.unit === 'cm' ? 'centimetres' : 'metres'} away`
     : 'distance unknown';
@@ -48,7 +51,7 @@ export function ClaimantCard({ claimant, selected, closest, onSelect }: Claimant
     <Pressable
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${claimant.name}, @${claimant.username}, ${distanceText}. ${riskLabel(risk)}`}
+      accessibilityLabel={`${claimant.name}, @${claimant.username}, ${distanceText}. ${safetyLabel(safety)}`}
       onPress={onSelect}
       style={[
         styles.card,
@@ -110,66 +113,69 @@ export function ClaimantCard({ claimant, selected, closest, onSelect }: Claimant
         </View>
       </View>
 
-      <RiskChip risk={risk} selected={selected} />
+      <SafetyChip safety={safety} selected={selected} />
     </Pressable>
   );
 }
 
-function RiskChip({ risk, selected }: { risk: WalletRisk | undefined; selected: boolean }) {
+function SafetyChip({ safety, selected }: { safety: SafetyResult | null; selected: boolean }) {
   const { colors } = useTheme();
   const neutralSurface = selected ? colors.brandInset : colors.surfaceMuted;
+  const level = safety?.level ?? 'unchecked';
 
-  if (!risk) {
+  if (level === 'caution' || level === 'high') {
     return (
-      <View style={[styles.chip, { backgroundColor: neutralSurface }]}>
-        <ShieldQuestion
-          size={18}
-          color={selected ? colors.onBrandMuted : colors.textMuted}
-          strokeWidth={1.75}
-        />
-        <AppText
-          variant="label"
-          color={selected ? 'onBrandMuted' : 'textMuted'}
-          style={styles.chipText}
-        >
-          Wallet not checked yet
+      <View style={[styles.chip, { backgroundColor: colors.warningSurface }]}>
+        <TriangleAlert size={18} color={colors.gold} strokeWidth={1.75} />
+        <AppText variant="label" style={[styles.chipText, { color: colors.gold }]}>
+          {safety?.headline}
         </AppText>
+        {safety?.detail ? (
+          <AppText variant="caption" style={[styles.history, { color: colors.gold }]}>
+            {safety.detail}
+          </AppText>
+        ) : null}
       </View>
     );
   }
-  if (risk.level === 'low') {
-    return (
-      <View style={[styles.chip, { backgroundColor: neutralSurface }]}>
-        <ShieldCheck
-          size={18}
-          color={selected ? palette.electricTeal : colors.accentText}
-          strokeWidth={1.75}
-        />
-        <AppText variant="label" color={selected ? 'onBrand' : 'text'} style={styles.chipText}>
-          Wallet checked ·{' '}
-          <AppText
-            variant="label"
-            style={{ color: selected ? palette.electricTeal : colors.accentText }}
-          >
-            Low risk
-          </AppText>
-        </AppText>
+
+  const good = level === 'low';
+  const accent = selected ? palette.electricTeal : colors.accentText;
+  const Icon = good ? ShieldCheck : ShieldQuestion;
+  const [lead, tail] =
+    good && safety?.headline.includes(' · ') ? safety.headline.split(' · ') : [null, null];
+  return (
+    <View style={[styles.chip, { backgroundColor: neutralSurface }]}>
+      <Icon
+        size={18}
+        color={good ? accent : selected ? colors.onBrandMuted : colors.textMuted}
+        strokeWidth={1.75}
+      />
+      <AppText
+        variant="label"
+        color={good ? (selected ? 'onBrand' : 'text') : selected ? 'onBrandMuted' : 'textMuted'}
+        style={styles.chipText}
+      >
+        {lead && tail ? (
+          <>
+            {lead} ·{' '}
+            <AppText variant="label" style={{ color: accent }}>
+              {tail}
+            </AppText>
+          </>
+        ) : (
+          (safety?.headline ?? 'Checking…')
+        )}
+      </AppText>
+      {safety?.detail ? (
         <AppText
           variant="caption"
           color={selected ? 'onBrandMuted' : 'textMuted'}
           style={styles.history}
         >
-          {risk.history}
+          {safety.detail}
         </AppText>
-      </View>
-    );
-  }
-  return (
-    <View style={[styles.chip, { backgroundColor: colors.warningSurface }]}>
-      <TriangleAlert size={18} color={colors.gold} strokeWidth={1.75} />
-      <AppText variant="label" style={[styles.chipText, { color: colors.gold }]}>
-        {risk.reason}
-      </AppText>
+      ) : null}
     </View>
   );
 }
