@@ -107,6 +107,7 @@ function RootStack() {
         <Stack.Screen name="receipt/[paymentId]" />
       </Stack.Protected>
       <Stack.Screen name="lab/sound" />
+      <Stack.Screen name="lab/code" />
     </Stack>
   );
 }
