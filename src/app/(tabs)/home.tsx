@@ -7,7 +7,8 @@ import { AppText, Avatar, IconButton, Screen } from '@/components/ui';
 import { BalanceCard } from '@/components/wallet/BalanceCard';
 import { QuickAction } from '@/components/wallet/QuickAction';
 import { TransactionRow } from '@/components/wallet/TransactionRow';
-import { balances, currentUser, recentTransactions } from '@/data/fixtures';
+import { balances, sampleAccounts, recentTransactions } from '@/data/fixtures';
+import { useProfile } from '@/features/auth';
 import { greeting } from '@/lib/greeting';
 import { initials } from '@/lib/money';
 import { palette, useTheme } from '@/theme';
@@ -15,17 +16,19 @@ import { palette, useTheme } from '@/theme';
 export default function HomeScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const profile = useProfile();
+  const firstName = profile.fullName.split(/\s+/)[0] ?? profile.fullName;
   const iconProps = { size: 24, color: colors.text, strokeWidth: 1.75 } as const;
 
   return (
     <Screen edges={['top']}>
       <View style={styles.header}>
-        <Avatar size={44} initials={initials(currentUser.fullName)} />
+        <Avatar size={44} initials={initials(profile.fullName)} />
         <View style={styles.greeting}>
           <AppText variant="body" color="textMuted">
             {greeting()}
           </AppText>
-          <AppText variant="subheading">{currentUser.firstName}</AppText>
+          <AppText variant="subheading">{firstName}</AppText>
         </View>
         <IconButton
           accessibilityLabel="Notifications"
@@ -37,7 +40,7 @@ export default function HomeScreen() {
       <BalanceCard
         naira={balances.NGN}
         usdc={balances.USDC}
-        accountNumber={currentUser.accountNumber}
+        accountNumber={sampleAccounts.accountNumber}
       />
 
       <View style={styles.actions}>

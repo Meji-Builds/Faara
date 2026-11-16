@@ -1,0 +1,54 @@
+rules_version = '2';
+
+// Faara Firestore security rules.
+// Deploy: paste into Firebase Console → Firestore Database → Rules, or `firebase deploy --only firestore:rules`.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isValidUsername(name) {
+      return name is string && name.matches('^[a-z0-9._]{3,20}$');
+    }
+
+    // Profiles: private to their owner. Created once during sign-up; tier changes are server-only.
+    match /users/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['fullName', 'username', 'phone', 'verificationTier', 'createdAt'])
+        && request.resource.data.fullName is string
+        && request.resource.data.fullName.size() >= 2
+        && request.resource.data.fullName.size() <= 80
+        && isValidUsername(request.resource.data.username)
+        // The phone must be the one verified by Firebase Auth.
+        && request.resource.data.phone == request.auth.token.phone_number
+        && request.resource.data.verificationTier == 1
+        && request.resource.data.createdAt == request.time
+        // The username must be reserved for this user in the same write.
+        && getAfter(/databases/$(database)/documents/usernames/$(request.resource.data.username)).data.uid == uid;
+
+      allow update, delete: if false;
+    }
+
+    // Username reservations make usernames unique. Anyone may check whether one exists.
+    match /usernames/{username} {
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if signedIn()
+        && isValidUsername(username)
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        // One username per account, claimed together with the profile.
+        && !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && existsAfter(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      allow update, delete: if false;
+    }
+  }
+}

@@ -1,44 +1,87 @@
 import { useRouter } from 'expo-router';
-import { Fingerprint } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Header, OtpField, PhoneField, Screen } from '@/components/ui';
+import { authErrorMessage, requestPhoneCode, toE164, useAuth } from '@/features/auth';
 import { isCompletePhoneNumber, maskPhone } from '@/lib/phone';
-import { useTheme } from '@/theme';
+import { useCountdown } from '@/lib/useCountdown';
 
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
 export default function LogInScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
+  const { status, pending, setPending } = useAuth();
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
+  const [busy, setBusy] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const resend = useCountdown(RESEND_SECONDS);
 
-  const codeSent = isCompletePhoneNumber(phone);
+  // A code request for a different number (or from sign-up) doesn't apply here.
+  const codeSent = pending !== null && !pending.signUp && pending.phoneE164 === toE164(phone);
 
+  // After the code is accepted, route on whether this number has a Faara profile.
   useEffect(() => {
-    if (!codeSent || secondsLeft === 0) return;
-    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [codeSent, secondsLeft]);
+    if (!confirmed) return;
+    if (status === 'ready') router.replace('/home');
+    if (status === 'needsProfile') router.replace('/sign-up');
+  }, [confirmed, status, router]);
 
-  const goHome = () => router.replace('/home');
-  const countdown = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`;
+  const sendCode = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      setPending(await requestPhoneCode(phone));
+      setCode('');
+      resend.restart();
+    } catch (cause) {
+      setError(authErrorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const logIn = async () => {
+    if (!pending) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await pending.confirm(code);
+      setPending(null);
+      setConfirmed(true);
+    } catch (cause) {
+      setError(authErrorMessage(cause));
+      setBusy(false);
+    }
+  };
 
   return (
     <Screen
       footer={
         <>
-          <Button label="Log in" disabled={code.length !== CODE_LENGTH} onPress={goHome} />
-          <Button
-            label="Use fingerprint instead"
-            variant="text"
-            icon={<Fingerprint size={22} color={colors.accentText} strokeWidth={1.75} />}
-            onPress={goHome}
-          />
+          {error ? (
+            <AppText variant="label" color="gold" align="center">
+              {error}
+            </AppText>
+          ) : null}
+          {codeSent ? (
+            <Button
+              label="Log in"
+              disabled={code.length !== CODE_LENGTH}
+              loading={busy}
+              onPress={logIn}
+            />
+          ) : (
+            <Button
+              label="Send code"
+              disabled={!isCompletePhoneNumber(phone)}
+              loading={busy}
+              onPress={sendCode}
+            />
+          )}
         </>
       }
     >
@@ -57,12 +100,12 @@ export default function LogInScreen() {
             <AppText variant="label" color="textMuted">
               Enter the {CODE_LENGTH}-digit code we sent to {maskPhone(phone)}
             </AppText>
-            <OtpField value={code} onChangeText={setCode} length={CODE_LENGTH} />
-            {secondsLeft > 0 ? (
+            <OtpField value={code} onChangeText={setCode} length={CODE_LENGTH} autoFocus />
+            {resend.remaining > 0 ? (
               <AppText variant="body" color="textMuted">
                 Resend code in{' '}
                 <AppText variant="bodyStrong" color="gold">
-                  {countdown}
+                  {resend.label}
                 </AppText>
               </AppText>
             ) : (
@@ -70,7 +113,7 @@ export default function LogInScreen() {
                 variant="bodyStrong"
                 color="accentText"
                 accessibilityRole="button"
-                onPress={() => setSecondsLeft(RESEND_SECONDS)}
+                onPress={sendCode}
               >
                 Resend code
               </AppText>

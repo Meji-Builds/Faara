@@ -1,8 +1,11 @@
 import { Redirect } from 'expo-router';
 
-/**
- * Entry route. Until authentication lands (milestone 2), always start at Welcome.
- */
+import { useAuth } from '@/features/auth';
+
+/** Entry route: sends people to Home, to finish sign-up, or to Welcome. */
 export default function Index() {
+  const { status } = useAuth();
+  if (status === 'ready') return <Redirect href="/home" />;
+  if (status === 'needsProfile') return <Redirect href="/sign-up" />;
   return <Redirect href="/welcome" />;
 }

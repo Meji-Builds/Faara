@@ -17,6 +17,7 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { AuthProvider, useAuth } from '@/features/auth';
 import { ThemeProvider, useTheme } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -35,18 +36,14 @@ export default function RootLayout() {
     JetBrainsMono_500Medium,
   });
 
-  const ready = fontsLoaded || Boolean(fontError);
-
-  useEffect(() => {
-    if (ready) SplashScreen.hideAsync().catch(() => undefined);
-  }, [ready]);
-
-  if (!ready) return null;
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <RootStack />
+        <AuthProvider>
+          <RootStack />
+        </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
@@ -54,10 +51,20 @@ export default function RootLayout() {
 
 function RootStack() {
   const { colors } = useTheme();
+  const { status } = useAuth();
+  const restoring = status === 'loading';
 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(colors.background).catch(() => undefined);
   }, [colors.background]);
+
+  // Keep the splash screen up until the saved session has been restored.
+  useEffect(() => {
+    if (!restoring) SplashScreen.hideAsync().catch(() => undefined);
+  }, [restoring]);
+
+  if (restoring) return null;
+  const signedIn = status === 'ready';
 
   return (
     <Stack
@@ -68,10 +75,14 @@ function RootStack() {
       }}
     >
       <Stack.Screen name="index" options={{ animation: 'none' }} />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
-      <Stack.Screen name="hum" options={{ animation: 'slide_from_bottom' }} />
-      <Stack.Screen name="settings" />
+      <Stack.Protected guard={!signedIn}>
+        <Stack.Screen name="(auth)" />
+      </Stack.Protected>
+      <Stack.Protected guard={signedIn}>
+        <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="hum" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="settings" />
+      </Stack.Protected>
       <Stack.Screen name="lab/sound" />
     </Stack>
   );

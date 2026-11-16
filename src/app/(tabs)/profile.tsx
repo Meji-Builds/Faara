@@ -4,14 +4,18 @@ import { StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { AppText, Avatar, Button, Card, IconButton, ListRow, Screen } from '@/components/ui';
-import { currentUser } from '@/data/fixtures';
+import { sampleAccounts } from '@/data/fixtures';
+import { useAuth, useProfile } from '@/features/auth';
 import { initials } from '@/lib/money';
+import { maskPhone, normalizePhoneInput } from '@/lib/phone';
 import { palette, radii, useTheme } from '@/theme';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const user = currentUser;
+  const { signOut } = useAuth();
+  const profile = useProfile();
+  // Bank and wallet details are sample data until the BaaS partner and wallet are connected.
 
   return (
     <Screen edges={['top']}>
@@ -27,16 +31,16 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.identity}>
-        <Avatar size={72} initials={initials(user.fullName)} />
+        <Avatar size={72} initials={initials(profile.fullName)} />
         <View style={styles.identityText}>
-          <AppText variant="heading">{user.fullName}</AppText>
+          <AppText variant="heading">{profile.fullName}</AppText>
           <AppText variant="body" color="textMuted">
-            @{user.username} · {user.phoneMasked}
+            @{profile.username} · {maskPhone(normalizePhoneInput(profile.phone))}
           </AppText>
           <View style={styles.verified}>
             <ShieldCheck size={16} color={colors.accentText} strokeWidth={2} />
             <AppText variant="bodyStrong" color="accentText">
-              Verified · Tier {user.verificationTier}
+              Verified · Tier {profile.verificationTier}
             </AppText>
           </View>
         </View>
@@ -53,7 +57,7 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.qr} accessibilityLabel="Your Faara QR code">
           <QRCode
-            value={`https://faara.app/@${user.username}`}
+            value={`https://faara.app/@${profile.username}`}
             size={76}
             color={palette.deepGreen}
             backgroundColor="#EAF7F2"
@@ -65,19 +69,19 @@ export default function ProfileScreen() {
         <ListRow label="Personal details" onPress={() => undefined} />
         <ListRow
           label="Limits and verification"
-          value={`Tier ${user.verificationTier}`}
+          value={`Tier ${profile.verificationTier}`}
           onPress={() => undefined}
         />
         <ListRow
           label="Linked bank account"
-          value={`•• ${user.linkedBankLast4}`}
+          value={`•• ${sampleAccounts.linkedBankLast4}`}
           onPress={() => undefined}
         />
         <ListRow
           label="Dollar wallet (Solana)"
           value={
             <AppText variant="body" color="gold" style={styles.mono}>
-              {user.solanaAddressShort}
+              {sampleAccounts.solanaAddressShort}
             </AppText>
           }
           onPress={() => undefined}
@@ -86,12 +90,7 @@ export default function ProfileScreen() {
         <ListRow label="Help and support" onPress={() => undefined} />
       </Card>
 
-      <Button
-        label="Log out"
-        variant="text"
-        onPress={() => router.replace('/welcome')}
-        style={styles.logout}
-      />
+      <Button label="Log out" variant="text" onPress={signOut} style={styles.logout} />
     </Screen>
   );
 }

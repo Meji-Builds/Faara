@@ -5,23 +5,14 @@
 import type { Currency } from '@/lib/money';
 import type { BrandShape } from '@/components/brand/ShapeGlyph';
 
-export interface UserProfile {
-  fullName: string;
-  firstName: string;
-  username: string;
-  phoneMasked: string;
-  verificationTier: number;
+/** Account details that come from the BaaS partner and wallet in later milestones. */
+export interface SampleAccounts {
   accountNumber: string;
   linkedBankLast4: string;
   solanaAddressShort: string;
 }
 
-export const currentUser: UserProfile = {
-  fullName: 'Ada Okafor',
-  firstName: 'Ada',
-  username: 'ada.ok',
-  phoneMasked: '+234 803 ••• 4567',
-  verificationTier: 2,
+export const sampleAccounts: SampleAccounts = {
   accountNumber: '012 345 6789',
   linkedBankLast4: '4521',
   solanaAddressShort: '7xKX…9fQa',

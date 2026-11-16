@@ -91,6 +91,16 @@ Audio I/O sits behind one interface (`src/features/sound/audio`):
 
 To test, install a build on two phones, open **Settings → Developer → Sound lab**, start humming on one and listening on the other.
 
+## Accounts (Firebase)
+
+Sign-in is by phone number with Firebase Authentication; profiles live in Firestore (project `faara-hum`).
+
+- `users/{uid}`: name, username, verified phone, verification tier. Readable only by its owner.
+- `usernames/{username}`: reservation that keeps usernames unique, written in the same transaction as the profile.
+- Rules: `firestore.rules` (enforces ownership, the verified phone number and username format).
+
+While `PHONE_AUTH_TEST_NUMBERS_ONLY` is on (`src/lib/firebase/config.ts`), only the test numbers set in Firebase Console → Authentication → Sign-in method → Phone work, and no SMS is sent. Real SMS will go through a Nigerian provider from Cloud Functions before launch.
+
 ## Theming
 
 Brand colours and fonts live in `src/theme`. Components read semantic tokens from `useTheme().colors` rather than raw hex values, so dark and light mode stay consistent. Dark is the default; users can switch to Light or System in Settings.
