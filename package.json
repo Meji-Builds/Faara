@@ -73,5 +73,8 @@
     "transformIgnorePatterns": [
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|react-native-svg|@noble/.*|@scure/.*|@solana/.*|lucide-react-native|uuid|rpc-websockets)"
     ]
+  },
+  "engines": {
+    "node": "22.x"
   }
 }

@@ -47,11 +47,13 @@ export async function postJson<Res>(path: string, body: unknown): Promise<Res> {
   }
 
   const payload: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const error = (payload as Partial<ApiErrorBody> | null)?.error;
+  const error = (payload as Partial<ApiErrorBody> | null)?.error;
+  if (!response.ok || payload === null) {
+    if (error?.message) throw new ApiRequestError(error.code ?? 'internal', error.message);
+    // Not one of our JSON errors: the server function crashed or isn't deployed.
     throw new ApiRequestError(
-      error?.code ?? 'internal',
-      error?.message ?? 'Something went wrong. Try again.',
+      'internal',
+      `Faara’s server isn’t responding properly (HTTP ${response.status}). Try again in a minute.`,
     );
   }
   return payload as Res;
