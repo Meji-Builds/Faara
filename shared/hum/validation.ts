@@ -3,6 +3,8 @@ import type {
   ChooseRecipientRequest,
   ClaimHumRequest,
   CreateHumRequest,
+  CreateTransferRequest,
+  LookupUserRequest,
   SettleHumRequest,
 } from './api';
 import {
@@ -106,4 +108,22 @@ export function parseSettleHum(body: unknown): SettleHumRequest {
     throw new ValidationError('signature is invalid.');
   }
   return { paymentId, signature: data.signature };
+}
+
+const USERNAME_PATTERN = /^[a-z0-9._]{3,20}$/;
+
+function requireUsername(value: unknown): string {
+  const username = typeof value === 'string' ? value.trim().replace(/^@/, '').toLowerCase() : '';
+  if (!USERNAME_PATTERN.test(username)) throw new ValidationError('username is invalid.');
+  return username;
+}
+
+export function parseLookupUser(body: unknown): LookupUserRequest {
+  return { username: requireUsername(requireRecord(body).username) };
+}
+
+export function parseCreateTransfer(body: unknown): CreateTransferRequest {
+  const data = requireRecord(body);
+  const { amount, currency, note } = parseCreateHum(data);
+  return { username: requireUsername(data.username), amount, currency, note };
 }

@@ -49,6 +49,32 @@ export interface ChooseRecipientResponse {
   recipient: { fullName: string; username: string; walletAddress: string | null };
 }
 
+export interface LookupUserRequest {
+  username: string;
+}
+
+export interface LookupUserResponse {
+  fullName: string;
+  username: string;
+  /** Whether they can receive USDC. */
+  hasWallet: boolean;
+}
+
+/** Send to a username: creates a payment already addressed to the recipient. */
+export interface CreateTransferRequest {
+  username: string;
+  amount: number;
+  currency: HumCurrency;
+  note?: string;
+}
+
+export interface CreateTransferResponse {
+  paymentId: string;
+  /** Claim id of the recipient (for reading the safety badge). */
+  claimId: string;
+  recipient: { fullName: string; username: string; walletAddress: string | null };
+}
+
 export interface SettleHumRequest {
   paymentId: string;
   /** Solana transaction signature; required for USDC hums. */

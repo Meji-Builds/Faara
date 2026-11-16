@@ -66,7 +66,11 @@ export default function HomeScreen() {
             router.push('/hum');
           }}
         />
-        <QuickAction label="Send" icon={<ArrowRight {...iconProps} />} />
+        <QuickAction
+          label="Send"
+          icon={<ArrowRight {...iconProps} />}
+          onPress={() => router.push('/send')}
+        />
         <QuickAction
           label="Request"
           icon={<ArrowLeft {...iconProps} />}

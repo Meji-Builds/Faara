@@ -404,3 +404,52 @@ describe('HumService safety assessment', () => {
     });
   });
 });
+
+describe('HumService send by username', () => {
+  function withUsernames() {
+    const env = setup();
+    env.store.docs.set('usernames/tolu.a', { uid: 'tolu' });
+    env.store.docs.set('usernames/ada.ok', { uid: 'sender' });
+    return env;
+  }
+
+  it('looks people up by username without exposing private fields', async () => {
+    const { service } = withUsernames();
+    await expect(service.lookupUser('sender', { username: 'tolu.a' })).resolves.toEqual({
+      fullName: 'Tolu Adebayo',
+      username: 'tolu.a',
+      hasWallet: true,
+    });
+    await expectApiError(service.lookupUser('sender', { username: 'nobody' }), 'not-found');
+  });
+
+  it('creates an addressed payment that settles like a hum', async () => {
+    const { service, store } = withUsernames();
+    const transfer = await service.createTransfer('sender', {
+      username: 'tolu.a',
+      amount: 2_000,
+      currency: 'NGN',
+    });
+    expect(transfer.recipient.username).toBe('tolu.a');
+    await service.settleHum('sender', { paymentId: transfer.paymentId });
+    expect(store.docs.get('ledgerAccounts/tolu')).toMatchObject({
+      balanceKobo: 20_000_000 + 200_000,
+    });
+    expect(store.docs.get(`users/tolu/activity/${transfer.paymentId}`)).toMatchObject({
+      kind: 'transfer',
+      direction: 'in',
+    });
+  });
+
+  it('refuses sending to yourself or to unknown usernames', async () => {
+    const { service } = withUsernames();
+    await expectApiError(
+      service.createTransfer('sender', { username: 'ada.ok', amount: 5, currency: 'NGN' }),
+      'invalid-argument',
+    );
+    await expectApiError(
+      service.createTransfer('sender', { username: 'ghost', amount: 5, currency: 'NGN' }),
+      'not-found',
+    );
+  });
+});

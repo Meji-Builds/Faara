@@ -12,6 +12,11 @@ import {
   type ChooseRecipientRequest,
   type ChooseRecipientResponse,
   type ClaimChannel,
+  type CreateTransferRequest,
+  type CreateTransferResponse,
+  type LookupUserRequest,
+  type LookupUserResponse,
+  type PaymentChannel,
   type ClaimHumRequest,
   type ClaimHumResponse,
   type CreateHumRequest,
@@ -68,13 +73,15 @@ export interface HumDoc {
   recipientWallet: string | null;
   settledAt: number | null;
   signature: string | null;
+  /** `transfer` for Send-by-username payments; absent (hum) otherwise. */
+  kind?: 'hum' | 'transfer';
 }
 
 export interface ClaimDoc {
   claimantUid: string;
   fullName: string;
   username: string;
-  channel: ClaimChannel;
+  channel: PaymentChannel;
   distanceCm: number | null;
   createdAt: number;
   status: 'pending' | 'chosen' | 'not-chosen' | 'settled';
@@ -194,6 +201,106 @@ export class HumService {
       } satisfies TokenDoc);
       return { paymentId, token, manualCode, expiresAt: hum.expiresAt };
     });
+  }
+
+  /** Finds a person by username for Send. Reveals only name, username and wallet readiness. */
+  async lookupUser(uid: string, request: LookupUserRequest): Promise<LookupUserResponse> {
+    await this.consumeRate(uid, 'lookupUser');
+    return this.deps.store.transaction(async (tx) => {
+      const found = await this.findByUsername(tx, request.username);
+      if (!found)
+        throw new ApiError('not-found', `Nobody on Faara is called @${request.username}.`);
+      return {
+        fullName: found.profile.fullName,
+        username: found.profile.username,
+        hasWallet: Boolean(found.profile.walletAddress),
+      };
+    });
+  }
+
+  /**
+   * Send to a username. Creates a payment already addressed to the recipient (no proximity
+   * step), which then settles exactly like a hum via `settleHum`.
+   */
+  async createTransfer(
+    uid: string,
+    request: CreateTransferRequest,
+  ): Promise<CreateTransferResponse> {
+    const { store, now, newId } = this.deps;
+    await this.consumeRate(uid, 'createHum');
+    return store.transaction(async (tx) => {
+      const sender = await this.requireProfile(tx, uid);
+      const found = await this.findByUsername(tx, request.username);
+      if (!found)
+        throw new ApiError('not-found', `Nobody on Faara is called @${request.username}.`);
+      if (found.uid === uid)
+        throw new ApiError('invalid-argument', 'You can’t send money to yourself.');
+      const recipientWallet = found.profile.walletAddress ?? null;
+      if (request.currency === 'USDC') {
+        if (!sender.walletAddress)
+          throw new ApiError('failed-precondition', 'Set up your dollar wallet first.');
+        if (!recipientWallet) {
+          throw new ApiError(
+            'failed-precondition',
+            `${found.profile.fullName} hasn’t set up a dollar wallet yet. Send naira instead.`,
+          );
+        }
+      }
+
+      const createdAt = now();
+      const paymentId = newId();
+      const hum: HumDoc = {
+        senderUid: uid,
+        senderName: sender.fullName,
+        senderUsername: sender.username,
+        amountMinor: toMinorUnits(request.amount),
+        currency: request.currency,
+        note: request.note ?? '',
+        status: 'chosen',
+        createdAt,
+        expiresAt: createdAt,
+        chooseBy: createdAt + HUM_CHOOSE_TTL_MS,
+        claimCount: 1,
+        chosenClaimId: found.uid,
+        shapes: null,
+        senderWallet: sender.walletAddress ?? null,
+        recipientWallet,
+        settledAt: null,
+        signature: null,
+        kind: 'transfer',
+      };
+      const claim: ClaimDoc = {
+        claimantUid: found.uid,
+        fullName: found.profile.fullName,
+        username: found.profile.username,
+        channel: 'username',
+        distanceCm: null,
+        createdAt,
+        status: 'chosen',
+        shapes: null,
+      };
+      tx.set(humPath(paymentId), hum);
+      tx.set(claimPath(paymentId, found.uid), claim);
+      return {
+        paymentId,
+        claimId: found.uid,
+        recipient: {
+          fullName: found.profile.fullName,
+          username: found.profile.username,
+          walletAddress: recipientWallet,
+        },
+      };
+    });
+  }
+
+  private async findByUsername(
+    tx: StoreTransaction,
+    username: string,
+  ): Promise<{ uid: string; profile: ProfileDoc } | null> {
+    const reservation = await tx.get<{ uid: string }>(`usernames/${username}`);
+    if (!reservation) return null;
+    const profile = await tx.get<ProfileDoc>(userPath(reservation.uid));
+    return profile ? { uid: reservation.uid, profile } : null;
   }
 
   async claimHum(uid: string, request: ClaimHumRequest): Promise<ClaimHumResponse> {
@@ -364,7 +471,7 @@ export class HumService {
       tx.set(pairPath(uid, claimId), { count: (pair?.count ?? 0) + 1 } satisfies PairDoc);
 
       const base = {
-        kind: 'hum' as const,
+        kind: current.kind ?? 'hum',
         paymentId: request.paymentId,
         amountMinor: current.amountMinor,
         currency: current.currency,

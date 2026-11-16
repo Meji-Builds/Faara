@@ -38,12 +38,15 @@ export const RATE_LIMITS = {
   claimManual: 6,
   chooseRecipient: 20,
   settleHum: 20,
+  lookupUser: 30,
 } as const;
 export type RateLimitedAction = keyof typeof RATE_LIMITS;
 
 export type HumStatus = 'open' | 'chosen' | 'cancelled' | 'settled';
 export type ClaimChannel = 'sound' | 'bluetooth' | 'qr' | 'manual';
 export const CLAIM_CHANNELS: readonly ClaimChannel[] = ['sound', 'bluetooth', 'qr', 'manual'];
+/** How a payment reached its recipient: a proximity channel, or a username (Send). */
+export type PaymentChannel = ClaimChannel | 'username';
 
 /** Amounts are stored as integer minor units (kobo, or cents of USDC). */
 export function toMinorUnits(amount: number): number {
