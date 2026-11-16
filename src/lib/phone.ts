@@ -50,3 +50,12 @@ export function maskPhone(digits: string): string {
   if (national.length < NATIONAL_LENGTH) return `+${COUNTRY_CODE}`;
   return `+${COUNTRY_CODE} ${national.slice(0, 3)} ••• ${national.slice(6)}`;
 }
+
+/** "+2348114614728" → "+234 811 461 4728" */
+export function formatE164(phone: string | null | undefined): string {
+  if (!phone) return '';
+  const national = nationalNumber(normalizePhoneInput(phone));
+  return national.length === NATIONAL_LENGTH
+    ? `+${COUNTRY_CODE} ${formatPhoneInput(national)}`
+    : phone;
+}

@@ -9,7 +9,7 @@ import {
 
 import { db } from '@/lib/firebase';
 
-import { UsernameTakenError } from './errors';
+import { ProfileTimeoutError, UsernameTakenError } from './errors';
 
 /** 3–20 characters: lowercase letters, numbers, dots and underscores. */
 export const USERNAME_PATTERN = /^[a-z0-9._]{3,20}$/;
@@ -43,8 +43,31 @@ export interface NewProfile {
   phone: string;
 }
 
+const WRITE_TIMEOUT_MS = 15_000;
+
+/** Rejects with ProfileTimeoutError if `promise` takes too long. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new ProfileTimeoutError()), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 /** Creates the profile and reserves the username atomically. */
 export async function createProfile(uid: string, profile: NewProfile): Promise<void> {
+  await withTimeout(saveProfile(uid, profile), WRITE_TIMEOUT_MS);
+}
+
+async function saveProfile(uid: string, profile: NewProfile): Promise<void> {
   await runTransaction(db, async (tx) => {
     const reservation = await tx.get(usernameRef(profile.username));
     if (reservation.exists()) throw new UsernameTakenError(profile.username);

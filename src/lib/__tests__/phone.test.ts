@@ -1,4 +1,5 @@
 import {
+  formatE164,
   formatPhoneInput,
   isCompletePhoneNumber,
   maskPhone,
@@ -40,5 +41,7 @@ describe('phone input', () => {
     expect(formatPhoneInput('8114614728')).toBe('811 461 4728');
     expect(formatPhoneInput('081')).toBe('081');
     expect(maskPhone('08114614728')).toBe('+234 811 ••• 4728');
+    expect(formatE164('+2348114614728')).toBe('+234 811 461 4728');
+    expect(formatE164(null)).toBe('');
   });
 });

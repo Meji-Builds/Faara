@@ -2,12 +2,29 @@ import { FirebaseError } from 'firebase/app';
 
 import { PHONE_AUTH_TEST_NUMBERS_ONLY } from '@/lib/firebase';
 
+export class UsernameTakenError extends Error {
+  constructor(username: string) {
+    super(`@${username} was just taken. Choose another username.`);
+  }
+}
+
+/** Thrown when Firestore doesn't answer in time (offline, or the database isn't set up). */
+export class ProfileTimeoutError extends Error {
+  constructor() {
+    super('Timed out reaching Firestore');
+  }
+}
+
 /** Turns Firebase and app errors into messages fit for the user. */
 export function authErrorMessage(error: unknown): string {
   const message = friendlyMessage(error);
-  // While in test mode, show the raw Firebase code so setup problems can be diagnosed.
-  if (PHONE_AUTH_TEST_NUMBERS_ONLY && error instanceof FirebaseError)
-    return `${message} (${error.code})`;
+  // While in test mode, append the underlying cause so setup problems can be diagnosed.
+  if (PHONE_AUTH_TEST_NUMBERS_ONLY) {
+    if (error instanceof FirebaseError) return `${message} (${error.code})`;
+    if (error instanceof Error && !(error instanceof UsernameTakenError)) {
+      return `${message} (${error.message})`;
+    }
+  }
   return message;
 }
 
@@ -42,15 +59,16 @@ function friendlyMessage(error: unknown): string {
       case 'permission-denied':
         return 'You don’t have permission to do that.';
       case 'unavailable':
+      case 'deadline-exceeded':
         return 'Faara can’t be reached right now. Try again shortly.';
+      case 'not-found':
+      case 'failed-precondition':
+        return 'Your account couldn’t be saved: the database isn’t set up yet.';
     }
   }
   if (error instanceof UsernameTakenError) return error.message;
-  return 'Something went wrong. Try again.';
-}
-
-export class UsernameTakenError extends Error {
-  constructor(username: string) {
-    super(`@${username} was just taken. Choose another username.`);
+  if (error instanceof ProfileTimeoutError) {
+    return 'Saving your account is taking too long. Check your connection and try again.';
   }
+  return 'Something went wrong. Try again.';
 }

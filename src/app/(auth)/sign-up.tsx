@@ -12,7 +12,7 @@ import {
   useAuth,
   USERNAME_PATTERN,
 } from '@/features/auth';
-import { isCompletePhoneNumber } from '@/lib/phone';
+import { formatE164, isCompletePhoneNumber } from '@/lib/phone';
 import { fonts, useTheme } from '@/theme';
 
 type Availability = 'idle' | 'checking' | 'available' | 'taken' | 'unknown';
@@ -21,7 +21,7 @@ const CHECK_DELAY_MS = 400;
 
 export default function SignUpScreen() {
   const router = useRouter();
-  const { status, user, signOut, setPending } = useAuth();
+  const { status, user, profileFailed, signOut, setPending } = useAuth();
   // Phone already verified but the profile was never created (e.g. app closed mid sign-up).
   const finishing = status === 'needsProfile' && user !== null;
 
@@ -129,9 +129,15 @@ export default function SignUpScreen() {
         </AppText>
         <AppText color="textMuted">
           {finishing
-            ? `Your number ${user.phoneNumber ?? ''} is verified. Add your name and username.`
+            ? `Your number ${formatE164(user.phoneNumber)} is verified. Add your name and username.`
             : "We'll text you a code to confirm your number."}
         </AppText>
+        {finishing && profileFailed ? (
+          <AppText variant="label" color="gold">
+            We couldn’t reach your account details. If you already finished sign-up, check your
+            connection and reopen the app.
+          </AppText>
+        ) : null}
       </View>
 
       <View style={styles.form}>

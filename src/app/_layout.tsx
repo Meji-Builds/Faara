@@ -14,7 +14,7 @@ import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono';
 import { SplashScreen } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/features/auth';
@@ -52,7 +52,11 @@ export default function RootLayout() {
 function RootStack() {
   const { colors } = useTheme();
   const { status } = useAuth();
-  const restoring = status === 'loading';
+  // Only the very first session restore holds the splash screen. Later loading states
+  // (e.g. fetching the profile right after sign-in) must keep the current screen mounted.
+  const [restored, setRestored] = useState(false);
+  const restoring = !restored && status === 'loading';
+  if (!restored && status !== 'loading') setRestored(true);
 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(colors.background).catch(() => undefined);
