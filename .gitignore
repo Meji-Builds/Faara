@@ -42,3 +42,6 @@ yarn-error.*
 
 # EAS
 .eas/
+
+# Native type-check cache
+.cache/

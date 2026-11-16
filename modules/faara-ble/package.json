@@ -1,0 +1,7 @@
+{
+  "name": "faara-ble",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bluetooth LE advertising and scanning of hum codes for Faara.",
+  "main": "index.ts"
+}

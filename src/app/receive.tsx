@@ -7,6 +7,7 @@ import type { ClaimChannel, ClaimHumResponse, ShapeTriple } from '@shared/hum';
 import { ShapeGlyph } from '@/components/brand';
 import { HumPulse, QrScanner } from '@/components/hum';
 import { AppText, Button, Card, Header, OtpField, Screen, TextTabs } from '@/components/ui';
+import { estimateDistanceFromRssi, useBleScan } from '@/features/ble';
 import { claimHum, watchClaim, watchHum, type HumClaim, type HumState } from '@/features/hum';
 import { estimateDistanceCm, useHumListener, type DecodedHum } from '@/features/sound';
 import { apiErrorMessage } from '@/lib/api/client';
@@ -56,10 +57,17 @@ export default function ReceiveScreen() {
   );
 
   const listener = useHumListener(onDecode);
+  // Race Bluetooth against sound: whichever decodes a code first claims it.
+  const onBleToken = useCallback(
+    (token: string, rssi: number) =>
+      submitClaim({ token }, 'bluetooth', estimateDistanceFromRssi(rssi)),
+    [submitClaim],
+  );
   const { start, stop } = listener;
 
   // Listen while waiting for a hum; release the microphone once one is caught.
   const listening = phase.kind === 'listening' && method === 'listen';
+  const bleState = useBleScan(listening, onBleToken);
   useEffect(() => {
     if (phase.kind === 'listening') claiming.current = false;
   }, [phase.kind]);
@@ -144,6 +152,7 @@ export default function ReceiveScreen() {
             state={listener.state}
             error={listener.error ?? listener.unavailableReason ?? null}
             onRetry={listener.start}
+            bluetoothActive={bleState === 'active'}
           />
         ) : phase.kind === 'claiming' ? (
           <Status busy title="Hum caught" message="Letting the sender know you’re here…" />
@@ -167,10 +176,12 @@ function Listening({
   state,
   error,
   onRetry,
+  bluetoothActive,
 }: {
   state: ReturnType<typeof useHumListener>['state'];
   error: string | null;
   onRetry: () => void;
+  bluetoothActive: boolean;
 }) {
   if (state === 'denied') {
     return (
@@ -199,7 +210,8 @@ function Listening({
         Ready to receive
       </AppText>
       <AppText color="textMuted" align="center">
-        Hold your phone close to the sender’s. Faara is listening for their hum.
+        Hold your phone close to the sender’s. Faara is listening for their hum
+        {bluetoothActive ? ' and scanning Bluetooth' : ''}.
       </AppText>
     </View>
   );

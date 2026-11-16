@@ -7,6 +7,7 @@ import { HUM_TOKEN_TTL_MS } from '@shared/hum';
 
 import { ChannelList, FallbackCode, HumPulse, type ChannelStatus } from '@/components/hum';
 import { AppText, Avatar, Button, Header, Screen } from '@/components/ui';
+import { useBleBroadcast, type BleChannelState } from '@/features/ble';
 import { cancelHum, createHum, useHumDraft } from '@/features/hum';
 import { useHumBroadcaster } from '@/features/sound';
 import { apiErrorMessage } from '@/lib/api/client';
@@ -18,6 +19,29 @@ const FALLBACK_AFTER_MS = 3000;
 /** Broadcast volume; Normal decoded reliably at ~60 cm in field tests. */
 const HUM_VOLUME = 0.5;
 const AVATAR_TONES = ['soft', 'gold', 'surface'] as const;
+
+const BLE_LABELS: Partial<Record<BleChannelState, string>> = {
+  'not-on-platform': 'App only',
+  'not-in-build': 'Update app',
+  unsupported: 'Not supported',
+  off: 'Turned off',
+  denied: 'No permission',
+  error: 'Unavailable',
+};
+
+function bluetoothStatus(state: BleChannelState, live: boolean): ChannelStatus {
+  if (state === 'active') return { id: 'bluetooth', state: 'active', statusLabel: 'Broadcasting' };
+  if (!live)
+    return {
+      id: 'bluetooth',
+      state: 'idle',
+      statusLabel: Platform.OS === 'web' ? 'App only' : 'Stopped',
+    };
+  const label = BLE_LABELS[state];
+  return label
+    ? { id: 'bluetooth', state: 'unavailable', statusLabel: label }
+    : { id: 'bluetooth', state: 'idle', statusLabel: 'Starting' };
+}
 
 export default function HummingScreen() {
   const router = useRouter();
@@ -56,6 +80,7 @@ export default function HummingScreen() {
     expiresAtLocal === null ? HUM_TOKEN_TTL_MS : Math.max(0, expiresAtLocal - now);
   const expired = session !== null && remainingMs === 0;
   const { start: startBroadcast, stop: stopBroadcast } = broadcaster;
+  const bleState = useBleBroadcast(session && !expired ? session.token : null);
 
   // Broadcast the code while it's valid.
   useEffect(() => {
@@ -101,11 +126,7 @@ export default function HummingScreen() {
 
   const channels: ChannelStatus[] = [
     soundState,
-    {
-      id: 'bluetooth',
-      state: 'unavailable',
-      statusLabel: Platform.OS === 'web' ? 'App only' : 'Coming soon',
-    },
+    bluetoothStatus(bleState, Boolean(session) && !expired),
     { id: 'light', state: 'unavailable', statusLabel: 'Coming soon' },
     session && !expired
       ? showFallback
