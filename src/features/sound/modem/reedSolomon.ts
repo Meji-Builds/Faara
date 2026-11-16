@@ -121,8 +121,10 @@ function errorLocator(
     }
   }
   while (errLoc.length > 0 && errLoc[0] === 0) errLoc.shift();
+  // `errLoc` locates the unknown errors only (erasures are folded into the syndromes),
+  // so the capacity check is 2·errors + erasures ≤ parity.
   const errors = errLoc.length - 1;
-  if ((errors - erasureCount) * 2 + erasureCount > paritySymbols) {
+  if (errors * 2 + erasureCount > paritySymbols) {
     throw new ReedSolomonError('Too many errors to correct');
   }
   return errLoc;

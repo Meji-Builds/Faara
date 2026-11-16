@@ -135,3 +135,24 @@ describe('Reed-Solomon over GF(32)', () => {
     expect(wrongAccepted).toBe(0);
   });
 });
+
+describe('Reed-Solomon capacity with erasures', () => {
+  it('refuses to "correct" random words beyond 2·errors + erasures ≤ parity', () => {
+    const random = createRandom(11);
+    const PARITY = 5;
+    const ERASED = [0, 3, 6, 9];
+    let accepted = 0;
+    const trials = 20_000;
+    for (let i = 0; i < trials; i++) {
+      const word = Array.from({ length: 18 }, () => Math.floor(random() * 32));
+      try {
+        rsDecode(word, PARITY, ERASED);
+        accepted++;
+      } catch (error) {
+        expect(error).toBeInstanceOf(ReedSolomonError);
+      }
+    }
+    // With 4 erasures only one check symbol remains: about 1 in 32 random words is consistent.
+    expect(accepted / trials).toBeLessThan(0.05);
+  });
+});
