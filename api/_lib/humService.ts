@@ -1,6 +1,7 @@
 import {
   HUM_CHOOSE_TTL_MS,
   HUM_TOKEN_TTL_MS,
+  MANUAL_CODE_LENGTH,
   MAX_CLAIMS_PER_HUM,
   RATE_LIMITS,
   fromMinorUnits,
@@ -29,6 +30,7 @@ import type { DocumentStore, StoreTransaction } from './store';
  *   hums/{paymentId}                     the payment intent, readable by its sender
  *   hums/{paymentId}/claims/{claimantUid} one claim per receiver, readable by sender and claimant
  *   humTokens/{token}                     token → paymentId lookup, server-only
+ *   humManualCodes/{code}                 six-digit code → paymentId lookup, server-only
  *   rateLimits/{uid}_{action}             fixed one-minute windows, server-only
  */
 
@@ -90,6 +92,7 @@ const RATE_WINDOW_MS = 60_000;
 const humPath = (id: string) => `hums/${id}`;
 const claimPath = (id: string, claimId: string) => `hums/${id}/claims/${claimId}`;
 const tokenPath = (token: string) => `humTokens/${token}`;
+const manualCodePath = (code: string) => `humManualCodes/${code}`;
 const userPath = (uid: string) => `users/${uid}`;
 const ratePath = (uid: string, action: RateLimitedAction) => `rateLimits/${uid}_${action}`;
 
@@ -98,8 +101,8 @@ export class HumService {
 
   async createHum(uid: string, request: CreateHumRequest): Promise<CreateHumResponse> {
     const { store, now, newId } = this.deps;
+    await this.consumeRate(uid, 'createHum');
     return store.transaction(async (tx) => {
-      const commitRate = await this.checkRate(tx, uid, 'createHum');
       const profile = await this.requireProfile(tx, uid);
 
       // Find an unused token. Collisions are vanishingly rare (32^10 space), but cheap to rule out.
@@ -110,6 +113,15 @@ export class HumService {
         if (!existing || existing.expiresAt < now()) token = candidate;
       }
       if (!token) throw new ApiError('internal', 'Could not issue a hum code. Try again.');
+
+      // Six-digit fallback code, unique among live hums.
+      let manualCode: string | null = null;
+      for (let attempt = 0; attempt < TOKEN_ATTEMPTS && !manualCode; attempt++) {
+        const candidate = this.generateManualCode();
+        const existing = await tx.get<TokenDoc>(manualCodePath(candidate));
+        if (!existing || existing.expiresAt < now()) manualCode = candidate;
+      }
+      if (!manualCode) throw new ApiError('internal', 'Could not issue a hum code. Try again.');
 
       const createdAt = now();
       const paymentId = newId();
@@ -130,16 +142,23 @@ export class HumService {
       };
       tx.set(humPath(paymentId), hum);
       tx.set(tokenPath(token), { paymentId, expiresAt: hum.expiresAt } satisfies TokenDoc);
-      commitRate();
-      return { paymentId, token, expiresAt: hum.expiresAt };
+      tx.set(manualCodePath(manualCode), {
+        paymentId,
+        expiresAt: hum.expiresAt,
+      } satisfies TokenDoc);
+      return { paymentId, token, manualCode, expiresAt: hum.expiresAt };
     });
   }
 
   async claimHum(uid: string, request: ClaimHumRequest): Promise<ClaimHumResponse> {
     const { store, now } = this.deps;
+    const manual = request.manualCode !== undefined;
+    await this.consumeRate(uid, manual ? 'claimManual' : 'claimHum');
     return store.transaction(async (tx) => {
-      const commitRate = await this.checkRate(tx, uid, 'claimHum');
-      const tokenDoc = await tx.get<TokenDoc>(tokenPath(request.token));
+      const lookupPath = manual
+        ? manualCodePath(request.manualCode as string)
+        : tokenPath(request.token ?? '');
+      const tokenDoc = await tx.get<TokenDoc>(lookupPath);
       if (!tokenDoc) throw new ApiError('not-found', 'That hum code isn’t valid.');
       const paymentId = tokenDoc.paymentId;
       const hum = await tx.get<HumDoc>(humPath(paymentId));
@@ -182,7 +201,6 @@ export class HumService {
       };
       tx.set(claimPath(paymentId, uid), claim);
       tx.update(humPath(paymentId), { claimCount: hum.claimCount + 1 });
-      commitRate();
       return response;
     });
   }
@@ -192,8 +210,8 @@ export class HumService {
     request: ChooseRecipientRequest,
   ): Promise<ChooseRecipientResponse> {
     const { store, now, randomInt } = this.deps;
+    await this.consumeRate(uid, 'chooseRecipient');
     return store.transaction(async (tx) => {
-      const commitRate = await this.checkRate(tx, uid, 'chooseRecipient');
       const hum = await tx.get<HumDoc>(humPath(request.paymentId));
       // Hide other people's hums behind not-found.
       if (!hum || hum.senderUid !== uid) throw new ApiError('not-found', 'Hum not found.');
@@ -218,7 +236,6 @@ export class HumService {
         shapes,
       });
       tx.update(claimPath(request.paymentId, request.claimId), { status: 'chosen', shapes });
-      commitRate();
       return { shapes, recipient };
     });
   }
@@ -238,27 +255,30 @@ export class HumService {
   }
 
   /**
-   * Fixed-window rate limit. Reads now; returns a function that records the request,
-   * to be called with the other writes once all reads are done.
+   * Fixed-window rate limit, committed in its own transaction before the action runs
+   * so that failed attempts (e.g. wrong manual codes) count too.
    */
-  private async checkRate(
-    tx: StoreTransaction,
-    uid: string,
-    action: RateLimitedAction,
-  ): Promise<() => void> {
+  private async consumeRate(uid: string, action: RateLimitedAction): Promise<void> {
     const path = ratePath(uid, action);
-    const now = this.deps.now();
-    const current = await tx.get<RateLimitDoc>(path);
-    const inWindow = current !== undefined && now - current.windowStart < RATE_WINDOW_MS;
-    const count = inWindow ? current.count : 0;
-    if (count >= RATE_LIMITS[action]) {
-      throw new ApiError('resource-exhausted', 'Too many attempts. Wait a minute and try again.');
-    }
-    return () =>
+    await this.deps.store.transaction(async (tx) => {
+      const now = this.deps.now();
+      const current = await tx.get<RateLimitDoc>(path);
+      const inWindow = current !== undefined && now - current.windowStart < RATE_WINDOW_MS;
+      const count = inWindow ? current.count : 0;
+      if (count >= RATE_LIMITS[action]) {
+        throw new ApiError('resource-exhausted', 'Too many attempts. Wait a minute and try again.');
+      }
       tx.set(path, {
         windowStart: inWindow ? current.windowStart : now,
         count: count + 1,
       } satisfies RateLimitDoc);
+    });
+  }
+
+  private generateManualCode(): string {
+    let code = '';
+    for (let i = 0; i < MANUAL_CODE_LENGTH; i++) code += String(this.deps.randomInt(10));
+    return code;
   }
 
   private generateToken(): string {

@@ -1,4 +1,5 @@
 import { BRAND_SHAPES, pickShapes } from '../shapes';
+import { humQrPayload, parseHumQr } from '../rules';
 import { ValidationError, parseClaimHum, parseCreateHum } from '../validation';
 
 describe('hum request validation', () => {
@@ -45,5 +46,27 @@ describe('pickShapes', () => {
       expect(new Set(shapes).size).toBe(3);
       shapes.forEach((shape) => expect(BRAND_SHAPES).toContain(shape));
     }
+  });
+});
+
+describe('manual codes and QR payloads', () => {
+  it('validates manual-code claims', () => {
+    expect(parseClaimHum({ manualCode: '482 913', channel: 'manual' })).toEqual({
+      manualCode: '482913',
+      channel: 'manual',
+    });
+    expect(() => parseClaimHum({ manualCode: '48291', channel: 'manual' })).toThrow(
+      ValidationError,
+    );
+    expect(() => parseClaimHum({ token: 'K72GEKVHAA', channel: 'manual' })).toThrow(
+      ValidationError,
+    );
+  });
+
+  it('round-trips QR payloads and ignores other QR codes', () => {
+    expect(parseHumQr(humQrPayload('K72GEKVHAA'))).toBe('K72GEKVHAA');
+    expect(parseHumQr('faara:hum:k72gekvhaa')).toBe('K72GEKVHAA');
+    expect(parseHumQr('https://example.com')).toBeNull();
+    expect(parseHumQr('faara:hum:TOO-SHORT')).toBeNull();
   });
 });

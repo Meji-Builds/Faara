@@ -75,6 +75,9 @@ service cloud.firestore {
     match /humTokens/{token} {
       allow read, write: if false;
     }
+    match /humManualCodes/{code} {
+      allow read, write: if false;
+    }
     match /rateLimits/{key} {
       allow read, write: if false;
     }

@@ -44,6 +44,14 @@
           "resizeMode": "contain",
           "backgroundColor": "#0B3D2E"
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Faara uses the camera to scan a payment QR code when sound and Bluetooth can’t connect.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
       ]
     ],
     "experiments": {

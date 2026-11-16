@@ -196,3 +196,37 @@ describe('HumService', () => {
     await expect(service.createHum('sender', ngn)).resolves.toBeDefined();
   });
 });
+
+describe('HumService manual codes', () => {
+  it('issues a six-digit manual code that claims the same hum', async () => {
+    const { service, claim } = setup();
+    const created = await service.createHum('sender', ngn);
+    expect(created.manualCode).toMatch(/^\d{6}$/);
+    const response = await service.claimHum('tolu', {
+      manualCode: created.manualCode,
+      channel: 'manual',
+    });
+    expect(response.paymentId).toBe(created.paymentId);
+    expect(claim(created.paymentId, 'tolu')?.channel).toBe('manual');
+  });
+
+  it('expires manual codes with the hum and limits guessing', async () => {
+    const { service, advance } = setup();
+    const created = await service.createHum('sender', ngn);
+    for (let i = 0; i < RATE_LIMITS.claimManual; i++) {
+      await expectApiError(
+        service.claimHum('tolu', { manualCode: '000000', channel: 'manual' }),
+        'not-found',
+      );
+    }
+    await expectApiError(
+      service.claimHum('tolu', { manualCode: created.manualCode, channel: 'manual' }),
+      'resource-exhausted',
+    );
+    advance(60_000 + HUM_TOKEN_TTL_MS);
+    await expectApiError(
+      service.claimHum('tolu', { manualCode: created.manualCode, channel: 'manual' }),
+      'expired',
+    );
+  });
+});

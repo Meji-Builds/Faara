@@ -17,8 +17,13 @@ export function createHum(amount: number, currency: HumCurrency, note: string) {
   return postJson<CreateHumResponse>('/api/hums/create', { amount, currency, note });
 }
 
-export function claimHum(token: string, channel: ClaimChannel, distanceCm?: number) {
-  return postJson<ClaimHumResponse>('/api/hums/claim', { token, channel, distanceCm });
+/** Claims a hum by its 10-character code (sound, Bluetooth, QR) or 6-digit manual code. */
+export function claimHum(
+  code: { token: string } | { manualCode: string },
+  channel: ClaimChannel,
+  distanceCm?: number,
+) {
+  return postJson<ClaimHumResponse>('/api/hums/claim', { ...code, channel, distanceCm });
 }
 
 export function chooseRecipient(paymentId: string, claimId: string) {

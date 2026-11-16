@@ -5,7 +5,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { HUM_TOKEN_TTL_MS } from '@shared/hum';
 
-import { ChannelList, HumPulse, type ChannelStatus } from '@/components/hum';
+import { ChannelList, FallbackCode, HumPulse, type ChannelStatus } from '@/components/hum';
 import { AppText, Avatar, Button, Header, Screen } from '@/components/ui';
 import { cancelHum, createHum, useHumDraft } from '@/features/hum';
 import { useHumBroadcaster } from '@/features/sound';
@@ -13,6 +13,8 @@ import { apiErrorMessage } from '@/lib/api/client';
 import { initials } from '@/lib/money';
 import { fonts, radii, useTheme } from '@/theme';
 
+/** Show the QR / manual code if nobody has claimed within this long. */
+const FALLBACK_AFTER_MS = 3000;
 /** Broadcast volume; Normal decoded reliably at ~60 cm in field tests. */
 const HUM_VOLUME = 0.5;
 const AVATAR_TONES = ['soft', 'gold', 'surface'] as const;
@@ -83,6 +85,11 @@ export default function HummingScreen() {
     startHum();
   };
 
+  const seconds = Math.ceil(remainingMs / 1000);
+  const elapsedMs = HUM_TOKEN_TTL_MS - remainingMs;
+  const showFallback =
+    session !== null && !expired && claims.length === 0 && elapsedMs >= FALLBACK_AFTER_MS;
+  const fallbackIn = Math.max(0, Math.ceil((FALLBACK_AFTER_MS - elapsedMs) / 1000));
   const soundState: ChannelStatus =
     error || broadcaster.state === 'error'
       ? { id: 'sound', state: 'unavailable', statusLabel: 'Unavailable' }
@@ -100,10 +107,13 @@ export default function HummingScreen() {
       statusLabel: Platform.OS === 'web' ? 'App only' : 'Coming soon',
     },
     { id: 'light', state: 'unavailable', statusLabel: 'Coming soon' },
-    { id: 'qr', state: 'unavailable', statusLabel: 'Coming soon' },
+    session && !expired
+      ? showFallback
+        ? { id: 'qr', state: 'active', statusLabel: 'Showing' }
+        : { id: 'qr', state: 'idle', statusLabel: `Backup in ${fallbackIn}s` }
+      : { id: 'qr', state: 'idle', statusLabel: 'Ready' },
   ];
 
-  const seconds = Math.ceil(remainingMs / 1000);
   const title = error
     ? 'Couldn’t start the hum'
     : expired && claims.length === 0
@@ -113,7 +123,9 @@ export default function HummingScreen() {
     ? error
     : expired && claims.length === 0
       ? 'The code expired before a phone claimed it. Hold the phones closer and hum again.'
-      : 'Faara is humming a one-time code. Your wallet address and amount never leave your phone.';
+      : showFallback
+        ? 'Still humming. If their phone can’t hear it, they can scan this or type the code in Receive.'
+        : 'Faara is humming a one-time code. Your wallet address and amount never leave your phone.';
 
   return (
     <Screen
@@ -186,7 +198,11 @@ export default function HummingScreen() {
       />
 
       <View style={styles.pulse}>
-        <HumPulse size={120} active={broadcaster.state === 'humming' && !expired} />
+        {showFallback && session ? (
+          <FallbackCode token={session.token} manualCode={session.manualCode} />
+        ) : (
+          <HumPulse size={120} active={broadcaster.state === 'humming' && !expired} />
+        )}
       </View>
 
       <View style={styles.copy}>

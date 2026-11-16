@@ -2,11 +2,11 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import type { ClaimHumResponse, ShapeTriple } from '@shared/hum';
+import type { ClaimChannel, ClaimHumResponse, ShapeTriple } from '@shared/hum';
 
 import { ShapeGlyph } from '@/components/brand';
-import { HumPulse } from '@/components/hum';
-import { AppText, Button, Card, Header, Screen } from '@/components/ui';
+import { HumPulse, QrScanner } from '@/components/hum';
+import { AppText, Button, Card, Header, OtpField, Screen, TextTabs } from '@/components/ui';
 import { claimHum, watchClaim, watchHum, type HumClaim, type HumState } from '@/features/hum';
 import { estimateDistanceCm, useHumListener, type DecodedHum } from '@/features/sound';
 import { apiErrorMessage } from '@/lib/api/client';
@@ -19,36 +19,57 @@ type Phase =
   | { kind: 'claimed'; claim: ClaimHumResponse }
   | { kind: 'failed'; message: string };
 
+type Method = 'listen' | 'scan' | 'manual';
+const METHODS: readonly Method[] = ['listen', 'scan', 'manual'];
+
 /** Receiving side of a hum: listen, claim, then wait for the sender's choice. */
 export default function ReceiveScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const [phase, setPhase] = useState<Phase>({ kind: 'listening' });
+  const [method, setMethod] = useState<Method>('listen');
+  const [manualCode, setManualCode] = useState('');
   const [myClaim, setMyClaim] = useState<HumClaim | null>(null);
   const [hum, setHum] = useState<HumState | null>(null);
   const claiming = useRef(false);
 
-  const onDecode = useCallback((decoded: DecodedHum) => {
-    if (claiming.current) return;
-    claiming.current = true;
-    setPhase({ kind: 'claiming' });
-    claimHum(decoded.code, 'sound', estimateDistanceCm(decoded.frameLevel))
-      .then((claim) => setPhase({ kind: 'claimed', claim }))
-      .catch((cause) => setPhase({ kind: 'failed', message: apiErrorMessage(cause) }));
-  }, []);
+  const submitClaim = useCallback(
+    (
+      code: { token: string } | { manualCode: string },
+      channel: ClaimChannel,
+      distanceCm?: number,
+    ) => {
+      if (claiming.current) return;
+      claiming.current = true;
+      setPhase({ kind: 'claiming' });
+      claimHum(code, channel, distanceCm)
+        .then((claim) => setPhase({ kind: 'claimed', claim }))
+        .catch((cause) => setPhase({ kind: 'failed', message: apiErrorMessage(cause) }));
+    },
+    [],
+  );
+
+  const onDecode = useCallback(
+    (decoded: DecodedHum) =>
+      submitClaim({ token: decoded.code }, 'sound', estimateDistanceCm(decoded.frameLevel)),
+    [submitClaim],
+  );
 
   const listener = useHumListener(onDecode);
   const { start, stop } = listener;
 
   // Listen while waiting for a hum; release the microphone once one is caught.
+  const listening = phase.kind === 'listening' && method === 'listen';
   useEffect(() => {
-    if (phase.kind !== 'listening') return;
-    claiming.current = false;
+    if (phase.kind === 'listening') claiming.current = false;
+  }, [phase.kind]);
+  useEffect(() => {
+    if (!listening) return;
     start();
     return () => {
       stop();
     };
-  }, [phase.kind, start, stop]);
+  }, [listening, start, stop]);
 
   const paymentId = phase.kind === 'claimed' ? phase.claim.paymentId : null;
   const claimId = phase.kind === 'claimed' ? phase.claim.claimId : null;
@@ -66,6 +87,7 @@ export default function ReceiveScreen() {
   const listenAgain = () => {
     setMyClaim(null);
     setHum(null);
+    setManualCode('');
     setPhase({ kind: 'listening' });
   };
 
@@ -79,12 +101,45 @@ export default function ReceiveScreen() {
           <Button label="Listen again" onPress={listenAgain} />
         ) : myClaim?.status === 'chosen' ? (
           <Button label="Done" onPress={() => router.back()} />
+        ) : phase.kind === 'listening' && method === 'manual' ? (
+          <Button
+            label="Claim"
+            disabled={manualCode.length !== 6}
+            onPress={() => submitClaim({ manualCode }, 'manual')}
+          />
         ) : null
       }
     >
       <Header center={<AppText variant="subheading">Receive</AppText>} />
+      {phase.kind === 'listening' ? (
+        <View style={styles.tabs}>
+          <TextTabs
+            options={METHODS}
+            value={method}
+            onChange={setMethod}
+            labels={{ listen: 'Listen', scan: 'Scan QR', manual: 'Enter code' }}
+          />
+        </View>
+      ) : null}
       <View style={styles.body}>
-        {phase.kind === 'listening' ? (
+        {phase.kind === 'listening' && method === 'scan' ? (
+          <View style={styles.method}>
+            <QrScanner onToken={(token) => submitClaim({ token }, 'qr')} />
+            <AppText color="textMuted" align="center">
+              Point the camera at the QR code on the sender’s screen.
+            </AppText>
+          </View>
+        ) : phase.kind === 'listening' && method === 'manual' ? (
+          <View style={styles.method}>
+            <AppText variant="title" align="center" style={styles.title}>
+              Enter their code
+            </AppText>
+            <AppText color="textMuted" align="center">
+              Type the 6-digit code shown on the sender’s screen.
+            </AppText>
+            <OtpField value={manualCode} onChangeText={setManualCode} length={6} autoFocus />
+          </View>
+        ) : phase.kind === 'listening' ? (
           <Listening
             state={listener.state}
             error={listener.error ?? listener.unavailableReason ?? null}
@@ -276,6 +331,8 @@ function Status({
 }
 
 const styles = StyleSheet.create({
+  tabs: { alignItems: 'center', marginTop: 4 },
+  method: { gap: 16, alignItems: 'stretch' },
   body: { flex: 1, justifyContent: 'center', paddingVertical: 24 },
   center: { alignItems: 'center', gap: 12, paddingHorizontal: 8 },
   title: { fontSize: 30, lineHeight: 36, marginTop: 8 },

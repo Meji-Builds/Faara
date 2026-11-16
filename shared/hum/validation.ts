@@ -18,6 +18,7 @@ export class ValidationError extends Error {}
 
 const TOKEN_PATTERN = /^[0-9A-HJKMNP-TV-Z]{10}$/;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+const MANUAL_CODE_PATTERN = /^\d{6}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -59,10 +60,18 @@ export function parseCreateHum(body: unknown): CreateHumRequest {
 
 export function parseClaimHum(body: unknown): ClaimHumRequest {
   const data = requireRecord(body);
-  const token = typeof data.token === 'string' ? data.token.toUpperCase() : '';
-  if (!TOKEN_PATTERN.test(token)) throw new ValidationError('token is invalid.');
   if (!CLAIM_CHANNELS.includes(data.channel as ClaimChannel))
     throw new ValidationError('channel is invalid.');
+  const channel = data.channel as ClaimChannel;
+
+  if (channel === 'manual') {
+    const code = typeof data.manualCode === 'string' ? data.manualCode.replace(/\s/g, '') : '';
+    if (!MANUAL_CODE_PATTERN.test(code)) throw new ValidationError('manualCode must be 6 digits.');
+    return { manualCode: code, channel };
+  }
+
+  const token = typeof data.token === 'string' ? data.token.toUpperCase() : '';
+  if (!TOKEN_PATTERN.test(token)) throw new ValidationError('token is invalid.');
   const distance = data.distanceCm;
   if (
     distance !== undefined &&
@@ -70,11 +79,7 @@ export function parseClaimHum(body: unknown): ClaimHumRequest {
   ) {
     throw new ValidationError('distanceCm must be a non-negative number.');
   }
-  return {
-    token,
-    channel: data.channel as ClaimChannel,
-    distanceCm: distance as number | undefined,
-  };
+  return { token, channel, distanceCm: distance as number | undefined };
 }
 
 export function parseChooseRecipient(body: unknown): ChooseRecipientRequest {

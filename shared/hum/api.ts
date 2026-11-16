@@ -14,12 +14,16 @@ export interface CreateHumResponse {
   paymentId: string;
   /** 10-character Crockford base32 code to broadcast. */
   token: string;
+  /** Six-digit fallback code for typing in when no channel connects. */
+  manualCode: string;
   /** Epoch milliseconds after which the code can no longer be claimed. */
   expiresAt: number;
 }
 
 export interface ClaimHumRequest {
-  token: string;
+  /** Exactly one of `token` (sound, Bluetooth, QR) or `manualCode` (typed). */
+  token?: string;
+  manualCode?: string;
   channel: ClaimChannel;
   /** Receiver-side signal estimate, used to order claimants (closest first). */
   distanceCm?: number;
