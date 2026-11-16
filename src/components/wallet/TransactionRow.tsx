@@ -2,13 +2,25 @@ import { Store } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar } from '@/components/ui';
-import type { Transaction } from '@/data/fixtures';
+import type { AvatarTone } from '@/data/fixtures';
 import { formatMoney, initials } from '@/lib/money';
+
+export interface TransactionView {
+  id: string;
+  counterparty: string;
+  description: string;
+  /** Signed: positive for money in. Major units. */
+  amount: number;
+  currency: 'NGN' | 'USDC';
+  when: string;
+  tone: AvatarTone;
+  isMerchant?: boolean;
+}
 
 /** Merchant icon colour on the gold avatar fill; constant across themes. */
 const MERCHANT_ICON_COLOR = '#3A2600';
 
-export function TransactionRow({ transaction }: { transaction: Transaction }) {
+export function TransactionRow({ transaction }: { transaction: TransactionView }) {
   const { counterparty, description, amount, currency, when, tone, isMerchant } = transaction;
   const incoming = amount > 0;
   const decimals = currency === 'USDC' ? 2 : undefined;

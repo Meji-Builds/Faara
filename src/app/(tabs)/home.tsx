@@ -4,11 +4,17 @@ import { StyleSheet, View } from 'react-native';
 
 import { HumMark } from '@/components/brand';
 import { AppText, Avatar, IconButton, Screen } from '@/components/ui';
+import { ActivityList } from '@/components/wallet/ActivityList';
 import { BalanceCard } from '@/components/wallet/BalanceCard';
 import { QuickAction } from '@/components/wallet/QuickAction';
-import { TransactionRow } from '@/components/wallet/TransactionRow';
-import { balances, sampleAccounts, recentTransactions } from '@/data/fixtures';
+import {
+  mockAccountNumber,
+  useActivity,
+  useNairaBalance,
+  useUsdcBalance,
+} from '@/features/account';
 import { useProfile } from '@/features/auth';
+import { usePreferences } from '@/features/preferences';
 import { audioEngine } from '@/features/sound';
 import { greeting } from '@/lib/greeting';
 import { initials } from '@/lib/money';
@@ -18,6 +24,10 @@ export default function HomeScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const profile = useProfile();
+  const { preferences } = usePreferences();
+  const naira = useNairaBalance();
+  const usdc = useUsdcBalance();
+  const activity = useActivity(10);
   const firstName = profile.fullName.split(/\s+/)[0] ?? profile.fullName;
   const iconProps = { size: 24, color: colors.text, strokeWidth: 1.75 } as const;
 
@@ -39,9 +49,11 @@ export default function HomeScreen() {
       </View>
 
       <BalanceCard
-        naira={balances.NGN}
-        usdc={balances.USDC}
-        accountNumber={sampleAccounts.accountNumber}
+        key={preferences.hideBalances ? 'hidden' : 'shown'}
+        naira={naira}
+        usdc={usdc.value}
+        accountNumber={mockAccountNumber(profile.uid)}
+        initiallyHidden={preferences.hideBalances}
       />
 
       <View style={styles.actions}>
@@ -84,14 +96,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.list}>
-        {recentTransactions.map((transaction, index) => (
-          <View
-            key={transaction.id}
-            style={index > 0 && [styles.separator, { borderTopColor: colors.border }]}
-          >
-            <TransactionRow transaction={transaction} />
-          </View>
-        ))}
+        <ActivityList entries={activity} limit={4} />
       </View>
     </Screen>
   );
@@ -109,5 +114,4 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   list: { paddingBottom: 24 },
-  separator: { borderTopWidth: StyleSheet.hairlineWidth * 2 },
 });

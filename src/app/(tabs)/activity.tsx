@@ -1,31 +1,22 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { AppText, Screen } from '@/components/ui';
-import { TransactionRow } from '@/components/wallet/TransactionRow';
-import { recentTransactions } from '@/data/fixtures';
-import { useTheme } from '@/theme';
+import { ActivityList } from '@/components/wallet/ActivityList';
+import { useActivity } from '@/features/account';
 
-/** Interim activity list until the full Activity screen is designed. */
+/** Every payment sent and received, newest first. */
 export default function ActivityScreen() {
-  const { colors } = useTheme();
+  const activity = useActivity(100);
   return (
     <Screen edges={['top']}>
       <AppText variant="title" accessibilityRole="header" style={styles.title}>
         Activity
       </AppText>
-      {recentTransactions.map((transaction, index) => (
-        <View
-          key={transaction.id}
-          style={index > 0 && [styles.separator, { borderTopColor: colors.border }]}
-        >
-          <TransactionRow transaction={transaction} />
-        </View>
-      ))}
+      <ActivityList entries={activity} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   title: { marginTop: 8, marginBottom: 12 },
-  separator: { borderTopWidth: StyleSheet.hairlineWidth * 2 },
 });

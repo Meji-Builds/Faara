@@ -4,7 +4,6 @@ import { StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { AppText, Avatar, Button, Card, IconButton, ListRow, Screen } from '@/components/ui';
-import { sampleAccounts } from '@/data/fixtures';
 import { useAuth, useProfile } from '@/features/auth';
 import { initials } from '@/lib/money';
 import { maskPhone, normalizePhoneInput } from '@/lib/phone';
@@ -72,11 +71,7 @@ export default function ProfileScreen() {
           value={`Tier ${profile.verificationTier}`}
           onPress={() => undefined}
         />
-        <ListRow
-          label="Linked bank account"
-          value={`•• ${sampleAccounts.linkedBankLast4}`}
-          onPress={() => undefined}
-        />
+        <ListRow label="Linked bank account" value="Not linked" onPress={() => undefined} />
         <ListRow
           label="Dollar wallet (Solana)"
           value={

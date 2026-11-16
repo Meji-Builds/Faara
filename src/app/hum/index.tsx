@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { AdireBand, HumMark, Rings, Wordmark } from '@/components/brand';
 import { CurrencyToggle } from '@/components/hum';
 import { AppText, Button, Header, Keypad, Screen, TextField } from '@/components/ui';
-import { balances } from '@/data/fixtures';
+import { useNairaBalance, useUsdcBalance } from '@/features/account';
 import { useHumDraft } from '@/features/hum';
 import { audioEngine } from '@/features/sound';
 import { applyKeypadInput, CURRENCY_SYMBOL, formatMoney, groupDigits } from '@/lib/money';
@@ -24,7 +24,10 @@ export default function AmountScreen() {
 
   const display = groupDigits(amountInput);
   const fontSize = amountFontSize(display.length + 1);
-  const exceedsBalance = amount > balances[currency];
+  const naira = useNairaBalance();
+  const usdc = useUsdcBalance().value;
+  const available = currency === 'NGN' ? naira : usdc;
+  const exceedsBalance = available !== null && amount > available;
 
   return (
     <Screen
@@ -72,9 +75,9 @@ export default function AmountScreen() {
           {display}
         </AppText>
         <AppText variant="body" color="onBrand" style={styles.balance}>
-          Balance {formatMoney(balances.NGN, 'NGN', { decimals: 2 })} ·{' '}
+          Balance {naira === null ? '…' : formatMoney(naira, 'NGN', { decimals: 2 })} ·{' '}
           <AppText variant="body" color="goldOnBrand">
-            {formatMoney(balances.USDC, 'USDC', { decimals: 2 })} USDC
+            {usdc === null ? '…' : `${formatMoney(usdc, 'USDC', { decimals: 2 })} USDC`}
           </AppText>
         </AppText>
         {exceedsBalance ? (

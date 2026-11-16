@@ -8,8 +8,9 @@ import { formatMoney, groupDigits } from '@/lib/money';
 import { fonts, palette, radii, useTheme } from '@/theme';
 
 interface BalanceCardProps {
-  naira: number;
-  usdc: number;
+  /** Null while loading. */
+  naira: number | null;
+  usdc: number | null;
   accountNumber: string;
   initiallyHidden?: boolean;
 }
@@ -24,7 +25,7 @@ export function BalanceCard({
 }: BalanceCardProps) {
   const { colors } = useTheme();
   const [hidden, setHidden] = useState(initiallyHidden);
-  const [whole, fraction] = naira.toFixed(2).split('.');
+  const [whole, fraction] = (naira ?? 0).toFixed(2).split('.');
   const VisibilityIcon = hidden ? EyeOff : Eye;
 
   return (
@@ -55,6 +56,8 @@ export function BalanceCard({
       >
         {hidden ? (
           HIDDEN
+        ) : naira === null ? (
+          '…'
         ) : (
           <>
             <AppText style={[styles.amount, { color: palette.softTeal }]}>₦</AppText>
@@ -70,7 +73,11 @@ export function BalanceCard({
         <AppText variant="body" color="onBrand" style={styles.muted}>
           Dollars{' '}
           <AppText variant="bodyStrong" color="goldOnBrand">
-            {hidden ? HIDDEN : `${formatMoney(usdc, 'USDC', { decimals: 2 })} USDC`}
+            {hidden
+              ? HIDDEN
+              : usdc === null
+                ? '…'
+                : `${formatMoney(usdc, 'USDC', { decimals: 2 })} USDC`}
           </AppText>
         </AppText>
         <AppText variant="body" color="onBrand" style={styles.muted}>

@@ -12,7 +12,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { ShapeGlyph } from '@/components/brand';
 import { AppText, Avatar, Button, Card, Header, ListRow, OtpField, Screen } from '@/components/ui';
-import { freeTransfers } from '@/data/fixtures';
+import { FREE_TRANSFERS_PER_MONTH } from '@/data/fixtures';
+import { useActivity } from '@/features/account';
 import { cancelHum, settleHum, useHumDraft } from '@/features/hum';
 import { PIN_LENGTH, sendUsdc, solanaErrorMessage, useApproval } from '@/features/wallet';
 import { apiErrorMessage, ApiRequestError } from '@/lib/api/client';
@@ -25,6 +26,11 @@ export default function ConfirmScreen() {
   const { currency, amount, amountLabel, note, session, chosen, claims, setSettlement, reset } =
     useHumDraft();
   const { biometricsEnabled, approveWithBiometrics, approveWithPin } = useApproval();
+  const activity = useActivity(100);
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+  const sentThisMonth =
+    activity?.filter((entry) => entry.direction === 'out' && entry.createdAt >= monthStart)
+      .length ?? 0;
   const [stage, setStage] = useState<'review' | 'pin' | 'paying'>('review');
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -223,7 +229,8 @@ export default function ConfirmScreen() {
             <AppText variant="bodyStrong">
               Free{' '}
               <AppText color="textMuted">
-                · {freeTransfers.used} of {freeTransfers.limit} this month
+                · {Math.min(sentThisMonth + 1, FREE_TRANSFERS_PER_MONTH)} of{' '}
+                {FREE_TRANSFERS_PER_MONTH} this month
               </AppText>
             </AppText>
           }
