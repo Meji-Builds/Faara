@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Checkbox, Header, PhoneField, Screen, TextField } from '@/components/ui';
+import { isCompletePhoneNumber } from '@/lib/phone';
 import { fonts, useTheme } from '@/theme';
 
 const USERNAME_PATTERN = /^[a-z0-9._]{3,20}$/;
@@ -17,7 +18,8 @@ export default function SignUpScreen() {
   const [agreed, setAgreed] = useState(false);
 
   const usernameValid = USERNAME_PATTERN.test(username);
-  const canSubmit = fullName.trim().length > 1 && phone.length === 10 && usernameValid && agreed;
+  const canSubmit =
+    fullName.trim().length > 1 && isCompletePhoneNumber(phone) && usernameValid && agreed;
 
   return (
     <Screen

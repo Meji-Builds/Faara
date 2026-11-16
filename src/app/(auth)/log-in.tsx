@@ -4,15 +4,11 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Header, OtpField, PhoneField, Screen } from '@/components/ui';
+import { isCompletePhoneNumber, maskPhone } from '@/lib/phone';
 import { useTheme } from '@/theme';
 
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 60;
-
-function maskPhone(digits: string): string {
-  if (digits.length < 10) return '+234';
-  return `+234 ${digits.slice(0, 3)} ••• ${digits.slice(6)}`;
-}
 
 export default function LogInScreen() {
   const router = useRouter();
@@ -21,7 +17,7 @@ export default function LogInScreen() {
   const [code, setCode] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
 
-  const codeSent = phone.length === 10;
+  const codeSent = isCompletePhoneNumber(phone);
 
   useEffect(() => {
     if (!codeSent || secondsLeft === 0) return;

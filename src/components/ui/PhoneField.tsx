@@ -1,23 +1,19 @@
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
+import { formatPhoneInput, normalizePhoneInput } from '@/lib/phone';
 import { inputFocusReset } from '@/lib/platformStyles';
 import { fonts, radii, useTheme } from '@/theme';
 
 import { AppText } from './AppText';
 
 interface PhoneFieldProps {
+  /** Digits as entered (see `normalizePhoneInput`); may include a leading trunk 0. */
   value: string;
   onChangeText: (value: string) => void;
   label?: string;
   countryCode?: string;
   autoFocus?: boolean;
-}
-
-/** Formats a Nigerian national number for display: "8031234567" -> "803 123 4567". */
-export function formatNationalNumber(digits: string): string {
-  const clean = digits.replace(/\D/g, '').slice(0, 10);
-  return [clean.slice(0, 3), clean.slice(3, 6), clean.slice(6)].filter(Boolean).join(' ');
 }
 
 export function PhoneField({
@@ -60,8 +56,8 @@ export function PhoneField({
           ]}
         >
           <TextInput
-            value={formatNationalNumber(value)}
-            onChangeText={(text) => onChangeText(text.replace(/\D/g, '').slice(0, 10))}
+            value={formatPhoneInput(value)}
+            onChangeText={(text) => onChangeText(normalizePhoneInput(text))}
             keyboardType="phone-pad"
             autoComplete="tel-national"
             textContentType="telephoneNumber"
