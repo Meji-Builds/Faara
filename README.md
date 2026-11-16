@@ -179,12 +179,12 @@ Type: Bricolage Grotesque (headings, amounts), Inter (UI), JetBrains Mono (codes
 
 ## Roadmap
 
-| #   | Milestone      | Status  |
-| --- | -------------- | ------- |
-| 0   | Setup          | Done    |
-| 1   | Sound spike    | Testing |
-| 2   | Hum backend    |         |
-| 3   | Bluetooth + QR |         |
-| 4   | Wallet         |         |
-| 5   | Safety         |         |
-| 6   | Naira mock     |         |
+| #   | Milestone      | Status                                            |
+| --- | -------------- | ------------------------------------------------- |
+| 0   | Setup          | Done                                              |
+| 1   | Sound spike    | Passed on web (field test); Android build pending |
+| 2   | Hum backend    | Done                                              |
+| 3   | Bluetooth + QR | Done (Bluetooth on Android builds only)           |
+| 4   | Wallet         | Done (devnet USDC)                                |
+| 5   | Safety         | Done (Webacy needs an API key)                    |
+| 6   | Naira mock     | Done                                              |
