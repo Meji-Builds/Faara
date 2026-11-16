@@ -9,6 +9,7 @@ function unavailable(reason: string): AudioEngine {
   return {
     available: false,
     unavailableReason: reason,
+    prepare: () => undefined,
     requestMicrophonePermission: async () => false,
     startCapture: fail,
     playbackSampleRate: fail,
@@ -27,6 +28,7 @@ function createAndroidEngine(): AudioEngine {
   }
   return {
     available: true,
+    prepare: () => undefined,
 
     async requestMicrophonePermission() {
       const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {

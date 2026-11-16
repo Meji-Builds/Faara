@@ -18,6 +18,11 @@ export interface AudioEngine {
   /** False when this platform/binary cannot do raw audio (e.g. Expo Go or iOS for now). */
   readonly available: boolean;
   readonly unavailableReason?: string;
+  /**
+   * Unlocks audio output. Browsers only allow sound after a user gesture, so call this
+   * synchronously inside the tap handler that leads to humming or listening.
+   */
+  prepare(): void;
   requestMicrophonePermission(): Promise<boolean>;
   startCapture(onSamples: (samples: Float32Array) => void): Promise<CaptureSession>;
   /** Sample rate that playback buffers should be rendered at. */

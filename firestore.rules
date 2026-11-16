@@ -50,5 +50,33 @@ service cloud.firestore {
 
       allow update, delete: if false;
     }
+
+    // Hums are written only by the server (Vercel functions with the Admin SDK).
+    // The sender can read their hum; a claimant can read the hum they claimed.
+    match /hums/{paymentId} {
+      function isSender() {
+        return signedIn() && get(/databases/$(database)/documents/hums/$(paymentId)).data.senderUid == request.auth.uid;
+      }
+
+      allow get: if signedIn()
+        && (resource.data.senderUid == request.auth.uid
+          || exists(/databases/$(database)/documents/hums/$(paymentId)/claims/$(request.auth.uid)));
+      allow list, write: if false;
+
+      // Claims are keyed by claimant uid. The sender sees all; each claimant sees their own.
+      match /claims/{claimantUid} {
+        allow get: if signedIn() && (claimantUid == request.auth.uid || isSender());
+        allow list: if isSender();
+        allow write: if false;
+      }
+    }
+
+    // Server-only bookkeeping.
+    match /humTokens/{token} {
+      allow read, write: if false;
+    }
+    match /rateLimits/{key} {
+      allow read, write: if false;
+    }
   }
 }

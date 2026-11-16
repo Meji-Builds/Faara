@@ -21,6 +21,8 @@ export interface DecodedHum {
   syncQuality: number;
   /** Symbols repaired by Reed-Solomon (errors + erasures). */
   correctedSymbols: number;
+  /** RMS level of the high-passed signal across the frame (a proximity cue). */
+  frameLevel: number;
 }
 
 export interface ReceiverStats {
@@ -307,10 +309,19 @@ export class HumReceiver {
           decodedAt: frameStart + this.timing.frame,
           syncQuality: quality,
           correctedSymbols: decoded.corrected,
+          frameLevel: this.frameRms(frameStart),
         };
       }
     }
     return null;
+  }
+
+  private frameRms(frameStart: number): number {
+    const start = this.at(frameStart);
+    const end = Math.min(start + this.timing.frame, this.bufferLength);
+    let sum = 0;
+    for (let i = start; i < end; i++) sum += (this.buffer[i] as number) ** 2;
+    return end > start ? Math.sqrt(sum / (end - start)) : 0;
   }
 
   private demodulate(

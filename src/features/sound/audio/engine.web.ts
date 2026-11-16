@@ -29,11 +29,18 @@ let context: AudioContext | null = null;
 let workletLoaded: Promise<void> | null = null;
 let playback: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
 
+/** Creates the shared context and starts resuming it; safe to call from a tap handler. */
+function ensureContext(): AudioContext {
+  if (!context) context = new AudioContext({ latencyHint: 'interactive' });
+  if (context.state === 'suspended') context.resume().catch(() => undefined);
+  return context;
+}
+
 /** Shared context, created and resumed on first use (must follow a user gesture on mobile). */
 async function getContext(): Promise<AudioContext> {
-  if (!context) context = new AudioContext({ latencyHint: 'interactive' });
-  if (context.state === 'suspended') await context.resume();
-  return context;
+  const ctx = ensureContext();
+  if (ctx.state === 'suspended') await ctx.resume();
+  return ctx;
 }
 
 function supported(): boolean {
@@ -107,6 +114,10 @@ export const audioEngine: AudioEngine = supported()
   ? {
       available: true,
 
+      prepare() {
+        ensureContext();
+      },
+
       async requestMicrophonePermission() {
         try {
           const stream = await openMicrophone();
@@ -169,6 +180,7 @@ export const audioEngine: AudioEngine = supported()
   : {
       available: false,
       unavailableReason: 'This browser does not support microphone access.',
+      prepare: () => undefined,
       requestMicrophonePermission: async () => false,
       startCapture: () => Promise.reject(new Error('Unsupported browser')),
       playbackSampleRate: () => Promise.reject(new Error('Unsupported browser')),

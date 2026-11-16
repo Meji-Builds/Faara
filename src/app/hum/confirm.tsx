@@ -1,10 +1,10 @@
 import { Redirect, useRouter } from 'expo-router';
-import { ArrowRight, Fingerprint, ShieldCheck, TriangleAlert } from 'lucide-react-native';
+import { ArrowRight, Fingerprint, ShieldQuestion } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 
 import { ShapeGlyph } from '@/components/brand';
 import { AppText, Avatar, Button, Card, Header, ListRow, Screen } from '@/components/ui';
-import { freeTransfers, sampleClaimants, sampleMatchShapes } from '@/data/fixtures';
+import { freeTransfers } from '@/data/fixtures';
 import { useHumDraft } from '@/features/hum';
 import { CURRENCY_SYMBOL, groupDigits, initials } from '@/lib/money';
 import { fonts, palette, radii, useTheme } from '@/theme';
@@ -12,13 +12,15 @@ import { fonts, palette, radii, useTheme } from '@/theme';
 export default function ConfirmScreen() {
   const router = useRouter();
   const { colors, scheme } = useTheme();
-  const { currency, amount, note, recipientId } = useHumDraft();
-  const recipient = sampleClaimants.find((claimant) => claimant.id === recipientId);
+  const { currency, amount, note, chosen } = useHumDraft();
 
-  if (!recipient) return <Redirect href="/hum" />;
+  if (!chosen) return <Redirect href="/hum" />;
 
+  const recipient = {
+    name: chosen.recipient.fullName,
+    firstName: chosen.recipient.fullName.split(/\s+/)[0] ?? chosen.recipient.fullName,
+  };
   const amountText = groupDigits(currency === 'USDC' ? amount.toFixed(2) : String(amount));
-  const lowRisk = recipient.risk.level === 'low';
   // Biometric / PIN approval and settlement arrive with milestones 4 and 6.
   const approve = () => router.replace('/hum/success');
 
@@ -44,7 +46,7 @@ export default function ConfirmScreen() {
           </AppText>
         </View>
         <ArrowRight size={36} color={colors.accent} strokeWidth={1.75} />
-        <Avatar size={48} tone={recipient.tone} initials={initials(recipient.name)} />
+        <Avatar size={48} tone="soft" initials={initials(recipient.name)} />
       </View>
 
       <AppText align="center" style={[styles.amount, { color: colors.text }]}>
@@ -71,7 +73,7 @@ export default function ConfirmScreen() {
           MATCH WITH {recipient.firstName.toUpperCase()}&apos;S SCREEN
         </AppText>
         <View style={styles.shapes}>
-          {sampleMatchShapes.map((shape, index) => (
+          {chosen.shapes.map((shape, index) => (
             <View
               key={`${shape}-${index}`}
               style={[styles.shapeTile, { backgroundColor: colors.brandInset }]}
@@ -111,13 +113,9 @@ export default function ConfirmScreen() {
           labelColor="textMuted"
           value={
             <View style={styles.safety}>
-              {lowRisk ? (
-                <ShieldCheck size={18} color={colors.accentText} strokeWidth={1.75} />
-              ) : (
-                <TriangleAlert size={18} color={colors.gold} strokeWidth={1.75} />
-              )}
-              <AppText variant="bodyStrong" color={lowRisk ? 'accentText' : 'gold'}>
-                {lowRisk ? 'Low risk' : 'Check before paying'}
+              <ShieldQuestion size={18} color={colors.textMuted} strokeWidth={1.75} />
+              <AppText variant="bodyStrong" color="textMuted">
+                Not checked yet
               </AppText>
             </View>
           }

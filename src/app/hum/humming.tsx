@@ -1,59 +1,127 @@
 import { useRouter } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { HUM_TOKEN_TTL_MS } from '@shared/hum';
+
 import { ChannelList, HumPulse, type ChannelStatus } from '@/components/hum';
-import { AppText, Avatar, Header, Screen } from '@/components/ui';
-import { sampleClaimants } from '@/data/fixtures';
-import { useHumDraft } from '@/features/hum';
+import { AppText, Avatar, Button, Header, Screen } from '@/components/ui';
+import { cancelHum, createHum, useHumDraft } from '@/features/hum';
+import { useHumBroadcaster } from '@/features/sound';
+import { apiErrorMessage } from '@/lib/api/client';
 import { initials } from '@/lib/money';
 import { fonts, radii, useTheme } from '@/theme';
 
-/** Matches the backend token lifetime. */
-const TOKEN_TTL_SECONDS = 30;
-/** Silence before the QR fallback is offered. */
-const QR_FALLBACK_SECONDS = 3;
+/** Broadcast volume; Normal decoded reliably at ~60 cm in field tests. */
+const HUM_VOLUME = 0.5;
+const AVATAR_TONES = ['soft', 'gold', 'surface'] as const;
 
 export default function HummingScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { amountLabel } = useHumDraft();
-  const [elapsed, setElapsed] = useState(0);
+  const { amount, currency, note, amountLabel, session, setSession, claims } = useHumDraft();
+  const broadcaster = useHumBroadcaster();
+  const [error, setError] = useState<string | null>(null);
+  const [expiresAtLocal, setExpiresAtLocal] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const creating = useRef(false);
+
+  const startHum = useCallback(() => {
+    if (creating.current) return;
+    creating.current = true;
+    createHum(amount, currency, note)
+      .then(
+        (created) => {
+          setSession(created);
+          // Count down on the device clock; the server enforces the real expiry.
+          setExpiresAtLocal(Date.now() + HUM_TOKEN_TTL_MS);
+        },
+        (cause: unknown) => setError(apiErrorMessage(cause)),
+      )
+      .finally(() => {
+        creating.current = false;
+      });
+  }, [amount, currency, note, setSession]);
+
+  // Issue the hum when the screen opens.
+  useEffect(() => {
+    if (!session) startHum();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on first open
+  }, []);
+
+  const remainingMs =
+    expiresAtLocal === null ? HUM_TOKEN_TTL_MS : Math.max(0, expiresAtLocal - now);
+  const expired = session !== null && remainingMs === 0;
+  const { start: startBroadcast, stop: stopBroadcast } = broadcaster;
+
+  // Broadcast the code while it's valid.
+  useEffect(() => {
+    if (!session || expired) return;
+    startBroadcast(session.token, HUM_VOLUME);
+    return () => {
+      stopBroadcast();
+    };
+  }, [session, expired, startBroadcast, stopBroadcast]);
 
   useEffect(() => {
-    if (elapsed >= TOKEN_TTL_SECONDS) return;
-    const timer = setTimeout(() => setElapsed((s) => s + 1), 1000);
-    return () => clearTimeout(timer);
-  }, [elapsed]);
+    if (!session || expired) return;
+    const timer = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(timer);
+  }, [session, expired]);
 
-  const remaining = TOKEN_TTL_SECONDS - elapsed;
-  const expired = remaining <= 0;
-  const qrCountdown = Math.max(QR_FALLBACK_SECONDS - elapsed, 0);
+  const leave = () => {
+    if (session && claims.length === 0) cancelHum(session.paymentId).catch(() => undefined);
+    setSession(null);
+    router.back();
+  };
 
-  // Static channel states for the design stage; driven by the channel race from milestone 3.
+  const humAgain = () => {
+    setError(null);
+    setSession(null);
+    setExpiresAtLocal(null);
+    startHum();
+  };
+
+  const soundState: ChannelStatus =
+    error || broadcaster.state === 'error'
+      ? { id: 'sound', state: 'unavailable', statusLabel: 'Unavailable' }
+      : expired
+        ? { id: 'sound', state: 'idle', statusLabel: 'Stopped' }
+        : broadcaster.state === 'humming'
+          ? { id: 'sound', state: 'active', statusLabel: 'Humming' }
+          : { id: 'sound', state: 'idle', statusLabel: 'Starting' };
+
   const channels: ChannelStatus[] = [
-    { id: 'sound', state: 'active', statusLabel: 'Humming' },
-    Platform.OS === 'web'
-      ? { id: 'bluetooth', state: 'unavailable', statusLabel: 'App only' }
-      : { id: 'bluetooth', state: 'active', statusLabel: 'Broadcasting' },
-    { id: 'light', state: 'idle', statusLabel: 'Ready' },
+    soundState,
     {
-      id: 'qr',
-      state: 'idle',
-      statusLabel: qrCountdown > 0 ? `Backup in ${qrCountdown}s` : 'Ready',
+      id: 'bluetooth',
+      state: 'unavailable',
+      statusLabel: Platform.OS === 'web' ? 'App only' : 'Coming soon',
     },
+    { id: 'light', state: 'unavailable', statusLabel: 'Coming soon' },
+    { id: 'qr', state: 'unavailable', statusLabel: 'Coming soon' },
   ];
 
-  const claimants = sampleClaimants;
+  const seconds = Math.ceil(remainingMs / 1000);
+  const title = error
+    ? 'Couldn’t start the hum'
+    : expired && claims.length === 0
+      ? 'Nobody caught it'
+      : 'Hold phones close';
+  const subtitle = error
+    ? error
+    : expired && claims.length === 0
+      ? 'The code expired before a phone claimed it. Hold the phones closer and hum again.'
+      : 'Faara is humming a one-time code. Your wallet address and amount never leave your phone.';
 
   return (
     <Screen
       footer={
-        claimants.length > 0 && !expired ? (
+        claims.length > 0 ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${claimants.length} phones caught your hum. Tap to choose who gets paid.`}
+            accessibilityLabel={`${claims.length} ${claims.length === 1 ? 'phone' : 'phones'} caught your hum. Tap to choose who gets paid.`}
             onPress={() => router.push('/hum/recipient')}
             style={({ pressed }) => [
               styles.claims,
@@ -62,12 +130,12 @@ export default function HummingScreen() {
             ]}
           >
             <View style={styles.avatars}>
-              {claimants.slice(0, 3).map((claimant, index) => (
-                <View key={claimant.id} style={index > 0 && styles.overlap}>
+              {claims.slice(0, 3).map((claim, index) => (
+                <View key={claim.id} style={index > 0 && styles.overlap}>
                   <Avatar
                     size={40}
-                    tone={claimant.tone}
-                    initials={initials(claimant.name)}
+                    tone={AVATAR_TONES[index % AVATAR_TONES.length]}
+                    initials={initials(claim.fullName)}
                     outlineColor={colors.brand}
                   />
                 </View>
@@ -80,9 +148,9 @@ export default function HummingScreen() {
                 numberOfLines={1}
                 style={styles.claimsTitle}
               >
-                {claimants.length === 1
+                {claims.length === 1
                   ? '1 phone caught your hum'
-                  : `${claimants.length} phones caught your hum`}
+                  : `${claims.length} phones caught your hum`}
               </AppText>
               <AppText variant="body" color="onBrandMuted" numberOfLines={1}>
                 Tap to choose who gets paid
@@ -90,10 +158,13 @@ export default function HummingScreen() {
             </View>
             <ChevronRight size={22} color={colors.accent} strokeWidth={2} />
           </Pressable>
+        ) : error || expired ? (
+          <Button label="Hum again" onPress={humAgain} />
         ) : null
       }
     >
       <Header
+        onBack={leave}
         center={
           <AppText variant="subheading">
             Sending{' '}
@@ -103,27 +174,27 @@ export default function HummingScreen() {
           </AppText>
         }
         right={
-          <AppText
-            style={[styles.timer, { color: colors.gold }]}
-            accessibilityLabel={`${remaining} seconds left`}
-          >
-            {expired ? 'Expired' : `${remaining}s`}
-          </AppText>
+          session && !error ? (
+            <AppText
+              style={[styles.timer, { color: colors.gold }]}
+              accessibilityLabel={expired ? 'Code expired' : `${seconds} seconds left`}
+            >
+              {expired ? 'Expired' : `${seconds}s`}
+            </AppText>
+          ) : null
         }
       />
 
       <View style={styles.pulse}>
-        <HumPulse size={120} active={!expired} />
+        <HumPulse size={120} active={broadcaster.state === 'humming' && !expired} />
       </View>
 
       <View style={styles.copy}>
         <AppText variant="title" align="center" style={styles.title}>
-          {expired ? 'Hum expired' : 'Hold phones close'}
+          {title}
         </AppText>
-        <AppText color="textMuted" align="center">
-          {expired
-            ? 'Nobody was paid. Go back and hum again.'
-            : 'Faara is humming a one-time code. Your wallet address and amount never leave your phone.'}
+        <AppText color={error ? 'gold' : 'textMuted'} align="center">
+          {subtitle}
         </AppText>
       </View>
 

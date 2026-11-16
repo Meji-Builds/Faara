@@ -1,27 +1,34 @@
 import { useRouter } from 'expo-router';
-import { Info } from 'lucide-react-native';
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { ClaimantCard } from '@/components/hum';
+import { ClaimantCard, type ClaimantView } from '@/components/hum';
 import { AppText, Button, Header, Screen } from '@/components/ui';
-import { outOfRangeClaims, sampleClaimants } from '@/data/fixtures';
-import { useHumDraft } from '@/features/hum';
-import { useTheme } from '@/theme';
+import { chooseRecipient, useHumDraft } from '@/features/hum';
+import { apiErrorMessage } from '@/lib/api/client';
+
+const AVATAR_TONES = ['soft', 'gold', 'surface'] as const;
 
 export default function PickRecipientScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
-  const { amountLabel, note, recipientId, setRecipientId } = useHumDraft();
-  const claimants = sampleClaimants;
-  const onlyClaimant = claimants.length === 1 ? claimants[0] : undefined;
+  const { amountLabel, note, session, claims, chosen, setChosen } = useHumDraft();
+  const [selectedId, setSelectedId] = useState<string | null>(chosen?.claimId ?? null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Preselect only when there is exactly one claimant; otherwise the sender must choose.
-  useEffect(() => {
-    if (onlyClaimant && recipientId === null) setRecipientId(onlyClaimant.id);
-  }, [onlyClaimant, recipientId, setRecipientId]);
+  const claimants: ClaimantView[] = claims.map((claim, index) => ({
+    id: claim.id,
+    name: claim.fullName,
+    username: claim.username,
+    distanceCm: claim.distanceCm,
+    tone: AVATAR_TONES[index % AVATAR_TONES.length] ?? 'soft',
+  }));
 
-  const selected = claimants.find((claimant) => claimant.id === recipientId);
+  // Preselect only when exactly one phone claimed; otherwise the sender must choose.
+  const onlyClaimId = claimants.length === 1 ? claimants[0]?.id : undefined;
+  const effectiveId = selectedId ?? onlyClaimId ?? null;
+  const selected = claimants.find((claimant) => claimant.id === effectiveId);
+  const firstName = selected?.name.split(/\s+/)[0] ?? '';
   const count =
     claimants.length === 1
       ? 'One phone'
@@ -29,14 +36,44 @@ export default function PickRecipientScreen() {
         ? 'Two phones'
         : `${claimants.length} phones`;
 
+  const pay = async () => {
+    if (!session || !selected) return;
+    // Already chosen this person (e.g. came back from Confirm): continue.
+    if (chosen?.claimId === selected.id) {
+      router.push('/hum/confirm');
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    try {
+      const result = await chooseRecipient(session.paymentId, selected.id);
+      setChosen({ claimId: selected.id, shapes: result.shapes, recipient: result.recipient });
+      router.push('/hum/confirm');
+    } catch (cause) {
+      setError(apiErrorMessage(cause));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const locked = chosen !== null;
+
   return (
     <Screen
       footer={
-        <Button
-          label={selected ? `Pay ${selected.firstName} ${amountLabel}` : 'Choose who gets paid'}
-          disabled={!selected}
-          onPress={() => router.push('/hum/confirm')}
-        />
+        <>
+          {error ? (
+            <AppText variant="label" color="gold" align="center">
+              {error}
+            </AppText>
+          ) : null}
+          <Button
+            label={selected ? `Pay ${firstName} ${amountLabel}` : 'Choose who gets paid'}
+            disabled={!selected}
+            loading={submitting}
+            onPress={pay}
+          />
+        </>
       }
     >
       <Header
@@ -53,7 +90,9 @@ export default function PickRecipientScreen() {
           Who gets it?
         </AppText>
         <AppText color="textMuted">
-          {count} caught your hum. Nobody is paid until you choose. Closest is on top.
+          {claimants.length === 0
+            ? 'Waiting for a phone to catch your hum.'
+            : `${count} caught your hum. Nobody is paid until you choose. Closest is on top.`}
         </AppText>
       </View>
 
@@ -62,36 +101,17 @@ export default function PickRecipientScreen() {
           <ClaimantCard
             key={claimant.id}
             claimant={claimant}
-            closest={index === 0}
-            selected={claimant.id === recipientId}
-            onSelect={() => setRecipientId(claimant.id)}
+            closest={index === 0 && claimant.distanceCm !== null && claimants.length > 1}
+            selected={claimant.id === effectiveId}
+            onSelect={() => !locked && setSelectedId(claimant.id)}
           />
         ))}
       </View>
-
-      {outOfRangeClaims > 0 ? (
-        <View style={styles.footnote}>
-          <Info size={20} color={colors.textMuted} strokeWidth={1.75} />
-          <AppText variant="body" color="textMuted">
-            {outOfRangeClaims === 1
-              ? '1 more phone heard it but was too far to claim'
-              : `${outOfRangeClaims} more phones heard it but were too far to claim`}
-          </AppText>
-        </View>
-      ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   intro: { gap: 8, marginTop: 24 },
-  list: { gap: 14, marginTop: 24 },
-  footnote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 20,
-    marginLeft: 4,
-    marginBottom: 16,
-  },
+  list: { gap: 14, marginTop: 24, paddingBottom: 16 },
 });

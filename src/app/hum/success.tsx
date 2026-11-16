@@ -4,21 +4,22 @@ import { StyleSheet, View } from 'react-native';
 
 import { AdireBand, Rings } from '@/components/brand';
 import { AppText, Button, Screen } from '@/components/ui';
-import { sampleClaimants } from '@/data/fixtures';
 import { useHumDraft } from '@/features/hum';
 import { fonts, palette, radii, useTheme } from '@/theme';
 
-/** Sample values until settlement is wired up (milestones 4 and 6). */
-const SAMPLE_SETTLE_SECONDS = 1.8;
-const SAMPLE_REFERENCE = 'HUM-24A7-K9QD';
+/** "AbC123xyz…" → "HUM-ABC1-23XY": short, readable reference from the payment id. */
+function referenceFor(paymentId: string): string {
+  const clean = paymentId.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return `HUM-${clean.slice(0, 4)}-${clean.slice(4, 8)}`;
+}
 
 export default function SuccessScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { amountLabel, note, recipientId, reset } = useHumDraft();
-  const recipient = sampleClaimants.find((claimant) => claimant.id === recipientId);
+  const { amountLabel, note, session, chosen, reset } = useHumDraft();
 
-  if (!recipient) return <Redirect href="/hum" />;
+  if (!session || !chosen) return <Redirect href="/hum" />;
+  const recipient = { name: chosen.recipient.fullName };
 
   const done = () => {
     reset();
@@ -27,9 +28,9 @@ export default function SuccessScreen() {
 
   const rows: [string, string, boolean?][] = [
     ['For', note || '—'],
-    ['Sent by', 'Sound · Bluetooth backup'],
+    ['Sent by', 'Sound'],
     ['Fee', 'Free'],
-    ['Reference', SAMPLE_REFERENCE, true],
+    ['Reference', referenceFor(session.paymentId), true],
   ];
 
   return (
@@ -72,7 +73,7 @@ export default function SuccessScreen() {
             </AppText>
           </AppText>
           <AppText variant="body" color="onBrandMuted" align="center">
-            Settled in {SAMPLE_SETTLE_SECONDS} seconds
+            Test payment: no money moves until wallets are connected
           </AppText>
         </View>
 

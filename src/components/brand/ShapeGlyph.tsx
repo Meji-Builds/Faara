@@ -2,12 +2,10 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { palette } from '@/theme';
 
-/**
- * Fixed set of brand shapes used for visual payment matching.
- * Both phones render the same three shapes so people can confirm by eye.
- */
-export const BRAND_SHAPES = ['triangle', 'ring', 'diamond', 'square', 'dot', 'cross'] as const;
-export type BrandShape = (typeof BRAND_SHAPES)[number];
+import { BRAND_SHAPES, type BrandShape } from '@shared/hum';
+
+// The shape set is shared with the server, which picks the three shapes for each payment.
+export { BRAND_SHAPES, type BrandShape };
 
 const SHAPE_COLOR: Record<BrandShape, string> = {
   triangle: palette.electricTeal,

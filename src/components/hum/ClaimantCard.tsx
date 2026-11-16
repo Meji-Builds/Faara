@@ -1,8 +1,8 @@
-import { Check, ShieldCheck, TriangleAlert } from 'lucide-react-native';
+import { Check, ShieldCheck, ShieldQuestion, TriangleAlert } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar } from '@/components/ui';
-import type { Claimant } from '@/data/fixtures';
+import type { AvatarTone, WalletRisk } from '@/data/fixtures';
 import { initials } from '@/lib/money';
 import { fonts, palette, radii, useTheme } from '@/theme';
 
@@ -13,25 +13,42 @@ export function formatDistance(cm: number): { value: string; unit: string } {
     : { value: (cm / 100).toFixed(1), unit: 'm' };
 }
 
+export interface ClaimantView {
+  id: string;
+  name: string;
+  username: string;
+  /** Rough estimate from signal strength; null when unknown (e.g. QR or manual code). */
+  distanceCm: number | null;
+  tone: AvatarTone;
+  /** Wallet safety result; undefined until the safety check runs. */
+  risk?: WalletRisk;
+}
+
 interface ClaimantCardProps {
-  claimant: Claimant;
+  claimant: ClaimantView;
   selected: boolean;
   closest: boolean;
   onSelect: () => void;
 }
 
+function riskLabel(risk: WalletRisk | undefined): string {
+  if (!risk) return 'Wallet not checked yet.';
+  return risk.level === 'low' ? 'Wallet checked, low risk.' : `Warning: ${risk.reason}.`;
+}
+
 export function ClaimantCard({ claimant, selected, closest, onSelect }: ClaimantCardProps) {
   const { colors } = useTheme();
-  const distance = formatDistance(claimant.distanceCm);
+  const distance = claimant.distanceCm === null ? null : formatDistance(claimant.distanceCm);
   const { risk } = claimant;
+  const distanceText = distance
+    ? `about ${distance.value} ${distance.unit === 'cm' ? 'centimetres' : 'metres'} away`
+    : 'distance unknown';
 
   return (
     <Pressable
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${claimant.name}, @${claimant.username}, ${distance.value} ${distance.unit === 'cm' ? 'centimetres' : 'metres'} away. ${
-        risk.level === 'low' ? 'Wallet checked, low risk.' : `Warning: ${risk.reason}.`
-      }`}
+      accessibilityLabel={`${claimant.name}, @${claimant.username}, ${distanceText}. ${riskLabel(risk)}`}
       onPress={onSelect}
       style={[
         styles.card,
@@ -51,16 +68,24 @@ export function ClaimantCard({ claimant, selected, closest, onSelect }: Claimant
           </AppText>
         </View>
         <View style={styles.distance}>
-          <AppText
-            style={[styles.distanceValue, { color: selected ? colors.onBrand : colors.textMuted }]}
-          >
-            {distance.value}
+          {distance ? (
             <AppText
-              style={[styles.distanceUnit, { color: selected ? colors.onBrand : colors.textMuted }]}
+              style={[
+                styles.distanceValue,
+                { color: selected ? colors.onBrand : colors.textMuted },
+              ]}
             >
-              {distance.unit}
+              {distance.value}
+              <AppText
+                style={[
+                  styles.distanceUnit,
+                  { color: selected ? colors.onBrand : colors.textMuted },
+                ]}
+              >
+                {distance.unit}
+              </AppText>
             </AppText>
-          </AppText>
+          ) : null}
           {closest ? (
             <AppText
               variant="label"
@@ -85,44 +110,67 @@ export function ClaimantCard({ claimant, selected, closest, onSelect }: Claimant
         </View>
       </View>
 
-      {risk.level === 'low' ? (
-        <View
-          style={[
-            styles.chip,
-            { backgroundColor: selected ? colors.brandInset : colors.surfaceMuted },
-          ]}
-        >
-          <ShieldCheck
-            size={18}
-            color={selected ? palette.electricTeal : colors.accentText}
-            strokeWidth={1.75}
-          />
-          <AppText variant="label" color={selected ? 'onBrand' : 'text'} style={styles.chipText}>
-            Wallet checked ·{' '}
-            <AppText
-              variant="label"
-              style={{ color: selected ? palette.electricTeal : colors.accentText }}
-            >
-              Low risk
-            </AppText>
-          </AppText>
-          <AppText
-            variant="caption"
-            color={selected ? 'onBrandMuted' : 'textMuted'}
-            style={styles.history}
-          >
-            {risk.history}
-          </AppText>
-        </View>
-      ) : (
-        <View style={[styles.chip, { backgroundColor: colors.warningSurface }]}>
-          <TriangleAlert size={18} color={colors.gold} strokeWidth={1.75} />
-          <AppText variant="label" style={[styles.chipText, { color: colors.gold }]}>
-            {risk.reason}
-          </AppText>
-        </View>
-      )}
+      <RiskChip risk={risk} selected={selected} />
     </Pressable>
+  );
+}
+
+function RiskChip({ risk, selected }: { risk: WalletRisk | undefined; selected: boolean }) {
+  const { colors } = useTheme();
+  const neutralSurface = selected ? colors.brandInset : colors.surfaceMuted;
+
+  if (!risk) {
+    return (
+      <View style={[styles.chip, { backgroundColor: neutralSurface }]}>
+        <ShieldQuestion
+          size={18}
+          color={selected ? colors.onBrandMuted : colors.textMuted}
+          strokeWidth={1.75}
+        />
+        <AppText
+          variant="label"
+          color={selected ? 'onBrandMuted' : 'textMuted'}
+          style={styles.chipText}
+        >
+          Wallet not checked yet
+        </AppText>
+      </View>
+    );
+  }
+  if (risk.level === 'low') {
+    return (
+      <View style={[styles.chip, { backgroundColor: neutralSurface }]}>
+        <ShieldCheck
+          size={18}
+          color={selected ? palette.electricTeal : colors.accentText}
+          strokeWidth={1.75}
+        />
+        <AppText variant="label" color={selected ? 'onBrand' : 'text'} style={styles.chipText}>
+          Wallet checked ·{' '}
+          <AppText
+            variant="label"
+            style={{ color: selected ? palette.electricTeal : colors.accentText }}
+          >
+            Low risk
+          </AppText>
+        </AppText>
+        <AppText
+          variant="caption"
+          color={selected ? 'onBrandMuted' : 'textMuted'}
+          style={styles.history}
+        >
+          {risk.history}
+        </AppText>
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.chip, { backgroundColor: colors.warningSurface }]}>
+      <TriangleAlert size={18} color={colors.gold} strokeWidth={1.75} />
+      <AppText variant="label" style={[styles.chipText, { color: colors.gold }]}>
+        {risk.reason}
+      </AppText>
+    </View>
   );
 }
 

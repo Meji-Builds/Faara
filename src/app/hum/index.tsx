@@ -6,6 +6,7 @@ import { CurrencyToggle } from '@/components/hum';
 import { AppText, Button, Header, Keypad, Screen, TextField } from '@/components/ui';
 import { balances } from '@/data/fixtures';
 import { useHumDraft } from '@/features/hum';
+import { audioEngine } from '@/features/sound';
 import { applyKeypadInput, CURRENCY_SYMBOL, formatMoney, groupDigits } from '@/lib/money';
 import { fonts, palette, radii, useTheme } from '@/theme';
 
@@ -33,7 +34,11 @@ export default function AmountScreen() {
             label="Hum it"
             icon={<HumMark size={20} color={palette.nearBlack} />}
             disabled={amount <= 0 || exceedsBalance}
-            onPress={() => router.push('/hum/humming')}
+            onPress={() => {
+              // Unlock audio inside the tap; browsers block sound started later.
+              audioEngine.prepare();
+              router.push('/hum/humming');
+            }}
           />
           <AppText variant="label" color="textMuted" align="center">
             Then hold phones close, about a foot apart

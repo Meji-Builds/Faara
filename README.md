@@ -109,6 +109,21 @@ Sign-in is by phone number with Firebase Authentication; profiles live in Firest
 
 While `PHONE_AUTH_TEST_NUMBERS_ONLY` is on (`src/lib/firebase/config.ts`), only the test numbers set in Firebase Console → Authentication → Sign-in method → Phone work, and no SMS is sent. Real SMS will go through a Nigerian provider from Cloud Functions before launch.
 
+## Hum backend
+
+Server code runs as Vercel functions in `api/` (Firebase Admin SDK, credentials from the `FIREBASE_SERVICE_ACCOUNT` environment variable; never commit the key). Shared request types, limits and validation live in `shared/hum` and are used by both the app and the server.
+
+| Endpoint                | Who      | Does                                                                      |
+| ----------------------- | -------- | ------------------------------------------------------------------------- |
+| `POST /api/hums/create` | Sender   | Issues a 10-character code valid for 30 s                                 |
+| `POST /api/hums/claim`  | Receiver | Claims a decoded code (one claim per person, max 5 per hum, not your own) |
+| `POST /api/hums/choose` | Sender   | Picks the recipient once; returns three matching shapes for both screens  |
+| `POST /api/hums/cancel` | Sender   | Abandons an open hum                                                      |
+
+Requests carry the user's Firebase ID token. Each user is rate-limited per action per minute. Clients read hum and claim status from Firestore (sender: their hum and its claims; receiver: their own claim); only the server writes.
+
+`npm run typecheck` checks the app and the server (`api/tsconfig.json`, Node types).
+
 ## Theming
 
 Brand colours and fonts live in `src/theme`. Components read semantic tokens from `useTheme().colors` rather than raw hex values, so dark and light mode stay consistent. Dark is the default; users can switch to Light or System in Settings.

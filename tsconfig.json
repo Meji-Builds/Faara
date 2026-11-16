@@ -11,6 +11,9 @@
       ],
       "@modules/*": [
         "./modules/*"
+      ],
+      "@shared/*": [
+        "./shared/*"
       ]
     },
     "types": [
@@ -22,5 +25,10 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "api",
+    "node_modules",
+    "dist"
   ]
 }

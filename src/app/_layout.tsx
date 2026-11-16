@@ -86,6 +86,7 @@ function RootStack() {
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         <Stack.Screen name="hum" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="settings" />
+        <Stack.Screen name="receive" options={{ animation: 'slide_from_bottom' }} />
       </Stack.Protected>
       <Stack.Screen name="lab/sound" />
     </Stack>

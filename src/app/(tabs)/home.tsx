@@ -9,6 +9,7 @@ import { QuickAction } from '@/components/wallet/QuickAction';
 import { TransactionRow } from '@/components/wallet/TransactionRow';
 import { balances, sampleAccounts, recentTransactions } from '@/data/fixtures';
 import { useProfile } from '@/features/auth';
+import { audioEngine } from '@/features/sound';
 import { greeting } from '@/lib/greeting';
 import { initials } from '@/lib/money';
 import { palette, useTheme } from '@/theme';
@@ -48,10 +49,21 @@ export default function HomeScreen() {
           label="Hum"
           highlighted
           icon={<HumMark size={20} color={palette.nearBlack} />}
-          onPress={() => router.push('/hum')}
+          onPress={() => {
+            audioEngine.prepare();
+            router.push('/hum');
+          }}
         />
         <QuickAction label="Send" icon={<ArrowRight {...iconProps} />} />
-        <QuickAction label="Request" icon={<ArrowLeft {...iconProps} />} />
+        <QuickAction
+          label="Request"
+          icon={<ArrowLeft {...iconProps} />}
+          onPress={() => {
+            // Unlock audio inside the tap (browsers), then listen for a hum.
+            audioEngine.prepare();
+            router.push('/receive');
+          }}
+        />
         <QuickAction label="Add money" icon={<Plus {...iconProps} />} />
       </View>
 

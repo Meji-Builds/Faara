@@ -1,17 +1,30 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+
+import type { CreateHumResponse, ShapeTriple } from '@shared/hum';
 
 import { formatMoney, type Currency } from '@/lib/money';
 
+import { watchClaims, type HumClaim } from './humApi';
+
 /**
- * Client-side state for a hum being composed, shared across the
- * Amount → Humming → Pick recipient → Confirm → Success screens.
+ * Client state for one outgoing hum, shared across
+ * Amount → Humming → Pick recipient → Confirm → Success.
  */
 export interface HumDraft {
   currency: Currency;
   /** Amount as typed on the keypad, e.g. "12500" or "40.5". */
   amountInput: string;
   note: string;
-  recipientId: string | null;
+  /** The issued hum once created on the server. */
+  session: CreateHumResponse | null;
+  /** Everyone who claimed the hum, closest first (live). */
+  claims: HumClaim[];
+  /** Set once the sender has chosen a recipient. */
+  chosen: {
+    claimId: string;
+    shapes: ShapeTriple;
+    recipient: { fullName: string; username: string };
+  } | null;
 }
 
 interface HumDraftContextValue extends HumDraft {
@@ -21,7 +34,8 @@ interface HumDraftContextValue extends HumDraft {
   setCurrency: (currency: Currency) => void;
   setAmountInput: (amountInput: string) => void;
   setNote: (note: string) => void;
-  setRecipientId: (recipientId: string | null) => void;
+  setSession: (session: CreateHumResponse | null) => void;
+  setChosen: (chosen: HumDraft['chosen']) => void;
   reset: () => void;
 }
 
@@ -29,13 +43,22 @@ const INITIAL_DRAFT: HumDraft = {
   currency: 'NGN',
   amountInput: '0',
   note: '',
-  recipientId: null,
+  session: null,
+  claims: [],
+  chosen: null,
 };
 
 const HumDraftContext = createContext<HumDraftContextValue | null>(null);
 
 export function HumDraftProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<HumDraft>(INITIAL_DRAFT);
+  const paymentId = draft.session?.paymentId;
+
+  // One live claims listener for the whole flow, so every screen sees the same list.
+  useEffect(() => {
+    if (!paymentId) return;
+    return watchClaims(paymentId, (claims) => setDraft((d) => ({ ...d, claims })));
+  }, [paymentId]);
 
   const value = useMemo<HumDraftContextValue>(() => {
     const amount = Number.parseFloat(draft.amountInput) || 0;
@@ -48,7 +71,8 @@ export function HumDraftProvider({ children }: { children: ReactNode }) {
       setCurrency: (currency) => setDraft((d) => ({ ...d, currency, amountInput: '0' })),
       setAmountInput: (amountInput) => setDraft((d) => ({ ...d, amountInput })),
       setNote: (note) => setDraft((d) => ({ ...d, note })),
-      setRecipientId: (recipientId) => setDraft((d) => ({ ...d, recipientId })),
+      setSession: (session) => setDraft((d) => ({ ...d, session, claims: [], chosen: null })),
+      setChosen: (chosen) => setDraft((d) => ({ ...d, chosen })),
       reset: () => setDraft(INITIAL_DRAFT),
     };
   }, [draft]);
