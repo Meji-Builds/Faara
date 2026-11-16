@@ -26,7 +26,7 @@ export default function LogInScreen() {
   // After the code is accepted, route on whether this number has a Faara profile.
   useEffect(() => {
     if (!confirmed) return;
-    if (status === 'ready') router.replace('/home');
+    if (status === 'ready') router.replace('/');
     if (status === 'needsProfile') router.replace('/sign-up');
   }, [confirmed, status, router]);
 

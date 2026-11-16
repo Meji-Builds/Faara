@@ -1,40 +1,37 @@
 import { useRouter } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemeOption } from '@/components/settings/ThemeOption';
 import { AppText, BackButton, Card, ListRow, Screen, Toggle } from '@/components/ui';
+import { usePreferences, type HumVolume } from '@/features/preferences';
 import { useTheme, type ThemePreference } from '@/theme';
 
 const THEME_OPTIONS: ThemePreference[] = ['dark', 'light', 'system'];
 
-/** Local-only preferences until settings sync to the user profile. */
-interface Preferences {
-  readyToReceive: boolean;
-  payWithFingerprint: boolean;
-  hideBalances: boolean;
-  notifyMoneyReceived: boolean;
-  notifyOffers: boolean;
-}
+type ToggleKey =
+  'readyToReceive' | 'payWithFingerprint' | 'hideBalances' | 'notifyMoneyReceived' | 'notifyOffers';
+
+const VOLUME_ORDER: HumVolume[] = ['quiet', 'normal', 'loud'];
+const VOLUME_LABEL: Record<HumVolume, string> = { quiet: 'Quiet', normal: 'Normal', loud: 'Loud' };
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { preference, setPreference } = useTheme();
-  const [prefs, setPrefs] = useState<Preferences>({
-    readyToReceive: true,
-    payWithFingerprint: true,
-    hideBalances: false,
-    notifyMoneyReceived: true,
-    notifyOffers: false,
-  });
+  const { preferences, setPreference: setAppPreference } = usePreferences();
 
-  const toggle = (key: keyof Preferences, label: string) => (
+  const toggle = (key: ToggleKey, label: string) => (
     <Toggle
-      value={prefs[key]}
-      onValueChange={(value) => setPrefs((p) => ({ ...p, [key]: value }))}
+      value={preferences[key]}
+      onValueChange={(value) => setAppPreference(key, value)}
       accessibilityLabel={label}
     />
   );
+
+  const cycleVolume = () => {
+    const index = VOLUME_ORDER.indexOf(preferences.humVolume);
+    setAppPreference('humVolume', VOLUME_ORDER[(index + 1) % VOLUME_ORDER.length] as HumVolume);
+  };
 
   return (
     <Screen>
@@ -51,7 +48,11 @@ export default function SettingsScreen() {
             label="Open the app ready to receive"
             trailing={toggle('readyToReceive', 'Open the app ready to receive')}
           />
-          <ListRow label="Hum volume" value="Quiet" onPress={() => undefined} />
+          <ListRow
+            label="Hum volume"
+            value={VOLUME_LABEL[preferences.humVolume]}
+            onPress={cycleVolume}
+          />
         </Card>
       </Section>
 

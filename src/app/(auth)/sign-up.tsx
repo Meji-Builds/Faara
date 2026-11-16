@@ -69,7 +69,7 @@ export default function SignUpScreen() {
 
   // Leave sign-up as soon as the profile exists.
   useEffect(() => {
-    if (status === 'ready') router.replace('/home');
+    if (status === 'ready') router.replace('/');
   }, [status, router]);
 
   const submit = async () => {

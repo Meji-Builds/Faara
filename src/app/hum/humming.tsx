@@ -9,6 +9,7 @@ import { ChannelList, FallbackCode, HumPulse, type ChannelStatus } from '@/compo
 import { AppText, Avatar, Button, Header, Screen } from '@/components/ui';
 import { useBleBroadcast, type BleChannelState } from '@/features/ble';
 import { cancelHum, createHum, useHumDraft } from '@/features/hum';
+import { HUM_VOLUME_GAIN, usePreferences } from '@/features/preferences';
 import { useHumBroadcaster } from '@/features/sound';
 import { apiErrorMessage } from '@/lib/api/client';
 import { initials } from '@/lib/money';
@@ -16,8 +17,6 @@ import { fonts, radii, useTheme } from '@/theme';
 
 /** Show the QR / manual code if nobody has claimed within this long. */
 const FALLBACK_AFTER_MS = 3000;
-/** Broadcast volume; Normal decoded reliably at ~60 cm in field tests. */
-const HUM_VOLUME = 0.5;
 const AVATAR_TONES = ['soft', 'gold', 'surface'] as const;
 
 const BLE_LABELS: Partial<Record<BleChannelState, string>> = {
@@ -48,6 +47,7 @@ export default function HummingScreen() {
   const { colors } = useTheme();
   const { amount, currency, note, amountLabel, session, setSession, claims } = useHumDraft();
   const broadcaster = useHumBroadcaster();
+  const humVolume = usePreferences().preferences.humVolume;
   const [error, setError] = useState<string | null>(null);
   const [expiresAtLocal, setExpiresAtLocal] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -85,11 +85,11 @@ export default function HummingScreen() {
   // Broadcast the code while it's valid.
   useEffect(() => {
     if (!session || expired) return;
-    startBroadcast(session.token, HUM_VOLUME);
+    startBroadcast(session.token, HUM_VOLUME_GAIN[humVolume]);
     return () => {
       stopBroadcast();
     };
-  }, [session, expired, startBroadcast, stopBroadcast]);
+  }, [session, expired, startBroadcast, stopBroadcast, humVolume]);
 
   useEffect(() => {
     if (!session || expired) return;

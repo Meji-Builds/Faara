@@ -1,6 +1,7 @@
 import {
   doc,
   getDoc,
+  updateDoc,
   onSnapshot,
   runTransaction,
   serverTimestamp,
@@ -22,6 +23,8 @@ export interface UserProfile {
   phone: string;
   verificationTier: number;
   createdAt: Timestamp | null;
+  /** Public Solana address of the user's dollar wallet, once set up. */
+  walletAddress: string | null;
 }
 
 /**
@@ -106,8 +109,14 @@ export function watchProfile(
         phone: String(data.phone ?? ''),
         verificationTier: Number(data.verificationTier ?? 1),
         createdAt: (data.createdAt as Timestamp | undefined) ?? null,
+        walletAddress: typeof data.walletAddress === 'string' ? data.walletAddress : null,
       });
     },
     onError,
   );
+}
+
+/** Publishes the user's wallet address (public key only) so payers can send to it. */
+export async function setWalletAddress(uid: string, walletAddress: string): Promise<void> {
+  await withTimeout(updateDoc(userRef(uid), { walletAddress }), WRITE_TIMEOUT_MS);
 }

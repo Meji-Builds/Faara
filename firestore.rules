@@ -31,7 +31,13 @@ service cloud.firestore {
         // The username must be reserved for this user in the same write.
         && getAfter(/databases/$(database)/documents/usernames/$(request.resource.data.username)).data.uid == uid;
 
-      allow update, delete: if false;
+      // The only field people may change themselves: the public address of their dollar wallet.
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['walletAddress'])
+        && request.resource.data.walletAddress is string
+        && request.resource.data.walletAddress.matches('^[1-9A-HJ-NP-Za-km-z]{32,44}$');
+      allow delete: if false;
     }
 
     // Username reservations make usernames unique. Anyone may check whether one exists.

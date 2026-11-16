@@ -10,13 +10,23 @@ interface OtpFieldProps {
   onChangeText: (value: string) => void;
   length?: number;
   autoFocus?: boolean;
+  /** Show dots instead of digits (PIN entry). */
+  secure?: boolean;
+  accessibilityLabel?: string;
 }
 
 /**
  * One-time code input rendered as separate boxes. A single hidden TextInput
  * holds the value so paste and SMS autofill work on every platform.
  */
-export function OtpField({ value, onChangeText, length = 6, autoFocus }: OtpFieldProps) {
+export function OtpField({
+  value,
+  onChangeText,
+  length = 6,
+  autoFocus,
+  secure = false,
+  accessibilityLabel,
+}: OtpFieldProps) {
   const { colors } = useTheme();
   const inputRef = useRef<TextInputInstance>(null);
   const [focused, setFocused] = useState(false);
@@ -24,7 +34,7 @@ export function OtpField({ value, onChangeText, length = 6, autoFocus }: OtpFiel
 
   return (
     <Pressable
-      accessibilityLabel={`${length}-digit code`}
+      accessibilityLabel={accessibilityLabel ?? `${length}-digit code`}
       onPress={() => inputRef.current?.focus()}
       style={styles.row}
     >
@@ -42,7 +52,9 @@ export function OtpField({ value, onChangeText, length = 6, autoFocus }: OtpFiel
               },
             ]}
           >
-            <AppText style={styles.digit}>{value[index] ?? ''}</AppText>
+            <AppText style={styles.digit}>
+              {value[index] === undefined ? '' : secure ? '•' : value[index]}
+            </AppText>
           </View>
         );
       })}
@@ -51,8 +63,9 @@ export function OtpField({ value, onChangeText, length = 6, autoFocus }: OtpFiel
         value={value}
         onChangeText={(text) => onChangeText(text.replace(/\D/g, '').slice(0, length))}
         keyboardType="number-pad"
-        textContentType="oneTimeCode"
-        autoComplete="sms-otp"
+        textContentType={secure ? 'password' : 'oneTimeCode'}
+        autoComplete={secure ? 'off' : 'sms-otp'}
+        secureTextEntry={secure}
         maxLength={length}
         autoFocus={autoFocus}
         onFocus={() => setFocused(true)}

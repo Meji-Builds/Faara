@@ -27,7 +27,7 @@ export default function VerifyScreen() {
   useEffect(() => {
     if (status !== 'ready') return;
     setPending(null);
-    router.replace('/home');
+    router.replace('/');
   }, [status, router, setPending]);
 
   if (!pending?.signUp) return <Redirect href="/sign-up" />;

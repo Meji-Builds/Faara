@@ -18,6 +18,8 @@ import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/features/auth';
+import { PreferencesProvider } from '@/features/preferences';
+import { useWallet, WalletProvider } from '@/features/wallet';
 import { ThemeProvider, useTheme } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -41,9 +43,13 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AuthProvider>
-          <RootStack />
-        </AuthProvider>
+        <PreferencesProvider>
+          <AuthProvider>
+            <WalletProvider>
+              <RootStack />
+            </WalletProvider>
+          </AuthProvider>
+        </PreferencesProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
@@ -52,11 +58,13 @@ export default function RootLayout() {
 function RootStack() {
   const { colors } = useTheme();
   const { status } = useAuth();
+  const { status: walletStatus } = useWallet();
+  const loading = status === 'loading' || (status === 'ready' && walletStatus === 'loading');
   // Only the very first session restore holds the splash screen. Later loading states
   // (e.g. fetching the profile right after sign-in) must keep the current screen mounted.
   const [restored, setRestored] = useState(false);
-  const restoring = !restored && status === 'loading';
-  if (!restored && status !== 'loading') setRestored(true);
+  const restoring = !restored && loading;
+  if (!restored && !loading) setRestored(true);
 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(colors.background).catch(() => undefined);
@@ -69,6 +77,7 @@ function RootStack() {
 
   if (restoring) return null;
   const signedIn = status === 'ready';
+  const walletReady = signedIn && walletStatus === 'ready';
 
   return (
     <Stack
@@ -82,7 +91,13 @@ function RootStack() {
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
-      <Stack.Protected guard={signedIn}>
+      <Stack.Protected guard={signedIn && walletStatus === 'needsWallet'}>
+        <Stack.Screen name="setup-wallet" options={{ gestureEnabled: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={signedIn && walletStatus === 'needsRestore'}>
+        <Stack.Screen name="restore-wallet" options={{ gestureEnabled: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={walletReady}>
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         <Stack.Screen name="hum" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="settings" />
