@@ -91,6 +91,14 @@ Audio I/O sits behind one interface (`src/features/sound/audio`):
 
 To test, install a build on two phones, open **Settings → Developer → Sound lab**, start humming on one and listening on the other.
 
+### Field results
+
+| Date       | Build | Sender → receiver            | Conditions                                | Result                                                  |
+| ---------- | ----- | ---------------------------- | ----------------------------------------- | ------------------------------------------------------- |
+| 2026-11-16 | Web   | Tecno Spark 10 Pro → Samsung | ~60 cm (a short step), background talking | 13/15 overall; last 10 consecutive passed; median 1.4 s |
+
+Milestone 1 target (9 of 10 at 30 cm in under 2 s, with talking nearby) is met in the browser. Pending: the same test on the Android build.
+
 ## Accounts (Firebase)
 
 Sign-in is by phone number with Firebase Authentication; profiles live in Firestore (project `faara-hum`).
