@@ -49,3 +49,4 @@ yarn-error.*
 # Vercel local build output
 .vercel/
 clips/
+__pycache__/
