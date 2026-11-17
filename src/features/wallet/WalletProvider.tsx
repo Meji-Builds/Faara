@@ -5,13 +5,15 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
+import { AppState } from 'react-native';
 
 import { setWalletAddress, useAuth } from '@/features/auth';
 
-import { canUseBiometrics } from './biometrics';
+import { canUseBiometrics, confirmWithBiometrics } from './biometrics';
 import {
   createRecoveryPhrase,
   fromHex,
@@ -41,7 +43,17 @@ interface WalletContextValue {
   /** Signing key. Pass the PIN, or null after a successful biometric check (native only). */
   unlockKeypair: (pin: string | null) => Promise<Keypair>;
   revealPhrase: (pin: string | null) => Promise<string>;
+  /** Replaces the PIN. Rejects with WrongPinError / PinLockedError if `currentPin` is wrong. */
+  changePin: (currentPin: string, newPin: string) => Promise<void>;
+  /** App lock: true until the passcode or fingerprint is given this session. */
+  locked: boolean;
+  unlockWithPin: (pin: string) => Promise<void>;
+  /** Shows the fingerprint prompt; resolves true if it unlocked. */
+  unlockWithBiometrics: () => Promise<boolean>;
 }
+
+/** Time in the background after which the app locks again. */
+const RELOCK_AFTER_MS = 60_000;
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
@@ -52,6 +64,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const { status: authStatus, user, profile } = useAuth();
   const [deviceAddress, setDeviceAddress] = useState<string | null | undefined>(undefined);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const [locked, setLocked] = useState(true);
+  const backgroundedAt = useRef<number | null>(null);
+
+  // Lock again after the app has been in the background for a while.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        const since = backgroundedAt.current;
+        if (since !== null && Date.now() - since > RELOCK_AFTER_MS) setLocked(true);
+        backgroundedAt.current = null;
+      } else if (backgroundedAt.current === null) {
+        backgroundedAt.current = Date.now();
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +102,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       await vault.save({ phrase, seedHex: toHex(seed), address }, pin);
       await setWalletAddress(user.uid, address);
       setDeviceAddress(address);
+      setLocked(false); // they just chose the PIN
     },
     [user],
   );
@@ -97,6 +126,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const changePin = useCallback(async (currentPin: string, newPin: string) => {
+    const secrets = await vault.unlock(currentPin);
+    await nextTick();
+    await vault.save(secrets, newPin);
+  }, []);
+
+  const unlockWithPin = useCallback(async (pin: string) => {
+    await vault.unlock(pin);
+    setLocked(false);
+  }, []);
+
+  const unlockWithBiometrics = useCallback(async () => {
+    if (vault.pinEncrypted || !(await confirmWithBiometrics('Unlock Faara'))) return false;
+    setLocked(false);
+    return true;
+  }, []);
+
   const status: WalletStatus =
     authStatus !== 'ready' || deviceAddress === undefined
       ? 'loading'
@@ -116,8 +162,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       restoreWallet,
       unlockKeypair,
       revealPhrase,
+      changePin,
+      locked,
+      unlockWithPin,
+      unlockWithBiometrics,
     }),
     [
+      changePin,
+      locked,
+      unlockWithPin,
+      unlockWithBiometrics,
       status,
       deviceAddress,
       biometricsAvailable,

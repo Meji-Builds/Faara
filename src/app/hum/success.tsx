@@ -1,21 +1,17 @@
 import { Redirect, useRouter } from 'expo-router';
 import { Check, Download } from 'lucide-react-native';
-import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-
-import { explorerTxUrl } from '@shared/solana';
 
 import { AdireBand, Rings } from '@/components/brand';
 import { AppText, Button, Screen } from '@/components/ui';
 import { useHumDraft } from '@/features/hum';
-import { CHANNEL_LABEL, downloadReceipt, receiptReference } from '@/features/receipts';
+import { CHANNEL_LABEL, receiptReference } from '@/features/receipts';
 import { fonts, palette, radii, useTheme } from '@/theme';
 
 export default function SuccessScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { amountLabel, note, currency, session, chosen, claims, settlement, reset } = useHumDraft();
-  const [receiptError, setReceiptError] = useState<string | null>(null);
+  const { amountLabel, note, session, chosen, claims, settlement, reset } = useHumDraft();
 
   if (!session || !chosen || !settlement) return <Redirect href="/hum" />;
   const recipient = { name: chosen.recipient.fullName };
@@ -23,21 +19,8 @@ export default function SuccessScreen() {
   const reference = receiptReference(session.paymentId);
   const seconds = (settlement.elapsedMs / 1000).toFixed(1);
 
-  const saveReceipt = () => {
-    setReceiptError(null);
-    downloadReceipt({
-      reference,
-      direction: 'out',
-      amountLabel,
-      counterpartyName: recipient.name,
-      counterpartyUsername: chosen.recipient.username,
-      note,
-      settledAt: settlement.settledAt,
-      channelLabel: CHANNEL_LABEL[channel],
-      currency,
-      explorerUrl: settlement.signature ? explorerTxUrl(settlement.signature) : null,
-    }).catch(() => setReceiptError('Couldn’t create the receipt. Try again.'));
-  };
+  const openReceipt = () =>
+    router.push({ pathname: '/receipt/[paymentId]', params: { paymentId: session.paymentId } });
 
   const done = () => {
     reset();
@@ -66,15 +49,10 @@ export default function SuccessScreen() {
         edges={['bottom']}
         footer={
           <>
-            {receiptError ? (
-              <AppText variant="label" color="goldOnBrand" align="center">
-                {receiptError}
-              </AppText>
-            ) : null}
             <View style={styles.actions}>
               <Button
                 label="Receipt"
-                onPress={saveReceipt}
+                onPress={openReceipt}
                 variant="outline"
                 tone="accent"
                 icon={<Download size={20} color={palette.electricTeal} strokeWidth={1.75} />}

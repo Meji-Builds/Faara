@@ -4,3 +4,4 @@ export { Rings } from './Rings';
 export { BRAND_SHAPES, ShapeGlyph, shapeLabel, type BrandShape } from './ShapeGlyph';
 export { Wordmark } from './Wordmark';
 export { HumRing } from './HumRing';
+export { LaunchScreen } from './LaunchScreen';

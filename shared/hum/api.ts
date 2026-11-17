@@ -104,3 +104,26 @@ export type ApiErrorCode =
   | 'resource-exhausted'
   | 'failed-precondition'
   | 'internal';
+
+/** Add money (naira) through the payment partner's hosted checkout. */
+export interface InitializeFundingRequest {
+  /** Whole naira. */
+  amount: number;
+  /** Where checkout returns to: the web app or the native app. */
+  platform: 'web' | 'native';
+}
+
+export interface InitializeFundingResponse {
+  reference: string;
+  checkoutUrl: string;
+}
+
+export interface VerifyFundingRequest {
+  reference: string;
+}
+
+export interface VerifyFundingResponse {
+  status: 'success' | 'pending' | 'failed';
+  /** Naira credited (when successful). */
+  amount: number;
+}

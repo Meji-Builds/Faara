@@ -106,7 +106,8 @@ const styles = StyleSheet.create({
     letterSpacing: -1.6,
     marginTop: 10,
   },
-  fraction: { fontFamily: fonts.display, fontSize: 20, letterSpacing: -0.4 },
+  // Inline spans must share the parent's lineHeight, or Android clips the line.
+  fraction: { fontFamily: fonts.display, fontSize: 20, lineHeight: 50, letterSpacing: -0.4 },
   divider: { height: 1, marginTop: 14, marginBottom: 14 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
   muted: { opacity: 0.92 },

@@ -15,6 +15,8 @@ export interface NairaProvider {
     reference: string;
   }): Promise<void>;
   balance(uid: string): Promise<number>;
+  /** Adds money from outside (a top-up). Idempotent on `reference`. */
+  credit(params: { uid: string; amountKobo: number; reference: string }): Promise<void>;
 }
 
 interface AccountDoc {
@@ -43,6 +45,31 @@ export class MockNairaLedger implements NairaProvider {
     return this.store.transaction(async (tx) => {
       const account = await tx.get<AccountDoc>(accountPath(uid));
       return account?.balanceKobo ?? MOCK_STARTING_BALANCE_KOBO;
+    });
+  }
+
+  async credit({
+    uid,
+    amountKobo,
+    reference,
+  }: Parameters<NairaProvider['credit']>[0]): Promise<void> {
+    if (!Number.isInteger(amountKobo) || amountKobo <= 0) {
+      throw new ApiError('invalid-argument', 'Invalid amount.');
+    }
+    await this.store.transaction(async (tx) => {
+      if (await tx.get<EntryDoc>(entryPath(reference))) return; // already applied
+      const account = await tx.get<AccountDoc>(accountPath(uid));
+      const now = this.now();
+      tx.set(accountPath(uid), {
+        balanceKobo: (account?.balanceKobo ?? MOCK_STARTING_BALANCE_KOBO) + amountKobo,
+        updatedAt: now,
+      } satisfies AccountDoc);
+      tx.set(entryPath(reference), {
+        fromUid: 'external',
+        toUid: uid,
+        amountKobo,
+        createdAt: now,
+      } satisfies EntryDoc);
     });
   }
 

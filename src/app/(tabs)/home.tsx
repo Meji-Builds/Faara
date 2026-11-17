@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { ArrowLeft, ArrowRight, Bell, Plus } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { HumMark } from '@/components/brand';
 import { AppText, Avatar, IconButton, Screen } from '@/components/ui';
@@ -14,11 +15,15 @@ import {
   useUsdcBalance,
 } from '@/features/account';
 import { useProfile } from '@/features/auth';
+import { useNotifications } from '@/features/notifications';
 import { usePreferences } from '@/features/preferences';
 import { audioEngine } from '@/features/sound';
 import { greeting } from '@/lib/greeting';
 import { initials } from '@/lib/money';
 import { palette, useTheme } from '@/theme';
+
+/** Set once the launch-time jump to Receive has been considered. */
+let openedReceive = false;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -28,6 +33,16 @@ export default function HomeScreen() {
   const naira = useNairaBalance();
   const usdc = useUsdcBalance();
   const activity = useActivity(10);
+  const { unreadCount } = useNotifications();
+  const { loaded } = usePreferences();
+
+  // "Open the app ready to receive": go straight to Receive once per launch (app only;
+  // browsers need a tap before they allow audio).
+  useEffect(() => {
+    if (!loaded || openedReceive || Platform.OS === 'web') return;
+    openedReceive = true;
+    if (preferences.readyToReceive) router.push('/receive');
+  }, [loaded, preferences.readyToReceive, router]);
   const firstName = profile.fullName.split(/\s+/)[0] ?? profile.fullName;
   const iconProps = { size: 24, color: colors.text, strokeWidth: 1.75 } as const;
 
@@ -42,9 +57,12 @@ export default function HomeScreen() {
           <AppText variant="subheading">{firstName}</AppText>
         </View>
         <IconButton
-          accessibilityLabel="Notifications"
-          badge
+          accessibilityLabel={
+            unreadCount > 0 ? `Notifications, ${unreadCount} new` : 'Notifications'
+          }
+          badge={unreadCount > 0}
           icon={<Bell {...iconProps} size={22} />}
+          onPress={() => router.push('/notifications')}
         />
       </View>
 
@@ -83,7 +101,7 @@ export default function HomeScreen() {
         <QuickAction
           label="Add money"
           icon={<Plus {...iconProps} />}
-          onPress={() => router.push('/wallet')}
+          onPress={() => router.push('/add-money')}
         />
       </View>
 

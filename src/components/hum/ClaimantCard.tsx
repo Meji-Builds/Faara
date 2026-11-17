@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   identity: { flex: 1, gap: 2 },
   distance: { alignItems: 'flex-end' },
   distanceValue: { fontFamily: fonts.display, fontSize: 22, lineHeight: 26, letterSpacing: -0.5 },
-  distanceUnit: { fontFamily: fonts.displayBold, fontSize: 13 },
+  distanceUnit: { fontFamily: fonts.displayBold, fontSize: 13, lineHeight: 26 },
   closest: { fontFamily: fonts.bodySemiBold },
   radio: {
     width: 26,

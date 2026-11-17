@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { useAppResumed } from '@/lib/useAppResumed';
+
 import {
   bleAvailability,
   requestBlePermissions,
@@ -14,6 +16,8 @@ export type BleChannelState = 'off' | 'starting' | 'active' | 'denied' | 'error'
 /** Advertises `token` over Bluetooth while it is non-null. */
 export function useBleBroadcast(token: string | null): BleChannelState {
   const [state, setState] = useState<BleChannelState>(() => (token ? 'starting' : 'off'));
+  // Re-check when the app comes back (e.g. after turning Bluetooth on in system settings).
+  const resumed = useAppResumed();
 
   useEffect(() => {
     if (!token) return;
@@ -34,7 +38,7 @@ export function useBleBroadcast(token: string | null): BleChannelState {
       cancelled = true;
       stopBleBroadcast();
     };
-  }, [token]);
+  }, [token, resumed]);
 
   return token ? state : 'off';
 }
@@ -45,6 +49,7 @@ export function useBleScan(
   onToken: (token: string, rssi: number) => void,
 ): BleChannelState {
   const [state, setState] = useState<BleChannelState>('off');
+  const resumed = useAppResumed();
   const onTokenRef = useRef(onToken);
   useEffect(() => {
     onTokenRef.current = onToken;
@@ -71,7 +76,7 @@ export function useBleScan(
       cancelled = true;
       stop?.();
     };
-  }, [enabled]);
+  }, [enabled, resumed]);
 
   return enabled ? state : 'off';
 }

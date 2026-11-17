@@ -4,13 +4,15 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemeOption } from '@/components/settings/ThemeOption';
 import { AppText, BackButton, Card, ListRow, Screen, Toggle } from '@/components/ui';
-import { usePreferences, type HumVolume } from '@/features/preferences';
+import { usePreferences, type HumVolume, type Preferences } from '@/features/preferences';
 import { useTheme, type ThemePreference } from '@/theme';
 
 const THEME_OPTIONS: ThemePreference[] = ['dark', 'light', 'system'];
 
-type ToggleKey =
-  'readyToReceive' | 'payWithFingerprint' | 'hideBalances' | 'notifyMoneyReceived' | 'notifyOffers';
+/** Preferences shown as on/off switches. */
+type ToggleKey = {
+  [K in keyof Preferences]: Preferences[K] extends boolean ? K : never;
+}[keyof Preferences];
 
 const VOLUME_ORDER: HumVolume[] = ['quiet', 'normal', 'loud'];
 const VOLUME_LABEL: Record<HumVolume, string> = { quiet: 'Quiet', normal: 'Normal', loud: 'Loud' };
@@ -59,6 +61,14 @@ export default function SettingsScreen() {
       <Section title="Security">
         <Card divided>
           <ListRow
+            label="Ask for passcode to open Faara"
+            trailing={toggle('appLock', 'Ask for passcode to open Faara')}
+          />
+          <ListRow
+            label="Unlock with fingerprint"
+            trailing={toggle('unlockWithFingerprint', 'Unlock with fingerprint')}
+          />
+          <ListRow
             label="Pay with fingerprint"
             trailing={toggle('payWithFingerprint', 'Pay with fingerprint')}
           />
@@ -66,7 +76,7 @@ export default function SettingsScreen() {
             label="Hide balances on Home"
             trailing={toggle('hideBalances', 'Hide balances on Home')}
           />
-          <ListRow label="Change PIN" onPress={() => undefined} />
+          <ListRow label="Change PIN" onPress={() => router.push('/change-pin')} />
         </Card>
       </Section>
 

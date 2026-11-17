@@ -39,6 +39,7 @@ export const RATE_LIMITS = {
   chooseRecipient: 20,
   settleHum: 20,
   lookupUser: 30,
+  funding: 10,
 } as const;
 export type RateLimitedAction = keyof typeof RATE_LIMITS;
 
@@ -56,3 +57,6 @@ export function toMinorUnits(amount: number): number {
 export function fromMinorUnits(minor: number): number {
   return minor / 100;
 }
+
+/** Limits for one naira top-up, in naira. */
+export const FUNDING_LIMITS = { min: 100, max: 1_000_000 } as const;

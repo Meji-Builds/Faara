@@ -17,12 +17,10 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "monochromeImage": "./assets/images/adaptive-icon-monochrome.png",
-        "backgroundColor": "#0B3D2E"
+        "backgroundColor": "#EAF7F2"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      "permissions": ["android.permission.RECORD_AUDIO"]
     },
     "web": {
       "output": "single",
@@ -30,18 +28,23 @@
       "name": "Faara",
       "shortName": "Faara",
       "themeColor": "#0A1412",
-      "backgroundColor": "#0A1412"
+      "backgroundColor": "#EAF7F2"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": false
+        }
+      ],
       "expo-font",
       [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 160,
+          "imageWidth": 170,
           "resizeMode": "contain",
-          "backgroundColor": "#0B3D2E"
+          "backgroundColor": "#EAF7F2"
         }
       ],
       [
@@ -53,7 +56,14 @@
         }
       ],
       "expo-secure-store",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "color": "#14E0C1"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

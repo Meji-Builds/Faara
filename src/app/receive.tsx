@@ -5,7 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import type { ClaimChannel, ClaimHumResponse, ShapeTriple } from '@shared/hum';
 
 import { ShapeGlyph } from '@/components/brand';
-import { HumPulse, WaveScanner } from '@/components/hum';
+import { BluetoothReminder, HumPulse, WaveScanner } from '@/components/hum';
 import { AppText, Button, Card, Header, OtpField, Screen, TextTabs } from '@/components/ui';
 import { estimateDistanceFromRssi, useBleScan } from '@/features/ble';
 import { claimHum, watchClaim, watchHum, type HumClaim, type HumState } from '@/features/hum';
@@ -159,12 +159,15 @@ export default function ReceiveScreen() {
             <OtpField value={manualCode} onChangeText={setManualCode} length={6} autoFocus />
           </View>
         ) : phase.kind === 'listening' ? (
-          <Listening
-            state={listener.state}
-            error={listener.error ?? listener.unavailableReason ?? null}
-            onRetry={listener.start}
-            bluetoothActive={bleState === 'active'}
-          />
+          <View style={styles.method}>
+            <BluetoothReminder state={bleState} />
+            <Listening
+              state={listener.state}
+              error={listener.error ?? listener.unavailableReason ?? null}
+              onRetry={listener.start}
+              bluetoothActive={bleState === 'active'}
+            />
+          </View>
         ) : phase.kind === 'claiming' ? (
           <Status busy title="Hum caught" message="Letting the sender know you’re here…" />
         ) : phase.kind === 'failed' ? (

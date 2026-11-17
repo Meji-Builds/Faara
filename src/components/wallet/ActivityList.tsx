@@ -17,13 +17,16 @@ export function toTransactionView(entry: ActivityEntry, index: number): Transact
   return {
     id: `${entry.paymentId}-${entry.direction}`,
     counterparty: entry.counterpartyName || `@${entry.counterpartyUsername}`,
-    description: [
-      entry.kind === 'transfer' ? 'Sent by username' : 'Hum',
-      entry.currency === 'USDC' ? 'USDC' : null,
-      entry.note || null,
-    ]
-      .filter(Boolean)
-      .join(' · '),
+    description:
+      entry.kind === 'deposit'
+        ? 'Added money'
+        : [
+            entry.kind === 'transfer' ? 'Sent by username' : 'Hum',
+            entry.currency === 'USDC' ? 'USDC' : null,
+            entry.note || null,
+          ]
+            .filter(Boolean)
+            .join(' · '),
     amount: entry.direction === 'in' ? major : -major,
     currency: entry.currency,
     when: relativeDay(entry.createdAt),

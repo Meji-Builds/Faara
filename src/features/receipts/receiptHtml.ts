@@ -36,7 +36,12 @@ export function receiptHtml(data: ReceiptData): string {
   });
   const party = data.direction === 'out' ? 'Paid to' : 'Received from';
   const rows: [string, string][] = [
-    [party, `${data.counterpartyName} (@${data.counterpartyUsername})`],
+    [
+      party,
+      data.counterpartyUsername
+        ? `${data.counterpartyName} (@${data.counterpartyUsername})`
+        : data.counterpartyName,
+    ],
     ['For', data.note || '—'],
     ['Date', when],
     ['Sent by', data.channelLabel],
@@ -50,7 +55,8 @@ export function receiptHtml(data: ReceiptData): string {
 <html><head><meta charset="utf-8"><title>Faara receipt ${escapeHtml(data.reference)}</title>
 <style>
   @page { margin: 24px; }
-  * { box-sizing: border-box; }
+  /* Keep brand colours when printing or saving as PDF (Android and Chrome drop backgrounds by default). */
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { margin: 0; font-family: Inter, -apple-system, Roboto, Helvetica, Arial, sans-serif; color: #0A1412; background: #fff; }
   .card { max-width: 520px; margin: 0 auto; border-radius: 24px; overflow: hidden; border: 1px solid #DCE9E4; }
   .top { background: #0B3D2E; color: #EAF7F2; padding: 28px 28px 22px; }

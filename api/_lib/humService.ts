@@ -122,6 +122,11 @@ export interface HumServiceDeps {
   naira: NairaProvider;
   /** Fetches a confirmed transaction in `jsonParsed` form, or null if not found. */
   fetchTransaction: (signature: string) => Promise<ParsedTransaction | null>;
+  /** Sends a push notification to a person's devices (optional). */
+  notify?: (
+    uid: string,
+    message: { title: string; body: string; data: Record<string, string> },
+  ) => Promise<void>;
   /** External wallet risk (Webacy), or null when unavailable. */
   walletRisk: (address: string) => Promise<{ score: number; topIssue: string | null } | null>;
 }
@@ -450,7 +455,8 @@ export class HumService {
       });
     }
 
-    return store.transaction(async (tx) => {
+    let recipientAlert: { title: string; body: string } | null = null;
+    const result = await store.transaction(async (tx) => {
       const current = await tx.get<HumDoc>(humPath(request.paymentId));
       if (!current) throw new ApiError('not-found', 'Hum not found.');
       if (current.status === 'settled')
@@ -492,8 +498,22 @@ export class HumService {
         counterpartyName: current.senderName,
         counterpartyUsername: current.senderUsername,
       } satisfies ActivityEntry);
+      const amount = fromMinorUnits(current.amountMinor);
+      recipientAlert = {
+        title: `${current.currency === 'NGN' ? '₦' : '$'}${amount.toLocaleString('en-NG', {
+          minimumFractionDigits: current.currency === 'USDC' ? 2 : 0,
+        })} from ${current.senderName}`,
+        body: current.note || 'Tap to see the receipt.',
+      };
       return { settledAt, signature };
     });
+    const alert = recipientAlert as { title: string; body: string } | null;
+    if (alert && this.deps.notify) {
+      await this.deps
+        .notify(claimId, { ...alert, data: { paymentId: request.paymentId } })
+        .catch(() => undefined);
+    }
+    return result;
   }
 
   /**

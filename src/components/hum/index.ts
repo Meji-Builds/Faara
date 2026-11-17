@@ -4,3 +4,4 @@ export { CurrencyToggle } from './CurrencyToggle';
 export { HumPulse } from './HumPulse';
 export { FallbackCode } from './FallbackCode';
 export { WaveScanner } from './WaveScanner';
+export { BluetoothReminder } from './BluetoothReminder';

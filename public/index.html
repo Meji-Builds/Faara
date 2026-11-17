@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>%WEB_TITLE%</title>
+    <link rel="preload" as="image" href="/wordmark.png" />
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        overflow: hidden;
+        margin: 0;
+        background: #eaf7f2;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+      /* Shown until the app has downloaded; the app's opening animation continues from it. */
+      #launch {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eaf7f2;
+      }
+      #launch div {
+        position: relative;
+      }
+      #launch img {
+        display: block;
+        width: 170px;
+        height: 58px;
+      }
+      #launch span {
+        position: absolute;
+        top: 80px;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+      }
+      #launch i {
+        width: 5px;
+        height: 30px;
+        border-radius: 3px;
+        background: #0b3d2e;
+        transform: scaleY(0.18);
+        animation: hum 1.3s ease-in-out infinite;
+      }
+      #launch i:nth-child(2) { animation-delay: 0.07s; }
+      #launch i:nth-child(3) { animation-delay: 0.14s; }
+      #launch i:nth-child(4) { animation-delay: 0.21s; }
+      #launch i:nth-child(5) { animation-delay: 0.28s; }
+      #launch i:nth-child(6) { animation-delay: 0.35s; }
+      #launch i:nth-child(7) { animation-delay: 0.42s; }
+      #launch i:nth-child(8) { animation-delay: 0.49s; }
+      #launch i:nth-child(9) { animation-delay: 0.56s; }
+      @keyframes hum {
+        0%, 55%, 100% { transform: scaleY(0.18); }
+        25% { transform: scaleY(0.8); }
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root">
+      <div id="launch">
+        <div>
+          <img src="/wordmark.png" alt="Faara" />
+          <span><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

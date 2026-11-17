@@ -4,12 +4,15 @@ import type {
   ClaimHumRequest,
   CreateHumRequest,
   CreateTransferRequest,
+  InitializeFundingRequest,
+  VerifyFundingRequest,
   LookupUserRequest,
   SettleHumRequest,
 } from './api';
 import {
   CLAIM_CHANNELS,
   CURRENCIES,
+  FUNDING_LIMITS,
   MAX_AMOUNT,
   MAX_NOTE_LENGTH,
   type ClaimChannel,
@@ -126,4 +129,28 @@ export function parseCreateTransfer(body: unknown): CreateTransferRequest {
   const data = requireRecord(body);
   const { amount, currency, note } = parseCreateHum(data);
   return { username: requireUsername(data.username), amount, currency, note };
+}
+
+export function parseInitializeFunding(body: unknown): InitializeFundingRequest {
+  const data = requireRecord(body);
+  const amount = data.amount;
+  if (typeof amount !== 'number' || !Number.isInteger(amount)) {
+    throw new ValidationError('amount must be a whole number of naira.');
+  }
+  if (amount < FUNDING_LIMITS.min || amount > FUNDING_LIMITS.max) {
+    throw new ValidationError(
+      `amount must be between ₦${FUNDING_LIMITS.min} and ₦${FUNDING_LIMITS.max}.`,
+    );
+  }
+  if (data.platform !== 'web' && data.platform !== 'native')
+    throw new ValidationError('platform is invalid.');
+  return { amount, platform: data.platform };
+}
+
+export function parseVerifyFunding(body: unknown): VerifyFundingRequest {
+  const reference = requireRecord(body).reference;
+  if (typeof reference !== 'string' || !/^FND[A-Za-z0-9_-]{8,40}$/.test(reference)) {
+    throw new ValidationError('reference is invalid.');
+  }
+  return { reference };
 }

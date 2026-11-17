@@ -4,8 +4,11 @@ import { ValidationError, type ApiErrorBody } from '../../shared/hum';
 
 import { ApiError } from './errors';
 import { adminDb, firestoreStore, verifyIdToken } from './firebaseAdmin';
+import { FundingService } from './fundingService';
 import { HumService } from './humService';
 import { MockNairaLedger } from './naira';
+import { paystackCheckout } from './paystack';
+import { createNotifier } from './push';
 import { fetchParsedTransaction } from './solanaRpc';
 import { fetchWalletRisk } from './webacy';
 
@@ -13,23 +16,43 @@ import { fetchWalletRisk } from './webacy';
 // function down with a non-JSON 500; log it so it shows up in Vercel's logs.
 process.on('unhandledRejection', (reason) => console.error('Unhandled rejection', reason));
 
-let service: HumService | undefined;
+interface Services {
+  hum: HumService;
+  funding: FundingService;
+}
 
-function humService(): HumService {
-  if (!service) {
+let services: Services | undefined;
+
+/** Lazily built so a missing credential surfaces as a JSON error, not a crash at load. */
+export function getServices(): Services {
+  if (!services) {
     const store = firestoreStore(adminDb());
     const now = () => Date.now();
-    service = new HumService({
-      store,
-      now,
-      randomInt: (n) => randomInt(n),
-      newId: () => randomBytes(15).toString('base64url'),
-      naira: new MockNairaLedger(store, now),
-      fetchTransaction: fetchParsedTransaction,
-      walletRisk: fetchWalletRisk,
-    });
+    const newId = () => randomBytes(15).toString('base64url');
+    const naira = new MockNairaLedger(store, now);
+    const notify = createNotifier(store);
+    services = {
+      hum: new HumService({
+        store,
+        now,
+        randomInt: (n) => randomInt(n),
+        newId,
+        naira,
+        fetchTransaction: fetchParsedTransaction,
+        walletRisk: fetchWalletRisk,
+        notify,
+      }),
+      funding: new FundingService({
+        store,
+        now,
+        newId,
+        naira,
+        checkout: paystackCheckout(),
+        notify,
+      }),
+    };
   }
-  return service;
+  return services;
 }
 
 /**
@@ -76,9 +99,12 @@ function errorResponse(error: unknown): Response {
  * Builds a POST handler: authenticates the Firebase ID token in the Authorization
  * header, validates the JSON body, and runs the action.
  */
-export function humRoute<Req, Res>(
+export function authedRoute<Req, Res>(
   parse: (body: unknown) => Req,
-  action: (service: HumService, uid: string, request: Req) => Promise<Res>,
+  action: (
+    context: { uid: string; services: Services; http: Request },
+    request: Req,
+  ) => Promise<Res>,
 ) {
   return async function POST(request: Request): Promise<Response> {
     try {
@@ -97,10 +123,20 @@ export function humRoute<Req, Res>(
       } catch {
         throw new ValidationError('Request body must be JSON.');
       }
-      const result = await action(humService(), uid, parse(body));
+      const result = await action({ uid, services: getServices(), http: request }, parse(body));
       return json(200, result ?? { ok: true });
     } catch (error) {
       return errorResponse(error);
     }
   };
 }
+
+/** `authedRoute` for hum endpoints. */
+export function humRoute<Req, Res>(
+  parse: (body: unknown) => Req,
+  action: (service: HumService, uid: string, request: Req) => Promise<Res>,
+) {
+  return authedRoute(parse, ({ uid, services: all }, request) => action(all.hum, uid, request));
+}
+
+export { errorResponse, json };

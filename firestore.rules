@@ -39,6 +39,18 @@ service cloud.firestore {
         && request.resource.data.walletAddress.matches('^[1-9A-HJ-NP-Za-km-z]{32,44}$');
       allow delete: if false;
 
+      // Push token and notification choices, read by the server when money arrives.
+      match /private/push {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow write: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['tokens', 'moneyReceived', 'offers', 'updatedAt'])
+          && request.resource.data.tokens is list
+          && request.resource.data.tokens.size() <= 5
+          && request.resource.data.moneyReceived is bool
+          && request.resource.data.offers is bool;
+      }
+
       // Settled payments, written by the server for both people.
       match /activity/{paymentId} {
         allow read: if signedIn() && request.auth.uid == uid;
@@ -52,6 +64,11 @@ service cloud.firestore {
       allow list, write: if false;
     }
     match /ledgerEntries/{reference} {
+      allow read, write: if false;
+    }
+
+    // Top-ups in progress; server-only.
+    match /fundingIntents/{reference} {
       allow read, write: if false;
     }
 

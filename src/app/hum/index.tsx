@@ -69,7 +69,12 @@ export default function AmountScreen() {
           style={[styles.amount, { fontSize, lineHeight: fontSize * 1.12, color: colors.onBrand }]}
           numberOfLines={1}
         >
-          <AppText style={[styles.amount, { fontSize, color: palette.softTeal }]}>
+          <AppText
+            style={[
+              styles.amount,
+              { fontSize, lineHeight: fontSize * 1.12, color: palette.softTeal },
+            ]}
+          >
             {CURRENCY_SYMBOL[currency]}
           </AppText>
           {display}

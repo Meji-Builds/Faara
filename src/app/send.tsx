@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import type { CreateTransferResponse, LookupUserResponse } from '@shared/hum';
-import { explorerTxUrl } from '@shared/solana';
 
 import { ApprovalFooter, PaymentDetails, PaymentHeader } from '@/components/payments';
 import {
@@ -27,7 +26,7 @@ import {
   type PaymentToSettle,
   type Settlement,
 } from '@/features/payments';
-import { downloadReceipt, receiptReference } from '@/features/receipts';
+import { receiptReference } from '@/features/receipts';
 import { apiErrorMessage } from '@/lib/api/client';
 import { formatMoney, initials, type Currency } from '@/lib/money';
 import { fonts, palette, useTheme } from '@/theme';
@@ -152,18 +151,7 @@ export default function SendScreen() {
 
   // Done: payment settled.
   if (transfer && settlement && amount !== null) {
-    const receipt = {
-      reference: receiptReference(transfer.paymentId),
-      direction: 'out' as const,
-      amountLabel,
-      counterpartyName: transfer.recipient.fullName,
-      counterpartyUsername: transfer.recipient.username,
-      note: note.trim(),
-      settledAt: settlement.settledAt,
-      channelLabel: 'Username',
-      currency,
-      explorerUrl: settlement.signature ? explorerTxUrl(settlement.signature) : null,
-    };
+    const reference = receiptReference(transfer.paymentId);
     return (
       <Screen
         background={colors.brand}
@@ -175,7 +163,12 @@ export default function SendScreen() {
               variant="outline"
               tone="accent"
               icon={<Download size={20} color={palette.electricTeal} strokeWidth={1.75} />}
-              onPress={() => downloadReceipt(receipt).catch(() => undefined)}
+              onPress={() =>
+                router.push({
+                  pathname: '/receipt/[paymentId]',
+                  params: { paymentId: transfer.paymentId },
+                })
+              }
               style={styles.flex}
             />
             <Button label="Done" onPress={() => router.back()} style={styles.flex} />
@@ -196,7 +189,7 @@ export default function SendScreen() {
             </AppText>
           </AppText>
           <AppText variant="label" color="onBrandMuted" align="center">
-            Settled in {(settlement.elapsedMs / 1000).toFixed(1)} seconds · {receipt.reference}
+            Settled in {(settlement.elapsedMs / 1000).toFixed(1)} seconds · {reference}
           </AppText>
         </View>
       </Screen>

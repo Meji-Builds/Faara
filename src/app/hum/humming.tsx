@@ -5,7 +5,13 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { HUM_TOKEN_TTL_MS } from '@shared/hum';
 
-import { ChannelList, FallbackCode, HumPulse, type ChannelStatus } from '@/components/hum';
+import {
+  BluetoothReminder,
+  ChannelList,
+  FallbackCode,
+  HumPulse,
+  type ChannelStatus,
+} from '@/components/hum';
 import { AppText, Avatar, Button, Header, Screen } from '@/components/ui';
 import { useBleBroadcast, type BleChannelState } from '@/features/ble';
 import { cancelHum, createHum, useHumDraft } from '@/features/hum';
@@ -238,6 +244,7 @@ export default function HummingScreen() {
       </View>
 
       <View style={styles.channels}>
+        {session && !expired ? <BluetoothReminder state={bleState} /> : null}
         <ChannelList channels={channels} />
       </View>
     </Screen>
@@ -249,7 +256,7 @@ const styles = StyleSheet.create({
   pulse: { alignItems: 'center', marginTop: 8 },
   copy: { gap: 10, paddingHorizontal: 12 },
   title: { fontSize: 30, lineHeight: 36 },
-  channels: { marginTop: 24, marginBottom: 16 },
+  channels: { marginTop: 24, marginBottom: 16, gap: 12 },
   claims: {
     flexDirection: 'row',
     alignItems: 'center',

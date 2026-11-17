@@ -19,7 +19,9 @@ export function receiptFromActivity(entry: ActivityEntry): ReceiptData {
     note: entry.note,
     settledAt: entry.createdAt,
     channelLabel:
-      CHANNEL_LABEL[entry.channel ?? (entry.kind === 'transfer' ? 'username' : 'sound')],
+      entry.kind === 'deposit'
+        ? 'Card or bank transfer'
+        : CHANNEL_LABEL[entry.channel ?? (entry.kind === 'transfer' ? 'username' : 'sound')],
     currency: entry.currency,
     explorerUrl: entry.signature ? explorerTxUrl(entry.signature) : null,
   };
