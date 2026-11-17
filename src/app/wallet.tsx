@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, Header, ListRow, OtpField, Screen } from '@/components/ui';
+import { friendlyError } from '@/lib/errors';
 import { useProfile } from '@/features/auth';
 import {
   confirmWithBiometrics,
@@ -71,7 +72,7 @@ export default function WalletScreen() {
       setPhrase(await revealPhrase(pin));
       setAskPin(false);
     } catch (cause) {
-      setPinError(cause instanceof Error ? cause.message : 'Wrong PIN.');
+      setPinError(friendlyError(cause, 'Couldn’t check your PIN. Try again.'));
     } finally {
       setPin('');
     }

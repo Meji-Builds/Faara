@@ -4,7 +4,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AdireBand, Rings } from '@/components/brand';
 import { AppText } from '@/components/ui';
-import { DOLLARS_ENABLED } from '@/config/features';
+import { CONVERT_ENABLED, DOLLARS_ENABLED } from '@/config/features';
+import { formatMinor } from '@/features/convert/format';
 import { formatMoney, groupDigits } from '@/lib/money';
 import { fonts, palette, radii, useTheme } from '@/theme';
 
@@ -14,6 +15,8 @@ interface BalanceCardProps {
   usdc: number | null;
   /** Shown in place of an account number: how people find you. */
   faaraNumber: string;
+  /** Dollar and USDC balances held in Faara, in cents. */
+  ledger?: { usd: number; usdc: number } | null;
   initiallyHidden?: boolean;
 }
 
@@ -23,6 +26,7 @@ export function BalanceCard({
   naira,
   usdc,
   faaraNumber,
+  ledger = null,
   initiallyHidden = false,
 }: BalanceCardProps) {
   const { colors } = useTheme();
@@ -83,6 +87,14 @@ export function BalanceCard({
                   : `${formatMoney(usdc, 'USDC', { decimals: 2 })} USDC`}
             </AppText>
           </AppText>
+        ) : CONVERT_ENABLED ? (
+          <AppText variant="body" color="onBrand" style={styles.muted}>
+            <AppText variant="bodyStrong" color="goldOnBrand">
+              {hidden || ledger === null
+                ? HIDDEN
+                : `${formatMinor(ledger.usd, 'USD')} · ${formatMinor(ledger.usdc, 'USDC')}`}
+            </AppText>
+          </AppText>
         ) : null}
         <AppText variant="body" color="onBrand" style={styles.muted}>
           Faara no. {faaraNumber}
@@ -113,7 +125,7 @@ const styles = StyleSheet.create({
   // Inline spans must share the parent's lineHeight, or Android clips the line.
   fraction: { fontFamily: fonts.display, fontSize: 20, lineHeight: 50, letterSpacing: -0.4 },
   divider: { height: 1, marginTop: 14, marginBottom: 14 },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  footer: { gap: 6 },
   muted: { opacity: 0.92 },
   band: { marginTop: 18, opacity: 0.9 },
 });

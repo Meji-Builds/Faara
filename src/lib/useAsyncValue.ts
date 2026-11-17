@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { friendlyError } from '@/lib/errors';
+
 /** Loads a value on mount and on `reload()`. Errors become `error`; the last value is kept. */
 export function useAsyncValue<T>(load: () => Promise<T>) {
   const [value, setValue] = useState<T | null>(null);
@@ -17,7 +19,10 @@ export function useAsyncValue<T>(load: () => Promise<T>) {
       })
       .catch(
         (cause: unknown) =>
-          !cancelled && setError(cause instanceof Error ? cause.message : String(cause)),
+          !cancelled &&
+          setError(
+            friendlyError(cause, 'Couldn’t load this. Check your connection and try again.'),
+          ),
       )
       .finally(() => !cancelled && setLoading(false));
     return () => {

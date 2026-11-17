@@ -1,7 +1,7 @@
 import { useIsFocused, useRouter } from 'expo-router';
-import { ArrowLeft, ArrowRight, Bell, Plus } from 'lucide-react-native';
+import { ArrowDownUp, ArrowLeft, ArrowRight, Bell, Plus } from 'lucide-react-native';
 import { useEffect } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { HumMark } from '@/components/brand';
 import { ListeningLine } from '@/components/hum';
@@ -10,7 +10,9 @@ import { ActivityList } from '@/components/wallet/ActivityList';
 import { BalanceCard } from '@/components/wallet/BalanceCard';
 import { QuickAction } from '@/components/wallet/QuickAction';
 import { useActivity, useNairaBalance, useUsdcBalance } from '@/features/account';
+import { CONVERT_ENABLED } from '@/config/features';
 import { useProfile } from '@/features/auth';
+import { useBalances } from '@/features/convert';
 import { useAmbientReceive } from '@/features/hum';
 import { DEMO } from '@/features/demo/engine';
 import { takePendingRecipient } from '@/features/referral';
@@ -30,6 +32,7 @@ export default function HomeScreen() {
   const { preferences } = usePreferences();
   const naira = useNairaBalance();
   const usdc = useUsdcBalance();
+  const ledger = useBalances();
   const activity = useActivity(10);
   const { unreadCount } = useNotifications();
   // Someone who opened a pay link before joining carries on to pay them.
@@ -84,14 +87,32 @@ export default function HomeScreen() {
         naira={naira}
         usdc={usdc.value}
         faaraNumber={faaraNumber(profile.phone)}
+        ledger={ledger ? { usd: ledger.USD, usdc: ledger.USDC } : null}
         initiallyHidden={preferences.hideBalances}
       />
 
-      {ambient ? (
-        <View style={styles.ready}>
+      <View style={styles.ready}>
+        {ambient ? (
           <ListeningLine state={sound} onPress={() => router.push('/receive')} />
-        </View>
-      ) : null}
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Receive a hum"
+            hitSlop={10}
+            onPress={() => {
+              // Unlock audio inside the tap (browsers), then listen for a hum.
+              audioEngine.prepare();
+              router.push('/receive');
+            }}
+            style={styles.receiveLink}
+          >
+            <ArrowLeft size={16} color={colors.accentText} strokeWidth={1.75} />
+            <AppText variant="label" color="accentText">
+              Receive a hum
+            </AppText>
+          </Pressable>
+        )}
+      </View>
 
       <View style={styles.actions}>
         <QuickAction
@@ -110,19 +131,17 @@ export default function HomeScreen() {
           onPress={() => router.push('/send')}
         />
         <QuickAction
-          label="Request"
-          icon={<ArrowLeft {...iconProps} />}
-          onPress={() => {
-            // Unlock audio inside the tap (browsers), then listen for a hum.
-            audioEngine.prepare();
-            router.push('/receive');
-          }}
-        />
-        <QuickAction
           label="Add money"
           icon={<Plus {...iconProps} />}
           onPress={() => router.push('/add-money')}
         />
+        {CONVERT_ENABLED ? (
+          <QuickAction
+            label="Convert"
+            icon={<ArrowDownUp {...iconProps} />}
+            onPress={() => router.push('/convert')}
+          />
+        ) : null}
       </View>
 
       <View style={styles.sectionHeader}>
@@ -145,7 +164,8 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  ready: { marginTop: 14 },
+  ready: { marginTop: 16 },
+  receiveLink: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8, marginBottom: 18 },
   greeting: { flex: 1 },
   actions: { flexDirection: 'row', marginTop: 20, marginBottom: 8 },

@@ -139,6 +139,7 @@ function RootStack({ onReady }: { onReady: () => void }) {
           <Stack.Screen name="receive" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="wallet" />
           <Stack.Screen name="change-pin" />
+          <Stack.Screen name="convert" />
           <Stack.Screen name="personal-details" />
           <Stack.Screen name="limits" />
           <Stack.Screen name="help" />

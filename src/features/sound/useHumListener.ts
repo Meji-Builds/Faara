@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { audioEngine, type CaptureSession } from './audio';
+import { microphoneError } from '@/lib/errors';
 import { DEFAULT_MODEM_CONFIG, HumReceiver, type DecodedHum, type ModemConfig } from './modem';
 
 export type ListenState = 'idle' | 'starting' | 'listening' | 'denied' | 'error';
@@ -83,7 +84,7 @@ export function useHumListener(
       setInputDescription(capture.description);
       setState('listening');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(microphoneError(cause));
       setState('error');
     }
   }, [config, handleSamples]);

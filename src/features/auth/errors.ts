@@ -17,15 +17,11 @@ export class ProfileTimeoutError extends Error {
 
 /** Turns Firebase and app errors into messages fit for the user. */
 export function authErrorMessage(error: unknown): string {
-  const message = friendlyMessage(error);
-  // While in test mode, append the underlying cause so setup problems can be diagnosed.
-  if (PHONE_AUTH_TEST_NUMBERS_ONLY) {
-    if (error instanceof FirebaseError) return `${message} (${error.code})`;
-    if (error instanceof Error && !(error instanceof UsernameTakenError)) {
-      return `${message} (${error.message})`;
-    }
+  // The technical cause goes to the log for diagnosing, never to the person.
+  if (PHONE_AUTH_TEST_NUMBERS_ONLY && error instanceof Error) {
+    console.warn('Sign-in problem:', error instanceof FirebaseError ? error.code : error.message);
   }
-  return message;
+  return friendlyMessage(error);
 }
 
 function friendlyMessage(error: unknown): string {

@@ -7,6 +7,7 @@ import type {
 import { ApiError } from './errors';
 import type { NairaProvider } from './naira';
 import type { CheckoutProvider } from './paystack';
+import { consumeRate } from './rateLimit';
 import type { DocumentStore } from './store';
 
 interface IntentDoc {
@@ -52,6 +53,7 @@ export class FundingService {
         'Adding money isn’t set up yet (payment partner key missing).',
       );
     }
+    await consumeRate(store, now, uid, 'funding');
     const reference = `FND${newId()}`;
     const amountKobo = amountNaira * 100;
     await store.transaction(async (tx) => {

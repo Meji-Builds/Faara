@@ -68,9 +68,10 @@ async function send<Res>(path: string, body: unknown, token: string): Promise<Re
   if (!response.ok || payload === null) {
     if (error?.message) throw new ApiRequestError(error.code ?? 'internal', error.message);
     // Not one of our JSON errors: the server function crashed or isn't deployed.
+    console.warn(`Faara server answered ${response.status} without a usable body.`);
     throw new ApiRequestError(
       'internal',
-      `Faara’s server isn’t responding properly (HTTP ${response.status}). Try again in a minute.`,
+      'Faara’s server isn’t responding properly. Try again in a minute.',
     );
   }
   return payload as Res;

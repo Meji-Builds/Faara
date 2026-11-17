@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Header, OtpField, Screen } from '@/components/ui';
+import { friendlyError } from '@/lib/errors';
 import { PinSetup } from '@/components/wallet/PinSetup';
 import { PIN_LENGTH, useWallet } from '@/features/wallet';
 
@@ -22,7 +23,7 @@ export default function ChangePinScreen() {
       await unlockKeypair(current); // throws for a wrong PIN or during lockout
       setVerified(current);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Wrong PIN.');
+      setError(friendlyError(cause, 'Couldn’t check your PIN. Try again.'));
       setCurrent('');
     } finally {
       setChecking(false);

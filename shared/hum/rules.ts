@@ -40,6 +40,7 @@ export const RATE_LIMITS = {
   settleHum: 20,
   lookupUser: 30,
   funding: 10,
+  convert: 20,
 } as const;
 export type RateLimitedAction = keyof typeof RATE_LIMITS;
 

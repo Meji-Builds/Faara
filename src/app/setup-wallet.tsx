@@ -4,10 +4,11 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppText, Header, Screen } from '@/components/ui';
 import { PinSetup } from '@/components/wallet/PinSetup';
+import { DOLLARS_ENABLED } from '@/config/features';
 import { useWallet } from '@/features/wallet';
 import { useTheme } from '@/theme';
 
-/** Sign-up step 3: choose a PIN; the dollar wallet is created on this device. */
+/** Choose a PIN for this phone; the dollar wallet is created on this device. */
 export default function SetupWalletScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -24,7 +25,7 @@ export default function SetupWalletScreen() {
         }
       />
       <PinSetup
-        busyLabel="Creating your wallet…"
+        busyLabel={DOLLARS_ENABLED ? 'Creating your wallet…' : 'Setting up…'}
         onComplete={async (pin) => {
           await createWallet(pin);
           router.replace('/');
@@ -33,8 +34,9 @@ export default function SetupWalletScreen() {
       <View style={[styles.note, { backgroundColor: colors.surfaceMuted }]}>
         <ShieldCheck size={20} color={colors.accentText} strokeWidth={1.75} />
         <AppText variant="label" color="textMuted" style={styles.noteText}>
-          Your dollar wallet is created on this phone and its keys never leave it. Faara can’t move
-          your dollars without your approval.
+          {DOLLARS_ENABLED
+            ? 'Your dollar wallet is created on this phone and its keys never leave it. Faara can’t move your dollars without your approval.'
+            : 'Your PIN approves payments on this phone. It’s stored only on this device and Faara never sees it.'}
         </AppText>
       </View>
     </Screen>

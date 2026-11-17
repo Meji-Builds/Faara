@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Button, OtpField } from '@/components/ui';
+import { DOLLARS_ENABLED } from '@/config/features';
 import { PIN_LENGTH } from '@/features/wallet';
+import { friendlyError } from '@/lib/errors';
 
 interface PinSetupProps {
   /** Called with the confirmed PIN. Rejections are shown as errors. */
@@ -42,7 +44,7 @@ export function PinSetup({ onComplete, busyLabel, title = 'Create your PIN' }: P
     try {
       await onComplete(pin);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Something went wrong. Try again.');
+      setError(friendlyError(cause, 'Something went wrong. Try again.'));
       setBusy(false);
     }
   };
@@ -56,7 +58,9 @@ export function PinSetup({ onComplete, busyLabel, title = 'Create your PIN' }: P
         <AppText color="textMuted">
           {confirming
             ? 'Enter the same six digits again.'
-            : 'You’ll use this six-digit PIN to approve payments and to see your recovery phrase.'}
+            : DOLLARS_ENABLED
+              ? 'You’ll use this six-digit PIN to approve payments and to see your recovery phrase.'
+              : 'You’ll use this six-digit PIN to approve payments on this phone.'}
         </AppText>
       </View>
       <OtpField

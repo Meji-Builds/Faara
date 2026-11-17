@@ -4,6 +4,7 @@ import { ValidationError, type ApiErrorBody } from '../../shared/hum';
 
 import { ApiError } from './errors';
 import { adminDb, firestoreStore, verifyIdToken } from './firebaseAdmin';
+import { ConvertService, MockExchange } from './convertService';
 import { FundingService } from './fundingService';
 import { HumService } from './humService';
 import { MockNairaLedger } from './naira';
@@ -19,6 +20,7 @@ process.on('unhandledRejection', (reason) => console.error('Unhandled rejection'
 interface Services {
   hum: HumService;
   funding: FundingService;
+  convert: ConvertService;
 }
 
 let services: Services | undefined;
@@ -41,6 +43,13 @@ export function getServices(): Services {
         fetchTransaction: fetchParsedTransaction,
         walletRisk: fetchWalletRisk,
         notify,
+      }),
+      convert: new ConvertService({
+        store,
+        now,
+        newId,
+        // Mock rate until an exchange partner is connected.
+        exchange: new MockExchange(Number(process.env.MOCK_NGN_PER_USD ?? 1550), now),
       }),
       funding: new FundingService({
         store,
