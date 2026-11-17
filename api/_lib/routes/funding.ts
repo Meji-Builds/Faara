@@ -1,8 +1,6 @@
-import { parseInitializeFunding } from '../../shared/hum';
-import { ApiError } from '../_lib/errors';
-import { authedRoute } from '../_lib/http';
-
-export { OPTIONS } from '../_lib/http';
+import { parseInitializeFunding, parseVerifyFunding } from '../../../shared/hum';
+import { ApiError } from '../errors';
+import { authedRoute } from '../http';
 
 const NATIVE_RETURN_URL = 'faara://add-money';
 
@@ -18,10 +16,15 @@ function webReturnUrl(http: Request): string {
 }
 
 /** POST /api/funding/initialize: start a naira top-up and get the checkout link. */
-export const POST = authedRoute(parseInitializeFunding, ({ uid, services, http }, request) =>
+export const initialize = authedRoute(parseInitializeFunding, ({ uid, services, http }, request) =>
   services.funding.initialize(
     uid,
     request.amount,
     request.platform === 'native' ? NATIVE_RETURN_URL : webReturnUrl(http),
   ),
+);
+
+/** POST /api/funding/verify: check a top-up after returning from checkout, and credit it. */
+export const verify = authedRoute(parseVerifyFunding, ({ uid, services }, request) =>
+  services.funding.confirm(request.reference, uid),
 );
