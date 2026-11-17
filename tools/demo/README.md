@@ -14,7 +14,9 @@ Films the real app with made-up people, for the demo and advertisement video.
     marks; defaults match the current `send-hum.json`) · `s3.js` send by number and username, receipt ·
     `s4.js` add money · `s5.js` Faara code and pay link.
 - Cut: `python3 tools/demo/cut.py` → `clips/faara-demo.mp4` (1920x1080, 30 fps, about 80 s), with
-  typeset captions in the app's fonts and synthesized sound effects. Voiceover script with timings:
+  typeset captions in the app's fonts and the sound effects from `sfx.py`
+  (`python3 tools/demo/sfx.py` also writes `clips/sfx-audition.wav`; `cut.py --audio-only` remixes
+  without re-rendering). The real hum is 18-20 kHz and near-inaudible, so the film's hum is designed. Voiceover script with timings:
   `voiceover.md`. Voiceover and music still need recording and mixing over the cut.
 - Never merge this branch into `main`.
 
@@ -31,7 +33,7 @@ Films the real app with made-up people, for the demo and advertisement video.
 9. Close: "Hold phones close."
 
 Voiceover: warm, clear, concrete moments (splitting a bill), no generic app-ad lines. Do not mention dollars.
-Sound: effects on the hum, the shape match and "Hummed."; light afrobeat-leaning instrumental.
+Sound: effects on the hum, caught, the shape match, "Hummed.", sent and top-up, close; light afrobeat-leaning instrumental.
 Graphics: real screen captures and typeset text only, no AI-generated images with text.
 
 Known: screens left in the navigation stack stay in the DOM, so locators need `visible=true`

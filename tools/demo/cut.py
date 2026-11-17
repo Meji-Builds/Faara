@@ -2,17 +2,18 @@
 
 Run from the repo root after the scene scripts (s1..s5.js) have written clips/*.webm and
 clips/*.json:  python3 tools/demo/cut.py
-Text is typeset with the app's own fonts; sound effects are synthesized. Voiceover and
+Add --audio-only to keep the rendered scenes and only redo the sound (after editing sfx.py).
+Text is typeset with the app's own fonts; sound effects come from sfx.py. Voiceover and
 music are added afterwards (see tools/demo/voiceover.md).
 """
 import json
-import math
 import os
-import struct
 import subprocess
-import wave
+import sys
 
 from PIL import Image, ImageDraw, ImageFont
+
+import sfx as effects  # tools/demo/sfx.py
 
 W, H, FPS = 1920, 1080, 30
 BG = (10, 20, 18)  # nearBlack
@@ -23,6 +24,7 @@ PH_H = 900
 PH_W = round(780 / 1688 * PH_H) // 2 * 2
 PH_Y = 120
 OUT = 'clips/cut'
+AUDIO_ONLY = '--audio-only' in sys.argv
 FONTS = 'node_modules/@expo-google-fonts'
 os.makedirs(OUT, exist_ok=True)
 
@@ -126,6 +128,9 @@ def wordmark(width):
 def scene(name, dur, phones=(), layers=(), crops=()):
     """phones: dicts(clip, start, x, pre=0, speed=1). layers: (png, t0, t1) fades.
     crops: dicts(clip, start, crop=(x,y,w,h), x, y, scale, len=seconds before it freezes)."""
+    path = f'{OUT}/{name}.mp4'
+    if AUDIO_ONLY and os.path.exists(path):
+        return path, dur
     inputs = ['-f', 'lavfi', '-i', f'color=c=0x0A1412:s={W}x{H}:r={FPS}:d={dur}']
     fc, last, n = [], '0:v', 1
     bz = bezel()
@@ -159,7 +164,6 @@ def scene(name, dur, phones=(), layers=(), crops=()):
         )
         last, n = f'vl{i}', n + 1
     fc.append(f'[{last}]fade=t=in:st=0:d=0.3,fade=t=out:st={dur - 0.3:.2f}:d=0.3,format=yuv420p[out]')
-    path = f'{OUT}/{name}.mp4'
     run(['ffmpeg', '-y', '-loglevel', 'error', *inputs, '-filter_complex', ';'.join(fc),
          '-map', '[out]', '-t', str(dur), '-r', str(FPS), '-c:v', 'libx264', '-crf', '18',
          '-preset', 'medium', path])
@@ -168,46 +172,6 @@ def scene(name, dur, phones=(), layers=(), crops=()):
 
 def still_scene(name, dur, png):
     return scene(name, dur, layers=[(png, 0.2, dur)])
-
-
-# ---------- sound
-
-SR = 44100
-
-
-def tone(path, parts, dur):
-    """parts: (freq, t0, length, gain, tremolo_hz). Soft attack and release."""
-    n = int(SR * dur)
-    buf = [0.0] * n
-    for freq, t0, length, gain, trem in parts:
-        s0, ln = int(t0 * SR), int(length * SR)
-        for k in range(ln):
-            if s0 + k >= n:
-                break
-            t = k / SR
-            env = min(1, t / 0.03) * min(1, (length - t) / 0.25) ** 2
-            mod = 1 - 0.35 * (0.5 + 0.5 * math.sin(2 * math.pi * trem * t)) if trem else 1
-            buf[s0 + k] += gain * env * mod * math.sin(2 * math.pi * freq * t)
-    with wave.open(path, 'w') as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(SR)
-        w.writeframes(b''.join(struct.pack('<h', int(max(-1, min(1, v)) * 30000)) for v in buf))
-    return path
-
-
-def sounds():
-    return {
-        # the hum: a low, warm chord with a slow pulse
-        'hum': tone(f'{OUT}/hum.wav', [(220, 0, 2.2, .18, 5), (277.2, 0, 2.2, .12, 5),
-                                       (329.6, 0, 2.2, .10, 5), (440, 0.1, 2.0, .05, 5)], 2.3),
-        # caught / shapes matched: two soft rising notes
-        'match': tone(f'{OUT}/match.wav', [(659.3, 0, .35, .22, 0), (987.8, .12, .5, .22, 0)], .7),
-        # Hummed.: a bright three-note resolve
-        'done': tone(f'{OUT}/done.wav', [(523.3, 0, .6, .2, 0), (659.3, .1, .6, .2, 0),
-                                         (784, .2, 1.0, .22, 0), (1046.5, .3, .9, .1, 0)], 1.4),
-        'tick': tone(f'{OUT}/tick.wav', [(1318.5, 0, .12, .18, 0)], .15),
-    }
 
 
 # ---------- film
@@ -254,8 +218,8 @@ def main():
                  over='Hum', x=1250, width=600), rel(hum['shapes']), rel(hum['hummed'])),
         (caption('t-hum5', 'Hummed.', 'Paid and settled in under two seconds.',
                  over='Hum', x=1250, width=600), rel(hum['hummed']), dur),
-    ]), [('hum', rel(hum['humming']) + 0.2), ('match', rel(hum['caught'])),
-         ('match', rel(hum['shapes']) + 0.3), ('done', rel(hum['hummed']))])
+    ]), [('hum', rel(hum['humming']) + 0.1), ('caught', rel(hum['caught'])),
+         ('shapes', rel(hum['shapes']) + 0.35), ('hummed', rel(hum['hummed']) - 0.05)])
 
     # 4. Send by Faara number or username
     s0, sp = uname['send'] - 0.3, 1.25
@@ -270,7 +234,7 @@ def main():
                  over='Send', x=1000, width=680), r4(uname['username']), r4(uname['review'])),
         (caption('t-send3', 'Rent share, sent.', 'Free, and it arrives instantly.',
                  over='Send', x=1000, width=680), r4(uname['review']), d4),
-    ]), [('done', r4(uname['sent']))])
+    ]), [('send', r4(uname['sent']) - 0.05)])
 
     # 5. Add money
     m0, m1 = add['add'] - 0.2, add['home2'] + 2.6
@@ -278,7 +242,7 @@ def main():
     push(scene('04-add', d5, phones=[dict(clip='add-money', start=m0, x=px)], layers=[
         (caption('t-add', 'Top up in seconds.', 'Pick an amount. Pay by card or bank transfer. Your balance updates right away.',
                  over='Add money', x=1000, width=680), 0.2, d5),
-    ]), [('tick', add['pay'] - m0), ('match', add['added'] - m0)])
+    ]), [('send', add['added'] - m0 - 0.05)])
 
     # 6. Receipt
     e0 = uname['receipt'] - 0.2
@@ -314,21 +278,22 @@ def main():
     t = 'Hold phones close.'
     d.text(((W - d.textlength(t, font=f)) / 2, 330 + wm.height + 60), t, font=f, fill=WHITE)
     im.save(f'{OUT}/t-close.png')
-    push(still_scene('08-close', 5.0, f'{OUT}/t-close.png'), [('hum', 0.4)])
+    push(still_scene('08-close', 5.0, f'{OUT}/t-close.png'), [('close', 0.3)])
 
     # Join, then lay the sound effects on top.
     with open(f'{OUT}/list.txt', 'w') as f:
         f.writelines(f"file '{os.path.basename(p)}'\n" for p, _ in film)
-    run(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', f'{OUT}/list.txt',
-         '-c', 'copy', f'{OUT}/video.mp4'])
+    if not (AUDIO_ONLY and os.path.exists(f'{OUT}/video.mp4')):
+        run(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', f'{OUT}/list.txt',
+             '-c', 'copy', f'{OUT}/video.mp4'])
     total = sum(d for _, d in film)
-    sfx = sounds()
-    ins, fc = ['-f', 'lavfi', '-t', str(total), '-i', 'anullsrc=r=44100:cl=mono'], []
+    sfx = effects.build()
+    ins, fc = ['-f', 'lavfi', '-t', str(total), '-i', 'anullsrc=r=48000:cl=stereo'], []
     for i, (s, t) in enumerate(cues):
         ins += ['-i', sfx[s]]
         ms = int(t * 1000)
-        fc.append(f'[{i + 1}:a]adelay={ms}[a{i}]')
-    fc.append(''.join(f'[a{i}]' for i in range(len(cues))) + f'[0:a]amix=inputs={len(cues) + 1}:normalize=0[sfx]')
+        fc.append(f'[{i + 1}:a]adelay={ms}:all=1[a{i}]')
+    fc.append(''.join(f'[a{i}]' for i in range(len(cues))) + f'[0:a]amix=inputs={len(cues) + 1}:normalize=0,alimiter=limit=0.89[sfx]')
     run(['ffmpeg', '-y', '-loglevel', 'error', *ins, '-filter_complex', ';'.join(fc), '-map', '[sfx]',
          '-t', str(total), '-c:a', 'pcm_s16le', f'{OUT}/sfx.wav'])
     run(['ffmpeg', '-y', '-loglevel', 'error', '-i', f'{OUT}/video.mp4', '-i', f'{OUT}/sfx.wav',
