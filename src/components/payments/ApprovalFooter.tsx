@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 
 import { AppText, Button, OtpField } from '@/components/ui';
+
+import { SendingWave } from './SendingWave';
 import type { PayFlow } from '@/features/payments';
 import { PIN_LENGTH } from '@/features/wallet';
 import { palette } from '@/theme';
@@ -44,9 +46,7 @@ export function ApprovalFooter({
         </AppText>
       ) : null}
       {paying ? (
-        <AppText variant="label" color="textMuted" align="center">
-          {currency === 'USDC' ? 'Sending on the Solana network…' : 'Paying…'}
-        </AppText>
+        <SendingWave label={currency === 'USDC' ? 'Sending on the Solana network…' : 'Paying…'} />
       ) : null}
       {stage === 'pin' ? (
         <>

@@ -22,7 +22,7 @@ import { initials } from '@/lib/money';
 import { fonts, radii, useTheme } from '@/theme';
 
 /** Show the hum ring and manual code if nobody has claimed within this long. */
-const FALLBACK_AFTER_MS = 3000;
+const FALLBACK_AFTER_MS = 6000;
 const AVATAR_TONES = ['soft', 'gold', 'surface'] as const;
 
 const BLE_LABELS: Partial<Record<BleChannelState, string>> = {

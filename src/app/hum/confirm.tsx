@@ -3,6 +3,7 @@ import { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ShapeGlyph } from '@/components/brand';
+import { Reveal } from '@/components/motion';
 import { ApprovalFooter, PaymentDetails, PaymentHeader } from '@/components/payments';
 import { AppText, Button, Card, Header, Screen } from '@/components/ui';
 import { cancelHum, useHumDraft } from '@/features/hum';
@@ -76,12 +77,11 @@ export default function ConfirmScreen() {
         </AppText>
         <View style={styles.shapes}>
           {chosen.shapes.map((shape, index) => (
-            <View
-              key={`${shape}-${index}`}
-              style={[styles.shapeTile, { backgroundColor: colors.brandInset }]}
-            >
-              <ShapeGlyph shape={shape} size={34} />
-            </View>
+            <Reveal key={`${shape}-${index}`} delay={index * 130} style={styles.shapeCell}>
+              <View style={[styles.shapeTile, { backgroundColor: colors.brandInset }]}>
+                <ShapeGlyph shape={shape} size={34} />
+              </View>
+            </Reveal>
           ))}
         </View>
         <AppText variant="label" color="onBrand" style={styles.matchHint}>
@@ -97,8 +97,8 @@ export default function ConfirmScreen() {
 const styles = StyleSheet.create({
   match: { marginTop: 24, gap: 14 },
   shapes: { flexDirection: 'row', gap: 10 },
+  shapeCell: { flex: 1 },
   shapeTile: {
-    flex: 1,
     height: 76,
     borderRadius: radii.lg,
     alignItems: 'center',

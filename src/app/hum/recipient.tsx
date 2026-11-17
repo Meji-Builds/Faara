@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ClaimantCard, type ClaimantView } from '@/components/hum';
+import { Reveal } from '@/components/motion';
 import { AppText, Button, Header, Screen } from '@/components/ui';
 import { chooseRecipient, useHumDraft } from '@/features/hum';
 import { apiErrorMessage } from '@/lib/api/client';
+import { haptics } from '@/lib/haptics';
 
 const AVATAR_TONES = ['soft', 'gold', 'surface'] as const;
 
@@ -99,13 +101,18 @@ export default function PickRecipientScreen() {
 
       <View style={styles.list} accessibilityRole="radiogroup">
         {claimants.map((claimant, index) => (
-          <ClaimantCard
-            key={claimant.id}
-            claimant={claimant}
-            closest={index === 0 && claimant.distanceCm !== null && claimants.length > 1}
-            selected={claimant.id === effectiveId}
-            onSelect={() => !locked && setSelectedId(claimant.id)}
-          />
+          <Reveal key={claimant.id} delay={index * 90}>
+            <ClaimantCard
+              claimant={claimant}
+              closest={index === 0 && claimant.distanceCm !== null && claimants.length > 1}
+              selected={claimant.id === effectiveId}
+              onSelect={() => {
+                if (locked) return;
+                haptics.tap();
+                setSelectedId(claimant.id);
+              }}
+            />
+          </Reveal>
         ))}
       </View>
     </Screen>

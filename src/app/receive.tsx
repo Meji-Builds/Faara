@@ -4,13 +4,15 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import type { ClaimChannel, ClaimHumResponse, ShapeTriple } from '@shared/hum';
 
-import { ShapeGlyph } from '@/components/brand';
+import { ShapeGlyph, SuccessBurst } from '@/components/brand';
+import { CountUp, Reveal } from '@/components/motion';
 import { BluetoothReminder, HumPulse, WaveScanner } from '@/components/hum';
 import { AppText, Button, Card, Header, OtpField, Screen, TextTabs } from '@/components/ui';
 import { estimateDistanceFromRssi, useBleScan } from '@/features/ble';
 import { claimHum, watchClaim, watchHum, type HumClaim, type HumState } from '@/features/hum';
 import { estimateDistanceCm, useHumListener, type DecodedHum } from '@/features/sound';
 import { apiErrorMessage } from '@/lib/api/client';
+import { haptics } from '@/lib/haptics';
 import { formatMoney } from '@/lib/money';
 import { radii, useTheme } from '@/theme';
 
@@ -295,9 +297,11 @@ function Claimed({
   }
   if (myClaim?.status === 'settled') {
     return (
-      <Status
-        title="Hummed."
-        message={`${amount} from ${claim.sender.fullName} is with you${claim.note ? ` · ${claim.note}` : ''}.`}
+      <Received
+        amount={claim.amount}
+        currency={claim.currency}
+        from={claim.sender.fullName}
+        note={claim.note}
       />
     );
   }
@@ -317,6 +321,51 @@ function Claimed({
       title={`Waiting for ${senderFirst}`}
       message={`${summary}. ${senderFirst} is choosing who gets paid. Keep this screen open.`}
     />
+  );
+}
+
+function Received({
+  amount,
+  currency,
+  from,
+  note,
+}: {
+  amount: number;
+  currency: ClaimHumResponse['currency'];
+  from: string;
+  note: string;
+}) {
+  useEffect(() => {
+    haptics.success();
+  }, []);
+  return (
+    <View style={styles.center}>
+      <SuccessBurst size={104} />
+      <Reveal delay={240}>
+        <AppText variant="title" align="center" style={styles.title}>
+          Hummed.
+        </AppText>
+      </Reveal>
+      <CountUp
+        value={amount}
+        delay={360}
+        format={(value) =>
+          formatMoney(currency === 'USDC' ? value : Math.round(value), currency, {
+            decimals: currency === 'USDC' ? 2 : undefined,
+          })
+        }
+        variant="title"
+        color="accentText"
+        align="center"
+        style={styles.receivedAmount}
+      />
+      <Reveal delay={640}>
+        <AppText color="textMuted" align="center">
+          from {from}
+          {note ? ` · ${note}` : ''}
+        </AppText>
+      </Reveal>
+    </View>
   );
 }
 
@@ -398,6 +447,7 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', gap: 12, paddingHorizontal: 8 },
   title: { fontSize: 30, lineHeight: 36, marginTop: 8 },
   spinner: { marginBottom: 8 },
+  receivedAmount: { fontSize: 40, lineHeight: 48 },
   matched: { gap: 10 },
   matchCard: { marginTop: 16, gap: 14 },
   shapes: { flexDirection: 'row', gap: 10 },

@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Bell, Plus } from 'lucide-react-native';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { HumMark } from '@/components/brand';
-import { ReadyToReceive } from '@/components/hum';
+import { ListeningLine } from '@/components/hum';
 import { AppText, Avatar, IconButton, Screen } from '@/components/ui';
 import { ActivityList } from '@/components/wallet/ActivityList';
 import { BalanceCard } from '@/components/wallet/BalanceCard';
@@ -82,7 +82,7 @@ export default function HomeScreen() {
 
       {ambient ? (
         <View style={styles.ready}>
-          <ReadyToReceive state={sound} onPress={() => router.push('/receive')} />
+          <ListeningLine state={sound} onPress={() => router.push('/receive')} />
         </View>
       ) : null}
 
@@ -90,6 +90,7 @@ export default function HomeScreen() {
         <QuickAction
           label="Hum"
           highlighted
+          listening={ambient && sound === 'listening'}
           icon={<HumMark size={20} color={palette.nearBlack} />}
           onPress={() => {
             audioEngine.prepare();

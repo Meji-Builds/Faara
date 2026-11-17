@@ -4,14 +4,24 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/ui';
 import { radii, useTheme } from '@/theme';
 
+import { ListeningRipple } from './ListeningRipple';
+
 interface QuickActionProps {
   label: string;
   icon: ReactNode;
   onPress?: () => void;
   highlighted?: boolean;
+  /** Ripples outward to show Faara is listening for a hum. */
+  listening?: boolean;
 }
 
-export function QuickAction({ label, icon, onPress, highlighted = false }: QuickActionProps) {
+export function QuickAction({
+  label,
+  icon,
+  onPress,
+  highlighted = false,
+  listening = false,
+}: QuickActionProps) {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -22,14 +32,17 @@ export function QuickAction({ label, icon, onPress, highlighted = false }: Quick
     >
       {({ pressed }) => (
         <>
-          <View
-            style={[
-              styles.tile,
-              { backgroundColor: highlighted ? colors.accent : colors.surfaceMuted },
-              pressed && styles.pressed,
-            ]}
-          >
-            {icon}
+          <View>
+            <ListeningRipple active={listening} />
+            <View
+              style={[
+                styles.tile,
+                { backgroundColor: highlighted ? colors.accent : colors.surfaceMuted },
+                pressed && styles.pressed,
+              ]}
+            >
+              {icon}
+            </View>
           </View>
           <AppText variant="bodyStrong" align="center">
             {label}

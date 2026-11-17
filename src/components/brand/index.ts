@@ -5,3 +5,4 @@ export { BRAND_SHAPES, ShapeGlyph, shapeLabel, type BrandShape } from './ShapeGl
 export { Wordmark } from './Wordmark';
 export { HumRing } from './HumRing';
 export { LaunchScreen } from './LaunchScreen';
+export { SuccessBurst } from './SuccessBurst';
