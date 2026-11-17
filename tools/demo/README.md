@@ -6,8 +6,16 @@ Films the real app with made-up people, for the demo and advertisement video.
   Personas are chosen with `?as=ada` (sender), `?as=tolu` (receiver), `?as=chidi`.
 - Build: `EXPO_PUBLIC_DEMO=1 EXPO_OFFLINE=1 CI=1 npx expo export --platform web`, then serve `dist`
   on port 8081 (any static SPA server).
-- Record: `NODE_PATH=<playwright> node tools/demo/s1.js` (writes `clips/<name>.webm`, 780x1688).
-  `lib.js` holds the recorder (tap indicator, 2x video). Scenes are small scripts like `s1.js`.
+- Record: `NODE_PATH=$(npm root -g) node tools/demo/s1.js`, then `s2.js` … `s5.js`. Each writes
+  `clips/<name>.webm` and `clips/<name>.json` (seconds into the clip of each moment, used by the cut).
+  The picture is 390x844 CSS px in the top-left of the 780x1688 frame (Playwright records at CSS size).
+  `lib.js` holds the recorder (tap indicator, `mark`, `vis`).
+  - `s1.js` Ada hums ₦5,000 · `s2.js` Tolu receives (`PICK`/`SETTLE` env tune the receiver to Ada's
+    marks; defaults match the current `send-hum.json`) · `s3.js` send by number and username, receipt ·
+    `s4.js` add money · `s5.js` Faara code and pay link.
+- Cut: `python3 tools/demo/cut.py` → `clips/faara-demo.mp4` (1920x1080, 30 fps, about 80 s), with
+  typeset captions in the app's fonts and synthesized sound effects. Voiceover script with timings:
+  `voiceover.md`. Voiceover and music still need recording and mixing over the cut.
 - Never merge this branch into `main`.
 
 ## Film (about 90 seconds, 16:9, two phones side by side for the hum)
@@ -26,5 +34,5 @@ Voiceover: warm, clear, concrete moments (splitting a bill), no generic app-ad l
 Sound: effects on the hum, the shape match and "Hummed."; light afrobeat-leaning instrumental.
 Graphics: real screen captures and typeset text only, no AI-generated images with text.
 
-Known: in `s1.js` the nearest-phone click needs a coordinate click on the claimant row
-(`getByText('Tolu Adebayo')` was null at the time of the click; wait for it before measuring).
+Known: screens left in the navigation stack stay in the DOM, so locators need `visible=true`
+(`c.vis`, `c.btn` already do this).

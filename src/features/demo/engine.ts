@@ -14,6 +14,7 @@ import type {
   SettleHumResponse,
   ShapeTriple,
 } from '@shared/hum';
+import { nationalPhone } from '@shared/hum';
 
 import type { HumClaim, HumState } from '@/features/hum/humApi';
 
@@ -56,6 +57,15 @@ function personaKey(): string {
   return new URLSearchParams(window.location.search).get('as') ?? 'ada';
 }
 export const me: Persona = PEOPLE[personaKey()] ?? (PEOPLE.ada as Persona);
+
+/** Receiver timings (ms) from the URL, so the two phones can be filmed in step. */
+function param(name: string, fallback: number): number {
+  if (typeof window === 'undefined') return fallback;
+  const v = Number(new URLSearchParams(window.location.search).get(name));
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+}
+const PICK_MS = param('pick', 3200);
+const SETTLE_MS = param('settle', 5000);
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -211,7 +221,18 @@ export const demoApi = {
       state.balanceKobo -= hum.amountKobo;
       const who = hum.state.chosenClaimId === 'c-chidi' ? PEOPLE.chidi : PEOPLE.tolu;
       state.activity.unshift({
-        ...entry(paymentId, 'out', 'hum', who as Persona, hum.amountKobo / 100, hum.note, 0),
+        ...(paymentId.startsWith('tr')
+          ? entry(
+              paymentId,
+              'out',
+              'transfer',
+              who as Persona,
+              hum.amountKobo / 100,
+              hum.note,
+              0,
+              'username',
+            )
+          : entry(paymentId, 'out', 'hum', who as Persona, hum.amountKobo / 100, hum.note, 0)),
         createdAt: Date.now(),
       });
       notify();
@@ -234,12 +255,12 @@ export const demoApi = {
       claims: [],
       state: { status: 'open', chosenClaimId: null, claimCount: 1 },
     };
-    later(3200, () => {
+    later(PICK_MS, () => {
       state.myClaim = { ...(state.myClaim as HumClaim), status: 'chosen', shapes: SHAPES };
       if (state.hum)
         state.hum.state = { ...state.hum.state, status: 'chosen', chosenClaimId: 'me' };
     });
-    later(8200, () => {
+    later(PICK_MS + SETTLE_MS, () => {
       state.myClaim = { ...(state.myClaim as HumClaim), status: 'settled' };
       state.balanceKobo += 500_000;
       state.activity.unshift({
@@ -259,7 +280,9 @@ export const demoApi = {
   // ---- send
   lookup(query: { username: string } | { phone: string }): LookupUserResponse {
     const hit = Object.values(PEOPLE).find((p) =>
-      'username' in query ? p.username === query.username : p.phone === query.phone,
+      'username' in query
+        ? p.username === query.username
+        : nationalPhone(p.phone) === nationalPhone(query.phone),
     );
     if (!hit || hit.uid === me.uid)
       throw Object.assign(new Error('Nobody on Faara has that.'), { code: 'not-found' });

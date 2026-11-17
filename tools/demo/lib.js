@@ -4,9 +4,11 @@ exports.record = async (name, persona, fn, opts = {}) => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({
     viewport: { width: 390, height: 844 }, deviceScaleFactor: 2,
+    // Video is captured at CSS pixels: the picture is 390x844 in the top-left of this frame.
     recordVideo: { dir: `clips/${name}`, size: { width: 780, height: 1688 } },
   });
   const page = await ctx.newPage();
+  const t0 = Date.now(); const marks = {};
   const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
   await page.addInitScript(() => {
     window.addEventListener('pointerdown', (e) => {
@@ -20,8 +22,11 @@ exports.record = async (name, persona, fn, opts = {}) => {
   const ctl = {
     page,
     wait: (ms) => page.waitForTimeout(ms),
-    btn: (name, o = {}) => page.getByRole('button', { name, ...o }).first(),
+    btn: (name, o = {}) => page.getByRole('button', { name, ...o }).locator('visible=true').first(),
     key: (k) => page.locator(`[aria-label="${k}"]`).first(),
+    // Seconds into the clip, written to clips/<name>.json for the edit.
+    mark: (label) => { marks[label] = (Date.now() - t0) / 1000; },
+    vis: (loc) => loc.locator('visible=true').first(),
     show: async (l) => console.log(`[${name}] ${l}`, new URL(page.url()).pathname, JSON.stringify(await page.getByRole('button').allInnerTexts())),
     go: async (path) => { await page.evaluate((p) => { window.history.pushState({}, '', p); window.dispatchEvent(new PopStateEvent('popstate')); }, path); },
   };
@@ -32,5 +37,6 @@ exports.record = async (name, persona, fn, opts = {}) => {
   await ctx.close(); await browser.close();
   const out = `clips/${name}.webm`;
   fs.copyFileSync(await v.path(), out);
+  fs.writeFileSync(`clips/${name}.json`, JSON.stringify(marks, null, 2));
   console.log(name, 'saved', out, errs.join('|').slice(0, 200) || 'no errors');
 };
