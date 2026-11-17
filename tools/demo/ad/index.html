@@ -50,9 +50,6 @@ html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--
 .ring { border-radius: 50%; border: 4px solid var(--teal); }
 .tile { width: 250px; height: 250px; border-radius: 48px; background: #0F2A22; display: grid; place-items: center;
   box-shadow: 0 30px 60px rgba(0,0,0,.3), 0 0 0 2px rgba(20,224,193,.15) inset; }
-.pill { border: 2px solid rgba(20,224,193,.55); border-radius: 99px; padding: 16px 30px; display: flex; gap: 16px; align-items: center;
-  font: 500 28px Body; color: var(--white); white-space: nowrap; }
-.dot { width: 14px; height: 14px; border-radius: 50%; background: var(--teal); }
 .mark { background: var(--ink); -webkit-mask: url(../../../assets/images/wordmark.png) center / contain no-repeat; mask: url(../../../assets/images/wordmark.png) center / contain no-repeat; }
 .glyph { display: flex; gap: 0; align-items: center; justify-content: center; }
 .glyph i { display: block; border-radius: 99px; background: var(--ink); }
@@ -214,22 +211,26 @@ scene(0, 4, C.ink, (root) => {
   };
 });
 
-// 2. 4-6  Stop spelling. Start humming.
+// 2. 4-6  A flat line rises into the hum's seven bars, one per snare hit.
 scene(4, 6, C.ink, (root) => {
-  const l1 = words(root, 'Stop spelling.', 'display white', 'font-size:176px');
-  const strike = el(root, '', 'abs', `height:16px;border-radius:9px;background:${C.teal};transform-origin:0 50%`);
-  const l2 = words(root, 'Start {teal}humming.', 'display white', 'font-size:176px');
+  const line = el(root, '', 'abs', `height:6px;border-radius:9px;background:${C.white};width:900px`);
+  const hs = [0.22, 0.46, 0.74, 1, 0.74, 0.46, 0.22];
+  const at = [5.0, 5.25, 5.5, 5.625, 5.75, 5.8125, 5.875];
+  const order = [3, 2, 4, 1, 5, 0, 6];
+  const bars = hs.map(() => el(root, '', 'abs', `width:30px;border-radius:99px;background:${C.white}`));
   const dot = el(root, '', 'abs', `width:300px;height:300px;border-radius:50%;background:${C.teal}`);
+  root.insertBefore(dot, line);
   return (t) => {
-    reveal(l1, t, 4.0, 0.25, 0.5);
-    reveal(l2, t, 5.0, 0.25, 0.5);
-    const lift = k(t, [[5.0, 0], [5.5, -110]]);
-    put(l1, { x: 960, y: 470 + lift, op: 1 - 0.55 * fadeIn(t, 5.0, 0.3) });
-    const box = l1.ws[1].parentNode.getBoundingClientRect();
-    strike.style.width = `${box.width * k(t, [[4.55, 0], [4.9, 1, 'inOut']])}px`;
-    strike.style.transform = `translate(${box.left}px, ${box.top + box.height * 0.5}px)`;
-    strike.style.opacity = t > 4.55 ? 1 : 0;
-    put(l2, { x: 960, y: 600 + lift * 0.4, op: 1 });
+    const draw = k(t, [[4.0, 0], [4.6, 1, 'inOut']]);
+    const gone = k(t, [[5.0, 0], [5.4, 1]]);
+    put(line, { x: 960, y: 540, sx: draw * (1 - 0.9 * gone), op: 1 - gone });
+    const teal = t >= 5.75;
+    order.forEach((bi, n) => {
+      const h = 147 * hs[bi] * k(t, [[at[n], 0.04], [at[n] + 0.18, 1, 'outBack']]);
+      bars[bi].style.height = `${Math.max(6, h * 2)}px`;
+      bars[bi].style.background = teal ? C.ink : C.white;
+      put(bars[bi], { x: 960 + (bi - 3) * 31, y: 540, op: t >= at[n] ? 1 : 0, s: k(t, [[5.75, 1], [6.0, 0.62, 'in']]) });
+    });
     const g = k(t, [[5.75, 0], [6.0, 0.35, 'in']]);
     put(dot, { x: 960, y: 540, s: g, op: g > 0.01 ? 1 : 0 });
   };
@@ -240,7 +241,7 @@ scene(6, 10, C.ink, (root, s) => {
   const fill = el(root, '', 'abs', `width:300px;height:300px;border-radius:50%;background:${C.teal}`);
   const g = glyph(root, 210, C.ink);
   const mark = el(root, '', 'abs mark', 'width:620px;height:211px;clip-path:inset(0 100% 0 0)');
-  const tag = words(root, 'Pay with a hum.', 'display ink', 'font-size:64px;font-weight:600;letter-spacing:-0.02em');
+  const tag = words(root, 'Draw wonder.', 'display ink', 'font-size:84px;letter-spacing:-0.03em');
   const rs = rings(root, 6, C.ink, 5);
   return (t) => {
     const pop = k(t, [[6.0, 0.35], [6.45, 1, 'outBack']]);
@@ -263,11 +264,11 @@ scene(6, 10, C.ink, (root, s) => {
   };
 });
 
-// 4. 10-14  Type it. Hum it.
+// 4. 10-14  Type the amount. Hum it.
 scene(10, 14, C.mint, (root) => {
   const p = phone(root, 'ada-amount', 1.02);
   const amt = card(root, 'ada-amount', [20, 52, 370, 176], 1.45);
-  const t1 = words(root, 'Type it.', 'display ink', 'font-size:190px');
+  const t1 = words(root, 'Type the | amount.', 'display ink', 'font-size:150px;text-align:left;line-height:1.02');
   const s1 = words(root, '₦5,000 for suya and drinks.', 'body', 'font-size:42px;color:#4B6A61');
   const t2 = words(root, 'Hum it.', 'display ink', 'font-size:190px');
   const s2 = words(root, 'Then hold phones close.', 'body', 'font-size:42px;color:#4B6A61');
@@ -281,7 +282,7 @@ scene(10, 14, C.mint, (root) => {
     const back = k(t, [[11.85, 0], [12.15, 1, 'in']]);
     put(amt, { x: 1150 - 60 * back, y: 330, s: (0.6 + 0.4 * pop) * (1 - 0.3 * back), r: -4, op: pop * (1 - back) });
     put(t1, { x: 520, y: 470 }); reveal(t1, t, 10.15, 0.12); leave(t1, t, 11.85);
-    put(s1, { x: 520, y: 600 }); reveal(s1, t, 10.45, 0.04); leave(s1, t, 11.85, 0.02);
+    put(s1, { x: 520, y: 660 }); reveal(s1, t, 10.45, 0.04); leave(s1, t, 11.85, 0.02);
     put(t2, { x: 520, y: 470 }); reveal(t2, t, 12.0, 0.12);
     put(s2, { x: 520, y: 600 }); reveal(s2, t, 12.3, 0.04);
     emit(rs, t, 12.0, 13.6, 0.5, 1330, 420, 4.5, 1.8);
@@ -325,8 +326,7 @@ scene(14, 18, C.ink, (root) => {
 
 // 6. 18-22  Match the shapes.
 scene(18, 22, C.deep, (root) => {
-  const h = words(root, 'Match the {teal}shapes.', 'display white', 'font-size:150px');
-  const sub = words(root, 'The same three on both screens. That’s your person.', 'body', 'font-size:40px;color:#9FC4B8');
+  const h = words(root, 'Same shapes on {teal}both phones.', 'display white', 'font-size:120px');
   const tiles = ['tri', 'ring', 'dia'].map((n) => el(root, shapesSvg[n](150), 'abs tile'));
   const a = phone(root, 'ada-shapes', 0.82);
   const b = phone(root, 'tolu-picked', 0.82);
@@ -343,13 +343,12 @@ scene(18, 22, C.deep, (root) => {
     put(a, { x: 690, y: 700 + 1000 * up, ry: 12, r: -2, s: 0.95 });
     put(b, { x: 1230, y: 700 + 1000 * up, ry: -12, r: 2, s: 0.95 });
     put(eq, { x: 960, y: 660, op: fadeIn(t, 20.5, 0.3), s: k(t, [[20.5, 0.5], [20.9, 1, 'outBack']]) });
-    put(sub, { x: 960, y: 310 + k(t, [[20.0, 0], [20.5, -60, 'inOut']]) }); reveal(sub, t, 20.2, 0.03);
     const out = k(t, [[21.75, 0], [22.0, 1, 'in']]);
     root.style.opacity = 1 - out; root.style.transform = `scale(${1 - 0.06 * out})`;
   };
 });
 
-// 7. 22-26  One touch. Hummed.
+// 7. 22-26  Fingerprint, then Hummed.
 scene(22, 26, C.ink, (root, s) => {
   const fp = el(root, `<svg width="300" height="300" viewBox="0 0 24 24" fill="none" stroke="${C.teal}" stroke-width="1.1" stroke-linecap="round">
     <path class="f" d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path class="f" d="M14 13.12c0 2.38 0 6.38-1 8.88"/>
@@ -358,7 +357,7 @@ scene(22, 26, C.ink, (root, s) => {
     <path class="f" d="M8.65 22c.21-.66.45-1.32.57-2"/><path class="f" d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>`, 'abs');
   const paths = [...fp.querySelectorAll('.f')];
   paths.forEach((p) => { const L = p.getTotalLength(); p.style.strokeDasharray = L; p.dataset.L = L; });
-  const one = words(root, 'One touch.', 'display white', 'font-size:110px');
+  const one = words(root, 'Confirm with a {teal}fingerprint.', 'display white', 'font-size:96px');
   const flash = el(root, '', 'abs', `left:0;top:0;width:1920px;height:1080px;background:${C.teal};transform:none`);
   const check = el(root, `<svg width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="${C.ink}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path class="ck" d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
     'abs', `width:230px;height:230px;border-radius:50%;background:${C.teal};display:grid;place-items:center`);
@@ -366,7 +365,7 @@ scene(22, 26, C.ink, (root, s) => {
   const rs = rings(root, 5, C.teal, 6);
   const big = el(root, 'Hummed.', 'abs display white', 'font-size:270px');
   const amt = el(root, '₦5,000', 'abs display teal', 'font-size:130px;letter-spacing:-0.03em');
-  const sub = words(root, 'Paid to Tolu. Settled in {teal}1.7 seconds.', 'body', 'font-size:42px;color:#9FC4B8');
+  const sub = words(root, 'With Tolu. Settled in {teal}1.7 seconds.', 'body', 'font-size:42px;color:#9FC4B8');
   return (t) => {
     const draw = k(t, [[22.0, 0], [22.9, 1, 'inOut']]);
     const press = k(t, [[23.0, 1], [23.15, 0.9, 'out'], [23.35, 1.06, 'out']]);
@@ -396,8 +395,8 @@ scene(26, 30, C.mint, (root) => {
   const items = [
     ['Send to a | {teal2}username.', 'send-user', [8, 62, 382, 248], 1.75],
     ['Or a Faara | {teal2}number.', 'send-number', [8, 62, 382, 248], 1.75],
-    ['Top up | in {teal2}seconds.', 'add-done', [16, 72, 374, 252], 1.7],
-    ['Receipts, ready | to {teal2}share.', 'receipt', [16, 62, 374, 286], 1.45],
+    ['Top up by card | or {teal2}transfer.', 'add-done', [16, 72, 374, 252], 1.7],
+    ['A receipt for | {teal2}every payment.', 'receipt', [16, 62, 374, 286], 1.45],
   ].map(([txt, shot, box, sc]) => ({ h: words(root, txt, 'display ink', 'font-size:132px;line-height:1.02;text-align:left'), c: card(root, shot, box, sc) }));
   root.querySelectorAll('.teal2').forEach((e) => { e.style.color = '#0B9C86'; });
   const bar = el(root, '', 'abs', `width:6px;height:540px;border-radius:9px;background:${C.teal}`);
@@ -419,7 +418,7 @@ scene(26, 30, C.mint, (root) => {
   };
 });
 
-// 9. 30-32  A wall of Faara screens.
+// 9. 30-32  A wall of Faara screens, no words.
 scene(30, 32, C.ink, (root) => {
   const plane = el(root, '', 'abs', 'width:3000px;height:2000px;transform-style:preserve-3d');
   const list = ['ada-humming', 'ada-choose', 'ada-shapes', 'ada-hummed', 'send-review', 'receipt', 'tolu-picked', 'add', 'send-sent', 'tolu-hummed', 'ada-amount', 'send-user'];
@@ -430,43 +429,46 @@ scene(30, 32, C.ink, (root) => {
     ps.push(p);
   }
   const shade = el(root, '', 'abs', 'left:0;top:0;width:1920px;height:1080px;transform:none;background:radial-gradient(ellipse at center, rgba(10,20,18,.25), rgba(10,20,18,.92) 75%)');
-  const h = words(root, 'Every payment. {teal}Instant.', 'display white', 'font-size:150px');
   return (t) => {
     const drift = t - 30;
     plane.style.transform = `translate(${-380 - 60 * drift}px, ${-560 + 20 * drift}px) rotateX(48deg) rotateZ(-28deg) scale(${1.15 + 0.04 * drift})`;
-    put(h, { x: 960, y: 540, s: 1 + 0.02 * drift }); reveal(h, t, 30.1, 0.15);
     root.style.opacity = fadeIn(t, 30.0, 0.15);
   };
 });
 
-// 10. 32-36  Three lines, hard cuts on the beat.
-const lines = [[32.0, 33.5, C.gold, 'No account {ink}numbers.', 'ink', 150], [33.5, 35.0, C.ink, 'No wrong {teal}transfers.', 'white', 150], [35.0, 36.0, C.teal, 'Just a hum.', 'ink', 220]];
-lines.forEach(([a, b, bg, txt, color, size]) => scene(a, b, bg, (root) => {
-  const h = words(root, txt, `display ${color}`, `font-size:${size}px`);
-  return (t) => { put(h, { x: 960, y: 540, s: 1 + 0.03 * (t - a) }); reveal(h, t, a, 0.1, 0.4); };
-}));
+// 10. 32-36  The product line, one word per beat.
+scene(32, 36, C.ink, (root) => {
+  const h = words(root, 'Money, | handed {teal}over.', 'display white', 'font-size:230px;text-align:left;line-height:1');
+  return (t) => {
+    put(h, { x: 960, y: 540, s: 1 + 0.012 * (t - 32) });
+    h.ws.forEach((w, i) => {
+      const at = 32 + i;
+      w.style.transform = `translateY(${k(t, [[at, 135], [at + 0.4, 0, 'outExpo']])}%)`;
+    });
+    root.style.opacity = 1 - k(t, [[35.6, 0], [36.0, 1, 'in']]);
+  };
+});
 
-// 11. 36-42  End card.
+// 11. 36-42  Lockup: fàárà. Draw wonder. Money, handed over.
 scene(36, 42, C.ink, (root) => {
   const disc = el(root, '', 'abs', `width:250px;height:250px;border-radius:50%;background:${C.teal}`);
   const g = glyph(root, 180, C.ink);
   const mark = el(root, '', 'abs mark', `width:560px;height:191px;background:${C.white};clip-path:inset(0 0 100% 0)`);
-  const tag = words(root, 'Hold phones close.', 'display white', 'font-size:66px;font-weight:600;letter-spacing:-0.02em');
-  const pill = el(root, '<span class="dot"></span><span>On Android and the web · faara.mejibuilds.com</span>', 'abs pill');
-  const dotEl = pill.querySelector('.dot');
+  const brand = words(root, 'Draw {teal}wonder.', 'display white', 'font-size:92px;letter-spacing:-0.035em');
+  const product = words(root, 'Money, handed over.', 'display', 'font-size:50px;font-weight:600;letter-spacing:-0.02em;color:#8FA9A1');
   const rs = rings(root, 4, C.teal, 4);
   return (t) => {
     const pop = k(t, [[36.0, 0], [36.5, 1, 'outBack']]);
-    const up = k(t, [[36.6, 0], [37.2, -205, 'inOut']]);
-    put(disc, { x: 960, y: 520 + up, s: pop * k(t, [[36.6, 1], [37.2, 0.5]]) });
-    put(g, { x: 960, y: 520 + up, s: pop * k(t, [[36.6, 1], [37.2, 0.5]]) });
+    const up = k(t, [[36.6, 0], [37.2, -250, 'inOut']]);
+    const sc = pop * k(t, [[36.6, 1], [37.2, 0.5]]);
+    put(disc, { x: 960, y: 520 + up, s: sc });
+    put(g, { x: 960, y: 520 + up, s: sc });
     pulseGlyph(g, t, 0.22);
     emit(rs, t, 36.0, 36.5, 0.15, 960, 520, 3.5, 1.2);
     mark.style.clipPath = `inset(0 0 ${k(t, [[36.85, 100], [37.45, 0, 'out']])}% 0)`;
-    put(mark, { x: 960, y: 520 + k(t, [[36.85, 40], [37.45, 0]]) });
-    put(tag, { x: 960, y: 690 }); reveal(tag, t, 37.4, 0.1);
-    put(pill, { x: 960, y: 820, op: fadeIn(t, 38.0, 0.4), s: k(t, [[38.0, 0.9], [38.4, 1]]) });
-    dotEl.style.opacity = 0.5 + 0.5 * Math.abs(Math.sin((t - 38) * Math.PI));
+    put(mark, { x: 960, y: 455 + k(t, [[36.85, 40], [37.45, 0]]) });
+    put(brand, { x: 960, y: 640 }); reveal(brand, t, 37.5, 0.12);
+    put(product, { x: 960, y: 745 }); reveal(product, t, 38.3, 0.08);
     root.style.opacity = 1 - k(t, [[41.2, 0], [42.0, 1, 'in']]);
   };
 });

@@ -3,7 +3,7 @@
 120 BPM (a beat is 0.5 s, a bar 2 s), A minor resolving to C. An afro/amapiano-leaning groove
 with a log-drum bassline, locked to the picture: keypad ticks under the account number, a
 glitch on "was that 1-4?", a riser and snare roll into the logo drop, the hum, whooshes on
-every transition, a breakdown into "One touch.", and an impact on "Hummed.".
+every transition, a breakdown into the fingerprint, and an impact on "Hummed.".
 
     python3 tools/demo/ad/score.py        # -> clips/ad/score.wav (and score-music.wav, score-sfx.wav)
 """
@@ -302,7 +302,7 @@ def build():
         sfx.add(t, pluck(midi(m), 1.6, 1.0), 0.85, pan=p)
         sfx.add(t, bell(midi(m + 12), 0.25), 0.5, pan=p)
     sfx.add(20.5, pluck(midi(84), 1.6, 0.7), 0.6)              # the "=" landing
-    # One touch.
+    # Fingerprint.
     sfx.add(22.0, scan(0.9, 0.8), 0.6)
     sfx.add(23.0, thock(1.0), 0.8)
     sfx.add(23.0, riser(0.9, 0.9), 0.6)
@@ -314,13 +314,13 @@ def build():
     for t in (26.0, 27.0, 28.0, 29.0):
         sfx.add(t + 0.05, thock(0.6), 0.45)
     # Hard cuts on the slogans.
-    for t in (32.0, 33.5, 35.0):
+    for t in (32.0, 33.0, 34.0):  # "Money, | handed | over."
         drums.add(t, clap(1.0), 0.8)
         sfx.add(t, sub_boom(0.8, 0.6), 0.6)
-    sfx.add(35.4, riser(0.6, 0.8), 0.6)
-    # Tagline and pill on the end card.
-    sfx.add(37.4, pluck(midi(76), 2.0, 0.6), 0.5, pan=-0.2)
-    sfx.add(38.0, pluck(midi(84), 2.0, 0.5), 0.45, pan=0.2)
+    sfx.add(35.0, riser(1.0, 0.8), 0.6)
+    # "Draw wonder." and "Money, handed over." on the lockup.
+    sfx.add(37.5, pluck(midi(76), 2.0, 0.6), 0.5, pan=-0.2)
+    sfx.add(38.3, pluck(midi(84), 2.0, 0.5), 0.45, pan=0.2)
 
     # ---- the groove (bars 3..17 = 6 s to 35.5 s), with a breakdown at 22-24
     bass_pat = [(0, 0, 0.45), (3, 0, 0.3), (6, 12, 0.3), (8, 7, 0.4), (11, 0, 0.3), (14, 10, 0.3)]

@@ -55,7 +55,10 @@ A punchier promo built as an HTML motion timeline over crisp app captures, with 
 4. Mux at -14 LUFS:
    `ffmpeg -i clips/ad/ad-video.mp4 -i clips/ad/score.wav -filter_complex "[1:a]loudnorm=I=-14:TP=-1:LRA=9[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 256k -shortest clips/faara-ad.mp4`
 
-Story: an account number read out loud ("was that 1-4, or 4-1?") → "Stop spelling. Start humming." →
-logo → type it, hum it → phones hear it, you choose → match the shapes → one touch → "Hummed." →
-username, Faara number, top-up, receipts → "No account numbers. No wrong transfers. Just a hum." → end card.
+Story: an account number read out loud ("was that 1-4, or 4-1?") → a flat line rises into the hum's
+bars → lockup "fàárà / Draw wonder." → type the amount, hum it → phones hear it, you choose → same
+shapes on both phones → fingerprint → "Hummed." → username, Faara number, top-up, receipts → a wall
+of screens → "Money, handed over." one word per beat → lockup: fàárà. Draw wonder. Money, handed over.
+Copy rules: brand line "Draw wonder.", product line "Money, handed over."; captions say only what's
+on screen; no slogans, no pills.
 Home screens are kept out of shot because the card now shows dollar balances.
