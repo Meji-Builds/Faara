@@ -21,6 +21,9 @@ export interface NairaProvider {
 
 interface AccountDoc {
   balanceKobo: number;
+  /** Dollar and USDC balances (cents), written by the conversion service. */
+  balanceUsdCents?: number;
+  balanceUsdcCents?: number;
   updatedAt: number;
 }
 
@@ -61,6 +64,7 @@ export class MockNairaLedger implements NairaProvider {
       const account = await tx.get<AccountDoc>(accountPath(uid));
       const now = this.now();
       tx.set(accountPath(uid), {
+        ...account,
         balanceKobo: (account?.balanceKobo ?? MOCK_STARTING_BALANCE_KOBO) + amountKobo,
         updatedAt: now,
       } satisfies AccountDoc);
@@ -93,10 +97,12 @@ export class MockNairaLedger implements NairaProvider {
       }
       const now = this.now();
       tx.set(accountPath(fromUid), {
+        ...from,
         balanceKobo: fromBalance - amountKobo,
         updatedAt: now,
       } satisfies AccountDoc);
       tx.set(accountPath(toUid), {
+        ...to,
         balanceKobo: toBalance + amountKobo,
         updatedAt: now,
       } satisfies AccountDoc);

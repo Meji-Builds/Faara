@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { audioEngine } from './audio';
+import { microphoneError } from '@/lib/errors';
 import { DEFAULT_MODEM_CONFIG, synthesizeFrame, type ModemConfig } from './modem';
 
 export type BroadcastState = 'idle' | 'starting' | 'humming' | 'error';
@@ -31,7 +32,7 @@ export function useHumBroadcaster(config: ModemConfig = DEFAULT_MODEM_CONFIG) {
         active.current = true;
         setState('humming');
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(microphoneError(cause));
         setState('error');
       }
     },

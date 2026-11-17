@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdireBand, Wordmark } from '@/components/brand';
+import { friendlyError } from '@/lib/errors';
 import { AppText, Avatar, Button, OtpField } from '@/components/ui';
 import { PIN_LENGTH } from '@/features/wallet';
 import { initials } from '@/lib/money';
@@ -47,7 +48,7 @@ export function LockScreen({
     try {
       await onPin(value);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Wrong passcode.');
+      setError(friendlyError(cause, 'Couldn’t check your passcode. Try again.'));
       setPin('');
     } finally {
       setChecking(false);

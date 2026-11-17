@@ -11,6 +11,7 @@ function webReturnUrl(http: Request): string {
   const origin = http.headers.get('origin') ?? '';
   const allowed =
     /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin) ||
+    origin === 'https://faara.mejibuilds.com' ||
     /^http:\/\/localhost(:\d+)?$/.test(origin);
   if (!allowed) throw new ApiError('invalid-argument', 'This site can’t start a top-up.');
   return `${origin}/add-money`;

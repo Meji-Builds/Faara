@@ -44,7 +44,7 @@ export function QuickAction({
               {icon}
             </View>
           </View>
-          <AppText variant="bodyStrong" align="center">
+          <AppText variant="bodyStrong" align="center" numberOfLines={1} adjustsFontSizeToFit>
             {label}
           </AppText>
         </>

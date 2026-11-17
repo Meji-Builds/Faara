@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import type { SettleHumResponse } from '@shared/hum';
 
 import { settleHum } from '@/features/hum';
+import { friendlyError } from '@/lib/errors';
 import { sendUsdc, solanaErrorMessage, useApproval } from '@/features/wallet';
 import { apiErrorMessage, ApiRequestError } from '@/lib/api/client';
 
@@ -81,7 +82,7 @@ export function usePayFlow(
       await pay(signer);
     } catch (cause) {
       setPin('');
-      setError(cause instanceof Error ? cause.message : 'Wrong PIN.');
+      setError(friendlyError(cause, 'Couldn’t check your PIN. Try again.'));
     }
   }, [approveWithPin, pin, pay]);
 
