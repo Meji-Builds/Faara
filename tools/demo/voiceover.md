@@ -1,4 +1,4 @@
-# Voiceover for the cut (`clips/faara-demo.mp4`, 79.7 s)
+# Voiceover for the cut (`clips/faara-demo-music.mp4`, 79.7 s)
 
 Warm, clear, unhurried. Times are where each line starts in the cut; each line fits before the next.
 Music and effects are already in the cut (`music.py`, `sfx.py`); duck the music a further

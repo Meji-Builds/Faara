@@ -13,7 +13,7 @@ Films the real app with made-up people, for the demo and advertisement video.
   - `s1.js` Ada hums ₦5,000 · `s2.js` Tolu receives (`PICK`/`SETTLE` env tune the receiver to Ada's
     marks; defaults match the current `send-hum.json`) · `s3.js` send by number and username, receipt ·
     `s4.js` add money · `s5.js` Faara code and pay link.
-- Cut: `python3 tools/demo/cut.py` → `clips/faara-demo.mp4` (1920x1080, 30 fps, about 80 s), with
+- Cut: `python3 tools/demo/cut.py` → `clips/faara-demo-music.mp4` (1920x1080, 30 fps, about 80 s), with
   typeset captions in the app's fonts and the sound effects from `sfx.py`
   (`python3 tools/demo/sfx.py` also writes `clips/sfx-audition.wav`; `cut.py --audio-only` remixes
   without re-rendering). The real hum is 18-20 kHz and near-inaudible, so the film's hum is designed.
