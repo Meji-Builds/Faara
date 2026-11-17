@@ -3,6 +3,7 @@ import { doc, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { type Balances, type ConvertCurrency, type Quote } from '@shared/convert';
 import { MOCK_STARTING_BALANCE_KOBO } from '@shared/hum';
 
+import { DEMO, demoApi } from '@/features/demo/engine';
 import { postJson } from '@/lib/api/client';
 import { db } from '@/lib/firebase';
 
@@ -16,6 +17,7 @@ export function executeQuote(quoteId: string) {
 
 /** Live balances in naira, dollars and USDC (minor units), from the ledger. */
 export function watchBalances(uid: string, onChange: (balances: Balances) => void): Unsubscribe {
+  if (DEMO) return demoApi.watchBalance((kobo) => onChange({ NGN: kobo, USD: 0, USDC: 0 }));
   const fallback: Balances = { NGN: MOCK_STARTING_BALANCE_KOBO, USD: 0, USDC: 0 };
   return onSnapshot(
     doc(db, 'ledgerAccounts', uid),

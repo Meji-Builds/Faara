@@ -40,3 +40,22 @@ Graphics: real screen captures and typeset text only, no AI-generated images wit
 
 Known: screens left in the navigation stack stay in the DOM, so locators need `visible=true`
 (`c.vis`, `c.btn` already do this).
+
+## Ad (about 42 seconds, 16:9, motion graphics)
+
+A punchier promo built as an HTML motion timeline over crisp app captures, with its own score.
+
+1. `NODE_PATH=$(npm root -g) node tools/demo/ad/capture.js` → 3x stills of each app state in `clips/ad/shots/`
+   (demo build served on :8081).
+2. Serve the repo on :8090 (CSS masks don't load from `file://`), then
+   `NODE_PATH=$(npm root -g) node tools/demo/ad/render.js` → `clips/ad/ad-video.mp4`.
+   `--stills 4.8,24.2` renders single frames for checking. The timeline is `ad/index.html`
+   (`seek(t)`; 120 BPM, a bar is 2 s).
+3. `python3 tools/demo/ad/score.py` → `clips/ad/score.wav` (music and sound design, locked to the picture).
+4. Mux at -14 LUFS:
+   `ffmpeg -i clips/ad/ad-video.mp4 -i clips/ad/score.wav -filter_complex "[1:a]loudnorm=I=-14:TP=-1:LRA=9[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 256k -shortest clips/faara-ad.mp4`
+
+Story: an account number read out loud ("was that 1-4, or 4-1?") → "Stop spelling. Start humming." →
+logo → type it, hum it → phones hear it, you choose → match the shapes → one touch → "Hummed." →
+username, Faara number, top-up, receipts → "No account numbers. No wrong transfers. Just a hum." → end card.
+Home screens are kept out of shot because the card now shows dollar balances.
