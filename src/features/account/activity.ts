@@ -10,10 +10,12 @@ import {
 
 import { MOCK_STARTING_BALANCE_KOBO, type ActivityEntry } from '@shared/hum';
 
+import { DEMO, demoApi } from '@/features/demo/engine';
 import { db } from '@/lib/firebase';
 
 /** Live naira balance (kobo) from the mock ledger. New accounts show the opening balance. */
 export function watchNairaBalance(uid: string, onChange: (kobo: number) => void): Unsubscribe {
+  if (DEMO) return demoApi.watchBalance(onChange);
   return onSnapshot(
     doc(db, 'ledgerAccounts', uid),
     (snapshot) => onChange(Number(snapshot.data()?.balanceKobo ?? MOCK_STARTING_BALANCE_KOBO)),
@@ -27,6 +29,7 @@ export function watchActivity(
   max: number,
   onChange: (entries: ActivityEntry[]) => void,
 ): Unsubscribe {
+  if (DEMO) return demoApi.watchActivity(max, onChange);
   return onSnapshot(
     query(collection(db, 'users', uid, 'activity'), orderBy('createdAt', 'desc'), limit(max)),
     (snapshot) => onChange(snapshot.docs.map((d) => d.data() as ActivityEntry)),
@@ -40,6 +43,7 @@ export function watchActivityEntry(
   paymentId: string,
   onChange: (entry: ActivityEntry | null) => void,
 ): Unsubscribe {
+  if (DEMO) return demoApi.watchEntry(paymentId, onChange);
   return onSnapshot(
     doc(db, 'users', uid, 'activity', paymentId),
     (snapshot) => onChange(snapshot.exists() ? (snapshot.data() as ActivityEntry) : null),

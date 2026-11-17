@@ -9,9 +9,11 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { Keypair as DemoKeypair } from '@solana/web3.js';
 import { AppState } from 'react-native';
 
 import { setWalletAddress, useAuth } from '@/features/auth';
+import { DEMO } from '@/features/demo/engine';
 
 import { canUseBiometrics, confirmWithBiometrics } from './biometrics';
 import {
@@ -60,7 +62,7 @@ const WalletContext = createContext<WalletContextValue | null>(null);
 /** Defers heavy key derivation a tick so a spinner can render first. */
 const nextTick = () => new Promise((resolve) => setTimeout(resolve, 16));
 
-export function WalletProvider({ children }: { children: ReactNode }) {
+function RealWalletProvider({ children }: { children: ReactNode }) {
   const { status: authStatus, user, profile } = useAuth();
   const [deviceAddress, setDeviceAddress] = useState<string | null | undefined>(undefined);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
@@ -183,6 +185,29 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
+}
+
+const DEMO_WALLET: WalletContextValue = {
+  status: 'ready',
+  deviceAddress: null,
+  biometricsAvailable: true,
+  pinRequired: false,
+  createWallet: async () => undefined,
+  restoreWallet: async () => undefined,
+  unlockKeypair: async () => DemoKeypair.generate(),
+  revealPhrase: async () => '',
+  changePin: async () => undefined,
+  locked: false,
+  unlockWithPin: async () => undefined,
+  unlockWithBiometrics: async () => true,
+};
+
+export function WalletProvider({ children }: { children: ReactNode }) {
+  return DEMO ? (
+    <WalletContext.Provider value={DEMO_WALLET}>{children}</WalletContext.Provider>
+  ) : (
+    <RealWalletProvider>{children}</RealWalletProvider>
+  );
 }
 
 export function useWallet(): WalletContextValue {

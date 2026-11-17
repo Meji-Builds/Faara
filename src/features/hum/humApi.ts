@@ -13,9 +13,11 @@ import type {
 } from '@shared/hum';
 
 import { postJson } from '@/lib/api/client';
+import { DEMO, demoApi } from '@/features/demo/engine';
 import { db } from '@/lib/firebase';
 
 export function createHum(amount: number, currency: HumCurrency, note: string) {
+  if (DEMO) return Promise.resolve(demoApi.createHum(amount, currency, note));
   return postJson<CreateHumResponse>('/api/hums/create', { amount, currency, note });
 }
 
@@ -25,18 +27,29 @@ export function claimHum(
   channel: ClaimChannel,
   distanceCm?: number,
 ) {
+  if (DEMO)
+    return new Promise<ClaimHumResponse>((r) => setTimeout(() => r(demoApi.claimHum()), 700));
   return postJson<ClaimHumResponse>('/api/hums/claim', { ...code, channel, distanceCm });
 }
 
 export function chooseRecipient(paymentId: string, claimId: string) {
+  if (DEMO) return Promise.resolve(demoApi.chooseRecipient(paymentId, claimId));
   return postJson<ChooseRecipientResponse>('/api/hums/choose', { paymentId, claimId });
 }
 
 export function settleHum(paymentId: string, signature?: string) {
+  if (DEMO)
+    return new Promise<SettleHumResponse>((r) =>
+      setTimeout(() => r(demoApi.settleHum(paymentId)), 1700),
+    );
   return postJson<SettleHumResponse>('/api/hums/settle', { paymentId, signature });
 }
 
 export function cancelHum(paymentId: string) {
+  if (DEMO) {
+    demoApi.cancelHum();
+    return Promise.resolve({ ok: true as const });
+  }
   return postJson<{ ok: true }>('/api/hums/cancel', { paymentId });
 }
 
@@ -87,6 +100,7 @@ export function watchClaims(
   paymentId: string,
   onChange: (claims: HumClaim[]) => void,
 ): Unsubscribe {
+  if (DEMO) return demoApi.watchClaims(onChange);
   return onSnapshot(collection(db, 'hums', paymentId, 'claims'), (snapshot) => {
     onChange(snapshot.docs.map((d) => toClaim(d.id, d.data())).sort(byDistance));
   });
@@ -98,6 +112,7 @@ export function watchClaim(
   claimId: string,
   onChange: (claim: HumClaim | null) => void,
 ): Unsubscribe {
+  if (DEMO) return demoApi.watchMyClaim(onChange);
   return onSnapshot(doc(db, 'hums', paymentId, 'claims', claimId), (snapshot) => {
     onChange(snapshot.exists() ? toClaim(snapshot.id, snapshot.data()) : null);
   });
@@ -105,6 +120,7 @@ export function watchClaim(
 
 /** Sender or claimant: hum status (open, chosen, cancelled). */
 export function watchHum(paymentId: string, onChange: (hum: HumState | null) => void): Unsubscribe {
+  if (DEMO) return demoApi.watchHum(onChange);
   return onSnapshot(doc(db, 'hums', paymentId), (snapshot) => {
     if (!snapshot.exists()) return onChange(null);
     const data = snapshot.data();

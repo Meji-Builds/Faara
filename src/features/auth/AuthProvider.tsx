@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { DEMO, me } from '@/features/demo/engine';
 import { auth } from '@/lib/firebase';
 
 import type { PendingVerification } from './phoneAuth';
@@ -47,7 +48,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const PROFILE_TIMEOUT_MS = 8000;
 const PROFILE_RETRY_MS = 5000;
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+function RealAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userResolved, setUserResolved] = useState(false);
   // Latest profile snapshot, tagged with the uid it belongs to.
@@ -124,6 +125,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+function DemoAuthProvider({ children }: { children: ReactNode }) {
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      status: 'ready',
+      user: { uid: me.uid, phoneNumber: me.phone } as User,
+      profile: {
+        uid: me.uid,
+        fullName: me.fullName,
+        username: me.username,
+        phone: me.phone,
+        verificationTier: 1,
+        createdAt: null,
+        walletAddress: null,
+      },
+      profileFailed: false,
+      refreshProfile: () => undefined,
+      pending: null,
+      setPending: () => undefined,
+      signOut: async () => undefined,
+    }),
+    [],
+  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return DEMO ? (
+    <DemoAuthProvider>{children}</DemoAuthProvider>
+  ) : (
+    <RealAuthProvider>{children}</RealAuthProvider>
+  );
 }
 
 export function useAuth(): AuthContextValue {

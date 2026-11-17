@@ -17,6 +17,7 @@ import { useBleBroadcast, type BleChannelState } from '@/features/ble';
 import { cancelHum, createHum, useHumDraft } from '@/features/hum';
 import { HUM_VOLUME_GAIN, usePreferences } from '@/features/preferences';
 import { useHumBroadcaster } from '@/features/sound';
+import { DEMO } from '@/features/demo/engine';
 import { apiErrorMessage } from '@/lib/api/client';
 import { initials } from '@/lib/money';
 import { fonts, radii, useTheme } from '@/theme';
@@ -86,7 +87,8 @@ export default function HummingScreen() {
     expiresAtLocal === null ? HUM_TOKEN_TTL_MS : Math.max(0, expiresAtLocal - now);
   const expired = session !== null && remainingMs === 0;
   const { start: startBroadcast, stop: stopBroadcast } = broadcaster;
-  const bleState = useBleBroadcast(session && !expired ? session.token : null);
+  const realBleState = useBleBroadcast(session && !expired ? session.token : null);
+  const bleState = DEMO ? ('active' as const) : realBleState;
 
   // Broadcast the code while it's valid.
   useEffect(() => {
@@ -137,7 +139,9 @@ export default function HummingScreen() {
     session && !expired
       ? showFallback
         ? { id: 'qr', state: 'active', statusLabel: 'Showing' }
-        : { id: 'qr', state: 'idle', statusLabel: `Backup in ${fallbackIn}s` }
+        : claims.length > 0
+          ? { id: 'qr', state: 'idle', statusLabel: 'Not needed' }
+          : { id: 'qr', state: 'idle', statusLabel: `Backup in ${fallbackIn}s` }
       : { id: 'qr', state: 'idle', statusLabel: 'Ready' },
   ];
 

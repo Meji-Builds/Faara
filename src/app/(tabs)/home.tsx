@@ -12,6 +12,7 @@ import { QuickAction } from '@/components/wallet/QuickAction';
 import { useActivity, useNairaBalance, useUsdcBalance } from '@/features/account';
 import { useProfile } from '@/features/auth';
 import { useAmbientReceive } from '@/features/hum';
+import { DEMO } from '@/features/demo/engine';
 import { takePendingRecipient } from '@/features/referral';
 import { useNotifications } from '@/features/notifications';
 import { usePreferences } from '@/features/preferences';
@@ -42,8 +43,9 @@ export default function HomeScreen() {
 
   // Listen for a hum while Home is on screen and the app is open (app only: browsers
   // need a tap before they allow the microphone). The Receive screen takes over from here.
-  const ambient = Platform.OS !== 'web' && preferences.readyToReceive && focused && appActive;
-  const { sound } = useAmbientReceive(ambient, (hum) =>
+  const ambient =
+    (Platform.OS !== 'web' || DEMO) && preferences.readyToReceive && focused && appActive;
+  const { sound: realSound } = useAmbientReceive(ambient && !DEMO, (hum) =>
     router.push({
       pathname: '/receive',
       params: {
@@ -53,6 +55,7 @@ export default function HomeScreen() {
       },
     }),
   );
+  const sound = DEMO ? 'listening' : realSound;
   const firstName = profile.fullName.split(/\s+/)[0] ?? profile.fullName;
   const iconProps = { size: 24, color: colors.text, strokeWidth: 1.75 } as const;
 
