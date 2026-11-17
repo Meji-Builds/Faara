@@ -16,7 +16,7 @@ import {
   TextField,
   TextTabs,
 } from '@/components/ui';
-import { mockAccountNumber, useNairaBalance } from '@/features/account';
+import { useNairaBalance } from '@/features/account';
 import { useProfile } from '@/features/auth';
 import {
   CHECKOUT_PLATFORM,
@@ -24,6 +24,8 @@ import {
   openCheckout,
   verifyFunding,
 } from '@/features/funding';
+import { DOLLARS_ENABLED } from '@/config/features';
+import { faaraNumber } from '@/lib/phone';
 import { apiErrorMessage } from '@/lib/api/client';
 import { formatMoney, groupDigits } from '@/lib/money';
 import { fonts, radii, useTheme } from '@/theme';
@@ -125,14 +127,16 @@ export default function AddMoneyScreen() {
       }
     >
       <Header center={<AppText variant="subheading">Add money</AppText>} />
-      <View style={styles.tabs}>
-        <TextTabs
-          options={TABS}
-          value={tab}
-          onChange={setTab}
-          labels={{ naira: 'Naira', dollars: 'Dollars' }}
-        />
-      </View>
+      {DOLLARS_ENABLED ? (
+        <View style={styles.tabs}>
+          <TextTabs
+            options={TABS}
+            value={tab}
+            onChange={setTab}
+            labels={{ naira: 'Naira', dollars: 'Dollars' }}
+          />
+        </View>
+      ) : null}
 
       {tab === 'naira' ? (
         <View style={styles.body}>
@@ -215,12 +219,12 @@ export default function AddMoneyScreen() {
               </Card>
               <Card padded style={styles.account}>
                 <AppText variant="label" color="textMuted">
-                  Your Faara account number
+                  Your Faara number
                 </AppText>
-                <AppText style={styles.accountNumber}>{mockAccountNumber(profile.uid)}</AppText>
+                <AppText style={styles.accountNumber}>{faaraNumber(profile.phone)}</AppText>
                 <AppText variant="caption" color="textMuted">
-                  Paying straight into this number from any bank comes with the banking partner.
-                  Until then, add money above.
+                  Anyone on Faara can send money to this number. Transfers from other banks will
+                  come with our banking partner. Until then, add money with the button below.
                 </AppText>
               </Card>
             </>

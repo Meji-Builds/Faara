@@ -2,8 +2,8 @@ import type { CreateTransferResponse, HumCurrency, LookupUserResponse } from '@s
 
 import { postJson } from '@/lib/api/client';
 
-export function lookupUser(username: string) {
-  return postJson<LookupUserResponse>('/api/users/lookup', { username });
+export function lookupUser(query: { username: string } | { phone: string }) {
+  return postJson<LookupUserResponse>('/api/users/lookup', query);
 }
 
 export function createTransfer(

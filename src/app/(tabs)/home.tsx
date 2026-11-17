@@ -1,5 +1,6 @@
 import { useIsFocused, useRouter } from 'expo-router';
 import { ArrowLeft, ArrowRight, Bell, Plus } from 'lucide-react-native';
+import { useEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { HumMark } from '@/components/brand';
@@ -8,20 +9,17 @@ import { AppText, Avatar, IconButton, Screen } from '@/components/ui';
 import { ActivityList } from '@/components/wallet/ActivityList';
 import { BalanceCard } from '@/components/wallet/BalanceCard';
 import { QuickAction } from '@/components/wallet/QuickAction';
-import {
-  mockAccountNumber,
-  useActivity,
-  useNairaBalance,
-  useUsdcBalance,
-} from '@/features/account';
+import { useActivity, useNairaBalance, useUsdcBalance } from '@/features/account';
 import { useProfile } from '@/features/auth';
 import { useAmbientReceive } from '@/features/hum';
+import { takePendingRecipient } from '@/features/referral';
 import { useNotifications } from '@/features/notifications';
 import { usePreferences } from '@/features/preferences';
 import { audioEngine } from '@/features/sound';
 import { greeting } from '@/lib/greeting';
 import { useAppActive } from '@/lib/useAppActive';
 import { initials } from '@/lib/money';
+import { faaraNumber } from '@/lib/phone';
 import { palette, useTheme } from '@/theme';
 
 export default function HomeScreen() {
@@ -33,6 +31,12 @@ export default function HomeScreen() {
   const usdc = useUsdcBalance();
   const activity = useActivity(10);
   const { unreadCount } = useNotifications();
+  // Someone who opened a pay link before joining carries on to pay them.
+  useEffect(() => {
+    const to = takePendingRecipient();
+    if (to) router.push({ pathname: '/send', params: { to } });
+  }, [router]);
+
   const focused = useIsFocused();
   const appActive = useAppActive();
 
@@ -76,7 +80,7 @@ export default function HomeScreen() {
         key={preferences.hideBalances ? 'hidden' : 'shown'}
         naira={naira}
         usdc={usdc.value}
-        accountNumber={mockAccountNumber(profile.uid)}
+        faaraNumber={faaraNumber(profile.phone)}
         initiallyHidden={preferences.hideBalances}
       />
 

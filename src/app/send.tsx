@@ -1,10 +1,12 @@
-import { useRouter } from 'expo-router';
-import { Check, Download, UserRound } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Download, UserRound } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import type { CreateTransferResponse, LookupUserResponse } from '@shared/hum';
+import { nationalPhone, type CreateTransferResponse, type LookupUserResponse } from '@shared/hum';
 
+import { SuccessBurst } from '@/components/brand';
+import { CountUp, Reveal } from '@/components/motion';
 import { ApprovalFooter, PaymentDetails, PaymentHeader } from '@/components/payments';
 import {
   AppText,
@@ -27,18 +29,21 @@ import {
   type Settlement,
 } from '@/features/payments';
 import { receiptReference } from '@/features/receipts';
+import { DOLLARS_ENABLED } from '@/config/features';
 import { apiErrorMessage } from '@/lib/api/client';
+import { haptics } from '@/lib/haptics';
 import { formatMoney, initials, type Currency } from '@/lib/money';
 import { fonts, palette, useTheme } from '@/theme';
 
 const CURRENCIES: readonly Currency[] = ['NGN', 'USDC'];
 const LOOKUP_DELAY_MS = 450;
 
+/** `key` is what was looked up: a username, or "tel:" and the phone's national digits. */
 type Lookup =
   | { state: 'idle' }
-  | { state: 'searching'; username: string }
-  | { state: 'found'; username: string; user: LookupUserResponse }
-  | { state: 'missing'; username: string; message: string };
+  | { state: 'searching'; key: string }
+  | { state: 'found'; key: string; user: LookupUserResponse }
+  | { state: 'missing'; key: string; message: string };
 
 /** Parses typed amounts like "12,500" or "40.5". Naira must be whole. */
 function parseAmount(text: string, currency: Currency): number | null {
@@ -49,7 +54,7 @@ function parseAmount(text: string, currency: Currency): number | null {
   return value;
 }
 
-/** Send to someone by username, without being nearby. */
+/** Send to someone by username or phone number, without being nearby. */
 export default function SendScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -57,7 +62,8 @@ export default function SendScreen() {
   const naira = useNairaBalance();
   const usdc = useUsdcBalance().value;
 
-  const [username, setUsername] = useState('');
+  const { to } = useLocalSearchParams<{ to?: string }>();
+  const [recipientInput, setRecipientInput] = useState(to ?? '');
   const [lookup, setLookup] = useState<Lookup>({ state: 'idle' });
   const [currency, setCurrency] = useState<Currency>('NGN');
   const [amountText, setAmountText] = useState('');
@@ -68,32 +74,49 @@ export default function SendScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const cleanUsername = username.trim().replace(/^@/, '').toLowerCase();
-  const usernameValid = /^[a-z0-9._]{3,20}$/.test(cleanUsername) && cleanUsername !== me.username;
+  // Anything starting with a digit or "+" is a phone number (the person's Faara number);
+  // everything else is a username.
+  const typed = recipientInput.trim();
+  const isPhone = /^[+\d]/.test(typed);
+  const typedPhone = isPhone ? nationalPhone(typed) : null;
+  const typedUsername = isPhone ? '' : typed.replace(/^@/, '').toLowerCase();
+  const myNumber = nationalPhone(me.phone);
+  const isSelf = isPhone
+    ? typedPhone !== null && typedPhone === myNumber
+    : typedUsername === me.username;
+  const lookupKey = isSelf
+    ? null
+    : isPhone
+      ? typedPhone && `tel:${typedPhone}`
+      : /^[a-z0-9._]{3,20}$/.test(typedUsername)
+        ? typedUsername
+        : null;
 
-  // Debounced lookup as the username is typed.
+  // Debounced lookup as the recipient is typed.
   useEffect(() => {
-    if (!usernameValid) return;
+    if (!lookupKey) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      setLookup({ state: 'searching', username: cleanUsername });
-      lookupUser(cleanUsername)
-        .then((user) => !cancelled && setLookup({ state: 'found', username: cleanUsername, user }))
+      setLookup({ state: 'searching', key: lookupKey });
+      lookupUser(
+        lookupKey.startsWith('tel:') ? { phone: lookupKey.slice(4) } : { username: lookupKey },
+      )
+        .then((user) => !cancelled && setLookup({ state: 'found', key: lookupKey, user }))
         .catch(
           (cause: unknown) =>
             !cancelled &&
-            setLookup({
-              state: 'missing',
-              username: cleanUsername,
-              message: apiErrorMessage(cause),
-            }),
+            setLookup({ state: 'missing', key: lookupKey, message: apiErrorMessage(cause) }),
         );
     }, LOOKUP_DELAY_MS);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [cleanUsername, usernameValid]);
+  }, [lookupKey]);
+
+  useEffect(() => {
+    if (settlement) haptics.success();
+  }, [settlement]);
 
   // Live safety badge for the recipient once the payment exists.
   useEffect(() => {
@@ -101,8 +124,7 @@ export default function SendScreen() {
     return watchClaim(transfer.paymentId, transfer.claimId, setClaim);
   }, [transfer]);
 
-  const recipient =
-    lookup.state === 'found' && lookup.username === cleanUsername ? lookup.user : null;
+  const recipient = lookup.state === 'found' && lookup.key === lookupKey ? lookup.user : null;
   const amount = parseAmount(amountText, currency);
   const available = currency === 'NGN' ? naira : usdc;
   const overBalance = amount !== null && available !== null && amount > available;
@@ -112,7 +134,7 @@ export default function SendScreen() {
       ? ''
       : formatMoney(amount, currency, { decimals: currency === 'USDC' ? 2 : undefined });
   const canContinue =
-    recipient !== null && amount !== null && !overBalance && !needsWallet && usernameValid;
+    recipient !== null && amount !== null && !overBalance && !needsWallet && lookupKey !== null;
 
   const payment = useMemo<PaymentToSettle | null>(
     () =>
@@ -176,21 +198,38 @@ export default function SendScreen() {
         }
       >
         <View style={styles.done}>
-          <View style={[styles.check, { backgroundColor: colors.accent }]}>
-            <Check size={48} color={palette.nearBlack} strokeWidth={3} />
+          <View style={styles.check}>
+            <SuccessBurst size={104} />
           </View>
-          <AppText style={[styles.doneTitle, { color: colors.onBrand }]} accessibilityRole="header">
-            Sent.
-          </AppText>
-          <AppText color="onBrand" align="center">
-            {amountLabel} is with{' '}
-            <AppText variant="bodyStrong" color="onBrand">
-              {transfer.recipient.fullName}
+          <Reveal delay={260}>
+            <AppText
+              style={[styles.doneTitle, { color: colors.onBrand }]}
+              accessibilityRole="header"
+            >
+              Sent.
             </AppText>
-          </AppText>
-          <AppText variant="label" color="onBrandMuted" align="center">
-            Settled in {(settlement.elapsedMs / 1000).toFixed(1)} seconds · {reference}
-          </AppText>
+          </Reveal>
+          <CountUp
+            value={amount}
+            delay={380}
+            format={(value) =>
+              formatMoney(currency === 'USDC' ? value : Math.round(value), currency, {
+                decimals: currency === 'USDC' ? 2 : undefined,
+              })
+            }
+            style={[styles.doneAmount, { color: colors.accent }]}
+          />
+          <Reveal delay={700}>
+            <AppText color="onBrand" align="center">
+              is with{' '}
+              <AppText variant="bodyStrong" color="onBrand">
+                {transfer.recipient.fullName}
+              </AppText>
+            </AppText>
+            <AppText variant="label" color="onBrandMuted" align="center">
+              Settled in {(settlement.elapsedMs / 1000).toFixed(1)} seconds · {reference}
+            </AppText>
+          </Reveal>
         </View>
       </Screen>
     );
@@ -254,28 +293,21 @@ export default function SendScreen() {
       <View style={styles.form}>
         <TextField
           label="To"
-          value={username}
-          onChangeText={(text) => setUsername(text.replace(/\s/g, '').toLowerCase())}
-          placeholder="username"
+          value={recipientInput}
+          onChangeText={(text) => setRecipientInput(text.toLowerCase())}
+          placeholder="Username or phone number"
           autoCapitalize="none"
           autoCorrect={false}
-          autoFocus
-          leading={
-            <AppText variant="subheading" color="textMuted">
-              @
-            </AppText>
-          }
+          autoFocus={!to}
+          accessibilityLabel="Username or phone number"
         />
-        <RecipientPreview
-          lookup={lookup}
-          username={cleanUsername}
-          isSelf={cleanUsername === me.username}
-          colors={colors}
-        />
+        <RecipientPreview lookup={lookup} lookupKey={lookupKey} isSelf={isSelf} colors={colors} />
 
-        <View style={styles.tabs}>
-          <TextTabs options={CURRENCIES} value={currency} onChange={setCurrency} />
-        </View>
+        {DOLLARS_ENABLED ? (
+          <View style={styles.tabs}>
+            <TextTabs options={CURRENCIES} value={currency} onChange={setCurrency} />
+          </View>
+        ) : null}
         <TextField
           label="Amount"
           value={amountText}
@@ -316,23 +348,23 @@ export default function SendScreen() {
 
 function RecipientPreview({
   lookup,
-  username,
+  lookupKey,
   isSelf,
   colors,
 }: {
   lookup: Lookup;
-  username: string;
+  lookupKey: string | null;
   isSelf: boolean;
   colors: ReturnType<typeof useTheme>['colors'];
 }) {
   if (isSelf) {
     return (
       <AppText variant="label" color="gold">
-        That’s you. Enter someone else’s username.
+        That’s you. Enter someone else’s username or number.
       </AppText>
     );
   }
-  if (lookup.state === 'idle' || lookup.username !== username) return null;
+  if (lookup.state === 'idle' || lookup.key !== lookupKey) return null;
   if (lookup.state === 'searching')
     return <ActivityIndicator color={colors.accent} style={styles.searching} />;
   if (lookup.state === 'missing') {
@@ -368,13 +400,7 @@ const styles = StyleSheet.create({
   details: { marginTop: 24, marginBottom: 16 },
   actions: { flexDirection: 'row', gap: 12 },
   done: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 48 },
-  check: {
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
+  check: { marginBottom: 14 },
+  doneAmount: { fontFamily: fonts.display, fontSize: 40, lineHeight: 48, letterSpacing: -1.5 },
   doneTitle: { fontFamily: fonts.display, fontSize: 48, lineHeight: 56, letterSpacing: -2 },
 });

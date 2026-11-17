@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AdireBand, Rings } from '@/components/brand';
 import { AppText } from '@/components/ui';
+import { DOLLARS_ENABLED } from '@/config/features';
 import { formatMoney, groupDigits } from '@/lib/money';
 import { fonts, palette, radii, useTheme } from '@/theme';
 
@@ -11,7 +12,8 @@ interface BalanceCardProps {
   /** Null while loading. */
   naira: number | null;
   usdc: number | null;
-  accountNumber: string;
+  /** Shown in place of an account number: how people find you. */
+  faaraNumber: string;
   initiallyHidden?: boolean;
 }
 
@@ -20,7 +22,7 @@ const HIDDEN = '••••••';
 export function BalanceCard({
   naira,
   usdc,
-  accountNumber,
+  faaraNumber,
   initiallyHidden = false,
 }: BalanceCardProps) {
   const { colors } = useTheme();
@@ -70,18 +72,20 @@ export function BalanceCard({
       <View style={[styles.divider, { backgroundColor: colors.brandLine }]} />
 
       <View style={styles.footer}>
-        <AppText variant="body" color="onBrand" style={styles.muted}>
-          Dollars{' '}
-          <AppText variant="bodyStrong" color="goldOnBrand">
-            {hidden
-              ? HIDDEN
-              : usdc === null
-                ? '…'
-                : `${formatMoney(usdc, 'USDC', { decimals: 2 })} USDC`}
+        {DOLLARS_ENABLED ? (
+          <AppText variant="body" color="onBrand" style={styles.muted}>
+            Dollars{' '}
+            <AppText variant="bodyStrong" color="goldOnBrand">
+              {hidden
+                ? HIDDEN
+                : usdc === null
+                  ? '…'
+                  : `${formatMoney(usdc, 'USDC', { decimals: 2 })} USDC`}
+            </AppText>
           </AppText>
-        </AppText>
+        ) : null}
         <AppText variant="body" color="onBrand" style={styles.muted}>
-          Acct {accountNumber}
+          Faara no. {faaraNumber}
         </AppText>
       </View>
 

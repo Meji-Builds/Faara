@@ -49,9 +49,8 @@ export interface ChooseRecipientResponse {
   recipient: { fullName: string; username: string; walletAddress: string | null };
 }
 
-export interface LookupUserRequest {
-  username: string;
-}
+/** Find someone by username, or by their Faara number (their phone number). */
+export type LookupUserRequest = { username: string } | { phone: string };
 
 export interface LookupUserResponse {
   fullName: string;

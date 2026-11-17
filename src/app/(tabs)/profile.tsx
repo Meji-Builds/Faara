@@ -1,10 +1,13 @@
 import { useRouter } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { Settings, ShieldCheck } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { Platform, Share, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { AppText, Avatar, Button, Card, IconButton, ListRow, Screen } from '@/components/ui';
+import { DOLLARS_ENABLED } from '@/config/features';
 import { useAuth, useProfile } from '@/features/auth';
+import { payLink } from '@/lib/links';
 import { initials } from '@/lib/money';
 import { maskPhone, normalizePhoneInput } from '@/lib/phone';
 import { palette, radii, useTheme } from '@/theme';
@@ -14,7 +17,19 @@ export default function ProfileScreen() {
   const { colors } = useTheme();
   const { signOut } = useAuth();
   const profile = useProfile();
-  // Bank and wallet details are sample data until the BaaS partner and wallet are connected.
+
+  const invite = async () => {
+    const message = `Pay me on Faara: ${payLink(profile.username)}`;
+    try {
+      if (Platform.OS === 'web' && typeof navigator.share !== 'function') {
+        await Clipboard.setStringAsync(message);
+        return;
+      }
+      await Share.share({ message });
+    } catch {
+      // Dismissed the share sheet.
+    }
+  };
 
   return (
     <Screen edges={['top']}>
@@ -51,12 +66,12 @@ export default function ProfileScreen() {
             Your Faara code
           </AppText>
           <AppText variant="body" color="onBrandMuted" style={styles.codeHint}>
-            {"Let someone scan this when sound and Bluetooth can't connect."}
+            {'Anyone who scans this can pay you, even if they’re not on Faara yet.'}
           </AppText>
         </View>
         <View style={styles.qr} accessibilityLabel="Your Faara QR code">
           <QRCode
-            value={`https://faara.app/@${profile.username}`}
+            value={payLink(profile.username)}
             size={76}
             color={palette.deepGreen}
             backgroundColor="#EAF7F2"
@@ -65,26 +80,27 @@ export default function ProfileScreen() {
       </Card>
 
       <Card divided style={styles.menu}>
-        <ListRow label="Personal details" onPress={() => undefined} />
+        <ListRow label="Personal details" onPress={() => router.push('/personal-details')} />
         <ListRow
           label="Limits and verification"
           value={`Tier ${profile.verificationTier}`}
-          onPress={() => undefined}
+          onPress={() => router.push('/limits')}
         />
-        <ListRow label="Linked bank account" value="Not linked" onPress={() => undefined} />
-        <ListRow
-          label="Dollar wallet (Solana)"
-          value={
-            <AppText variant="body" color="gold" style={styles.mono}>
-              {profile.walletAddress
-                ? `${profile.walletAddress.slice(0, 4)}…${profile.walletAddress.slice(-4)}`
-                : 'Not set up'}
-            </AppText>
-          }
-          onPress={() => router.push('/wallet')}
-        />
-        <ListRow label="Invite friends" onPress={() => undefined} />
-        <ListRow label="Help and support" onPress={() => undefined} />
+        {DOLLARS_ENABLED ? (
+          <ListRow
+            label="Dollar wallet (Solana)"
+            value={
+              <AppText variant="body" color="gold" style={styles.mono}>
+                {profile.walletAddress
+                  ? `${profile.walletAddress.slice(0, 4)}…${profile.walletAddress.slice(-4)}`
+                  : 'Not set up'}
+              </AppText>
+            }
+            onPress={() => router.push('/wallet')}
+          />
+        ) : null}
+        <ListRow label="Invite friends" onPress={invite} />
+        <ListRow label="Help and support" onPress={() => router.push('/help')} />
       </Card>
 
       <Button label="Log out" variant="text" onPress={signOut} style={styles.logout} />

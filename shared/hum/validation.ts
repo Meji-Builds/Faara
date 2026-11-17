@@ -9,6 +9,7 @@ import type {
   LookupUserRequest,
   SettleHumRequest,
 } from './api';
+import { nationalPhone, toE164 } from './phone';
 import {
   CLAIM_CHANNELS,
   CURRENCIES,
@@ -122,7 +123,13 @@ function requireUsername(value: unknown): string {
 }
 
 export function parseLookupUser(body: unknown): LookupUserRequest {
-  return { username: requireUsername(requireRecord(body).username) };
+  const data = requireRecord(body);
+  if (data.phone !== undefined) {
+    const national = typeof data.phone === 'string' ? nationalPhone(data.phone) : null;
+    if (!national) throw new ValidationError('That isn’t a valid Nigerian phone number.');
+    return { phone: toE164(national) };
+  }
+  return { username: requireUsername(data.username) };
 }
 
 export function parseCreateTransfer(body: unknown): CreateTransferRequest {

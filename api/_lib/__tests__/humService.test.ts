@@ -423,6 +423,18 @@ describe('HumService send by username', () => {
     await expectApiError(service.lookupUser('sender', { username: 'nobody' }), 'not-found');
   });
 
+  it('looks people up by their phone number', async () => {
+    const { service, store } = withUsernames();
+    store.docs.set('users/tolu', {
+      ...(store.docs.get('users/tolu') as object),
+      phone: '+2348114614728',
+    });
+    await expect(service.lookupUser('sender', { phone: '+2348114614728' })).resolves.toMatchObject({
+      username: 'tolu.a',
+    });
+    await expectApiError(service.lookupUser('sender', { phone: '+2348000000000' }), 'not-found');
+  });
+
   it('creates an addressed payment that settles like a hum', async () => {
     const { service, store } = withUsernames();
     const transfer = await service.createTransfer('sender', {

@@ -4,7 +4,7 @@ import { StyleSheet } from 'react-native';
 import { AppText, EmptyState, Screen } from '@/components/ui';
 import { useTheme } from '@/theme';
 
-/** Placeholder until invoice links are designed. */
+/** Placeholder until payment requests are designed. */
 export default function InvoicesScreen() {
   const { colors } = useTheme();
   return (
@@ -14,8 +14,8 @@ export default function InvoicesScreen() {
       </AppText>
       <EmptyState
         icon={<FileText size={30} color={colors.accentText} strokeWidth={1.75} />}
-        title="No invoices yet"
-        message="Create a payment link and share it with clients. They can pay you in USDC from anywhere."
+        title="Invoices are coming"
+        message="Soon you’ll be able to send a payment request to anyone and see who has paid, right here."
       />
     </Screen>
   );

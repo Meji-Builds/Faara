@@ -54,7 +54,8 @@ export function TabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
     );
   });
 
-  const middle = Math.ceil(tabs.length / 2);
+  const visible = tabs.filter(Boolean);
+  const middle = Math.ceil(visible.length / 2);
 
   return (
     <View
@@ -67,7 +68,7 @@ export function TabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
         },
       ]}
     >
-      {tabs.slice(0, middle)}
+      {visible.slice(0, middle)}
       <View style={styles.humSlot}>
         <Pressable
           accessibilityRole="button"
@@ -82,7 +83,7 @@ export function TabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
           <HumMark size={24} color={palette.nearBlack} />
         </Pressable>
       </View>
-      {tabs.slice(middle)}
+      {visible.slice(middle)}
     </View>
   );
 }

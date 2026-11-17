@@ -5,10 +5,13 @@ import {
   onSnapshot,
   runTransaction,
   serverTimestamp,
+  setDoc,
   type Timestamp,
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+
+import { peekPendingRecipient } from '@/features/referral';
 
 import { ProfileTimeoutError, UsernameTakenError } from './errors';
 
@@ -68,7 +71,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 /** Creates the profile and reserves the username atomically. */
 export async function createProfile(uid: string, profile: NewProfile): Promise<void> {
+  const referrer = peekPendingRecipient();
   await withTimeout(saveProfile(uid, profile), WRITE_TIMEOUT_MS);
+  // Remember who sent them (the owner of the pay link they opened). Never blocks sign-up.
+  if (referrer && referrer !== profile.username) {
+    setDoc(doc(db, 'referrals', uid), { referredBy: referrer, createdAt: serverTimestamp() }).catch(
+      () => undefined,
+    );
+  }
 }
 
 async function saveProfile(uid: string, profile: NewProfile): Promise<void> {

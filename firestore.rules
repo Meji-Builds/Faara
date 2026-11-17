@@ -72,6 +72,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Who brought someone to Faara (the owner of the pay link they opened). Write-once, private.
+    match /referrals/{uid} {
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['referredBy', 'createdAt'])
+        && isValidUsername(request.resource.data.referredBy)
+        && request.resource.data.createdAt == request.time;
+      allow read, update, delete: if false;
+    }
+
     // Username reservations make usernames unique. Anyone may check whether one exists.
     match /usernames/{username} {
       allow get: if true;

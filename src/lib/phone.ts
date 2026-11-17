@@ -1,3 +1,5 @@
+import { nationalPhone } from '@shared/hum';
+
 /**
  * Nigerian phone number handling. Input is stored as typed digits (so a leading
  * trunk "0" survives while typing) and normalised to the 10-digit national
@@ -58,4 +60,10 @@ export function formatE164(phone: string | null | undefined): string {
   return national.length === NATIONAL_LENGTH
     ? `+${COUNTRY_CODE} ${formatPhoneInput(national)}`
     : phone;
+}
+
+/** A person's Faara number: their phone number without the leading 0, e.g. "811 461 4728". */
+export function faaraNumber(phone: string): string {
+  const national = nationalPhone(phone);
+  return national ? `${national.slice(0, 3)} ${national.slice(3, 6)} ${national.slice(6)}` : phone;
 }

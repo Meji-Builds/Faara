@@ -10,11 +10,3 @@ export function relativeDay(timestamp: number, now: Date = new Date()): string {
   if (days < 7) return date.toLocaleDateString('en-GB', { weekday: 'short' });
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
-
-/** Deterministic 10-digit mock account number for display until the BaaS issues real ones. */
-export function mockAccountNumber(uid: string): string {
-  let hash = 2166136261;
-  for (const char of uid) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0;
-  const digits = String(hash).padStart(10, '0').slice(-10);
-  return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
-}

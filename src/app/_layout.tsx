@@ -139,11 +139,15 @@ function RootStack({ onReady }: { onReady: () => void }) {
           <Stack.Screen name="receive" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="wallet" />
           <Stack.Screen name="change-pin" />
+          <Stack.Screen name="personal-details" />
+          <Stack.Screen name="limits" />
+          <Stack.Screen name="help" />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="add-money" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="send" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="receipt/[paymentId]" />
         </Stack.Protected>
+        <Stack.Screen name="pay/[username]" options={{ animation: 'none' }} />
         <Stack.Screen name="lab/sound" />
         <Stack.Screen name="lab/code" />
       </Stack>

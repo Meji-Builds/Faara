@@ -211,10 +211,23 @@ export class HumService {
   /** Finds a person by username for Send. Reveals only name, username and wallet readiness. */
   async lookupUser(uid: string, request: LookupUserRequest): Promise<LookupUserResponse> {
     await this.consumeRate(uid, 'lookupUser');
+    const byPhone = 'phone' in request ? request.phone : null;
+    const phoneOwner = byPhone
+      ? await this.deps.store.findId('users', 'phone', byPhone)
+      : undefined;
     return this.deps.store.transaction(async (tx) => {
-      const found = await this.findByUsername(tx, request.username);
-      if (!found)
-        throw new ApiError('not-found', `Nobody on Faara is called @${request.username}.`);
+      const found =
+        'username' in request
+          ? await this.findByUsername(tx, request.username)
+          : await this.findByUid(tx, phoneOwner);
+      if (!found) {
+        throw new ApiError(
+          'not-found',
+          'username' in request
+            ? `Nobody on Faara is called @${request.username}.`
+            : 'Nobody on Faara has that phone number.',
+        );
+      }
       return {
         fullName: found.profile.fullName,
         username: found.profile.username,
@@ -296,6 +309,15 @@ export class HumService {
         },
       };
     });
+  }
+
+  private async findByUid(
+    tx: StoreTransaction,
+    uid: string | undefined,
+  ): Promise<{ uid: string; profile: ProfileDoc } | null> {
+    if (!uid) return null;
+    const profile = await tx.get<ProfileDoc>(userPath(uid));
+    return profile ? { uid, profile } : null;
   }
 
   private async findByUsername(

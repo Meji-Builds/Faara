@@ -32,6 +32,10 @@ export async function verifyIdToken(idToken: string): Promise<string> {
 
 export function firestoreStore(db: Firestore): DocumentStore {
   return {
+    findId: async (collection, field, value) => {
+      const snapshot = await db.collection(collection).where(field, '==', value).limit(1).get();
+      return snapshot.docs[0]?.id;
+    },
     transaction: (fn) =>
       db.runTransaction((t) =>
         fn({

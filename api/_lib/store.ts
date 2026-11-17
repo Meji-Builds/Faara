@@ -12,12 +12,28 @@ export interface StoreTransaction {
 
 export interface DocumentStore {
   transaction<R>(fn: (tx: StoreTransaction) => Promise<R>): Promise<R>;
+  /** The id of the first document in `collection` whose `field` equals `value`. */
+  findId(collection: string, field: string, value: string): Promise<string | undefined>;
 }
 
 /** In-memory store for tests. Transactions run one at a time and commit atomically. */
 export class MemoryStore implements DocumentStore {
   readonly docs = new Map<string, object>();
   private queue: Promise<unknown> = Promise.resolve();
+
+  async findId(collection: string, field: string, value: string): Promise<string | undefined> {
+    for (const [path, doc] of this.docs) {
+      const [name, id, ...rest] = path.split('/');
+      if (
+        name === collection &&
+        id &&
+        rest.length === 0 &&
+        (doc as Record<string, unknown>)[field] === value
+      )
+        return id;
+    }
+    return undefined;
+  }
 
   transaction<R>(fn: (tx: StoreTransaction) => Promise<R>): Promise<R> {
     const run = async () => {

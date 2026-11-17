@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { AdireBand, HumMark, Rings, Wordmark } from '@/components/brand';
 import { CurrencyToggle } from '@/components/hum';
 import { AppText, Button, Header, Keypad, Screen, TextField } from '@/components/ui';
+import { DOLLARS_ENABLED } from '@/config/features';
 import { useNairaBalance, useUsdcBalance } from '@/features/account';
 import { useHumDraft } from '@/features/hum';
 import { audioEngine } from '@/features/sound';
@@ -51,7 +52,9 @@ export default function AmountScreen() {
     >
       <Header
         center={<Wordmark size={26} />}
-        right={<CurrencyToggle value={currency} onChange={setCurrency} />}
+        right={
+          DOLLARS_ENABLED ? <CurrencyToggle value={currency} onChange={setCurrency} /> : undefined
+        }
       />
 
       <View style={[styles.card, { backgroundColor: colors.brand }]}>
@@ -80,10 +83,15 @@ export default function AmountScreen() {
           {display}
         </AppText>
         <AppText variant="body" color="onBrand" style={styles.balance}>
-          Balance {naira === null ? '…' : formatMoney(naira, 'NGN', { decimals: 2 })} ·{' '}
-          <AppText variant="body" color="goldOnBrand">
-            {usdc === null ? '…' : `${formatMoney(usdc, 'USDC', { decimals: 2 })} USDC`}
-          </AppText>
+          Balance {naira === null ? '…' : formatMoney(naira, 'NGN', { decimals: 2 })}
+          {DOLLARS_ENABLED ? (
+            <>
+              {' · '}
+              <AppText variant="body" color="goldOnBrand">
+                {usdc === null ? '…' : `${formatMoney(usdc, 'USDC', { decimals: 2 })} USDC`}
+              </AppText>
+            </>
+          ) : null}
         </AppText>
         {exceedsBalance ? (
           <AppText variant="label" color="goldOnBrand">
