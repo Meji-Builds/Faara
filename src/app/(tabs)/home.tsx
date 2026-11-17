@@ -1,9 +1,9 @@
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import { ArrowLeft, ArrowRight, Bell, Plus } from 'lucide-react-native';
-import { useEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { HumMark } from '@/components/brand';
+import { ReadyToReceive } from '@/components/hum';
 import { AppText, Avatar, IconButton, Screen } from '@/components/ui';
 import { ActivityList } from '@/components/wallet/ActivityList';
 import { BalanceCard } from '@/components/wallet/BalanceCard';
@@ -15,15 +15,14 @@ import {
   useUsdcBalance,
 } from '@/features/account';
 import { useProfile } from '@/features/auth';
+import { useAmbientReceive } from '@/features/hum';
 import { useNotifications } from '@/features/notifications';
 import { usePreferences } from '@/features/preferences';
 import { audioEngine } from '@/features/sound';
 import { greeting } from '@/lib/greeting';
+import { useAppActive } from '@/lib/useAppActive';
 import { initials } from '@/lib/money';
 import { palette, useTheme } from '@/theme';
-
-/** Set once the launch-time jump to Receive has been considered. */
-let openedReceive = false;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -34,15 +33,22 @@ export default function HomeScreen() {
   const usdc = useUsdcBalance();
   const activity = useActivity(10);
   const { unreadCount } = useNotifications();
-  const { loaded } = usePreferences();
+  const focused = useIsFocused();
+  const appActive = useAppActive();
 
-  // "Open the app ready to receive": go straight to Receive once per launch (app only;
-  // browsers need a tap before they allow audio).
-  useEffect(() => {
-    if (!loaded || openedReceive || Platform.OS === 'web') return;
-    openedReceive = true;
-    if (preferences.readyToReceive) router.push('/receive');
-  }, [loaded, preferences.readyToReceive, router]);
+  // Listen for a hum while Home is on screen and the app is open (app only: browsers
+  // need a tap before they allow the microphone). The Receive screen takes over from here.
+  const ambient = Platform.OS !== 'web' && preferences.readyToReceive && focused && appActive;
+  const { sound } = useAmbientReceive(ambient, (hum) =>
+    router.push({
+      pathname: '/receive',
+      params: {
+        token: hum.token,
+        channel: hum.channel,
+        ...(hum.distanceCm === undefined ? {} : { distanceCm: String(hum.distanceCm) }),
+      },
+    }),
+  );
   const firstName = profile.fullName.split(/\s+/)[0] ?? profile.fullName;
   const iconProps = { size: 24, color: colors.text, strokeWidth: 1.75 } as const;
 
@@ -73,6 +79,12 @@ export default function HomeScreen() {
         accountNumber={mockAccountNumber(profile.uid)}
         initiallyHidden={preferences.hideBalances}
       />
+
+      {ambient ? (
+        <View style={styles.ready}>
+          <ReadyToReceive state={sound} onPress={() => router.push('/receive')} />
+        </View>
+      ) : null}
 
       <View style={styles.actions}>
         <QuickAction
@@ -125,6 +137,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  ready: { marginTop: 14 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8, marginBottom: 18 },
   greeting: { flex: 1 },
   actions: { flexDirection: 'row', marginTop: 20, marginBottom: 8 },

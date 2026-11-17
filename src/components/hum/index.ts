@@ -5,3 +5,4 @@ export { HumPulse } from './HumPulse';
 export { FallbackCode } from './FallbackCode';
 export { WaveScanner } from './WaveScanner';
 export { BluetoothReminder } from './BluetoothReminder';
+export { ReadyToReceive } from './ReadyToReceive';

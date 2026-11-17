@@ -11,3 +11,4 @@ export {
   type HumClaim,
   type HumState,
 } from './humApi';
+export { useAmbientReceive, type CaughtHum } from './useAmbientReceive';

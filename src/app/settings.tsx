@@ -47,8 +47,8 @@ export default function SettingsScreen() {
       <Section title="Hum">
         <Card divided>
           <ListRow
-            label="Open the app ready to receive"
-            trailing={toggle('readyToReceive', 'Open the app ready to receive')}
+            label="Listen for hums while Faara is open"
+            trailing={toggle('readyToReceive', 'Listen for hums while Faara is open')}
           />
           <ListRow
             label="Hum volume"

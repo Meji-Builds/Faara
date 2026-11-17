@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
@@ -27,13 +27,29 @@ const METHODS: readonly Method[] = ['listen', 'scan', 'manual'];
 export default function ReceiveScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const [phase, setPhase] = useState<Phase>({ kind: 'listening' });
+  const caught = useLocalSearchParams<{ token?: string; channel?: string; distanceCm?: string }>();
+  // Opened by Home after it heard a hum: claim straight away.
+  const [phase, setPhase] = useState<Phase>(() =>
+    caught.token ? { kind: 'claiming' } : { kind: 'listening' },
+  );
   const [method, setMethod] = useState<Method>('listen');
   const [manualCode, setManualCode] = useState('');
   const [myClaim, setMyClaim] = useState<HumClaim | null>(null);
   const [hum, setHum] = useState<HumState | null>(null);
   const claiming = useRef(false);
 
+  const runClaim = useCallback(
+    (
+      code: { token: string } | { manualCode: string },
+      channel: ClaimChannel,
+      distanceCm?: number,
+    ) => {
+      claimHum(code, channel, distanceCm)
+        .then((claim) => setPhase({ kind: 'claimed', claim }))
+        .catch((cause) => setPhase({ kind: 'failed', message: apiErrorMessage(cause) }));
+    },
+    [],
+  );
   const submitClaim = useCallback(
     (
       code: { token: string } | { manualCode: string },
@@ -43,12 +59,23 @@ export default function ReceiveScreen() {
       if (claiming.current) return;
       claiming.current = true;
       setPhase({ kind: 'claiming' });
-      claimHum(code, channel, distanceCm)
-        .then((claim) => setPhase({ kind: 'claimed', claim }))
-        .catch((cause) => setPhase({ kind: 'failed', message: apiErrorMessage(cause) }));
+      runClaim(code, channel, distanceCm);
     },
-    [],
+    [runClaim],
   );
+
+  const autoClaimed = useRef(false);
+  const { token: caughtToken, channel: caughtChannel, distanceCm: caughtDistance } = caught;
+  useEffect(() => {
+    if (!caughtToken || autoClaimed.current) return;
+    autoClaimed.current = true;
+    claiming.current = true;
+    runClaim(
+      { token: caughtToken },
+      caughtChannel === 'bluetooth' ? 'bluetooth' : 'sound',
+      caughtDistance === undefined ? undefined : Number(caughtDistance),
+    );
+  }, [caughtToken, caughtChannel, caughtDistance, runClaim]);
 
   const onDecode = useCallback(
     (decoded: DecodedHum) =>
