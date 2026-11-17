@@ -3,8 +3,8 @@
 Run from the repo root after the scene scripts (s1..s5.js) have written clips/*.webm and
 clips/*.json:  python3 tools/demo/cut.py
 Add --audio-only to keep the rendered scenes and only redo the sound (after editing sfx.py).
-Text is typeset with the app's own fonts; sound effects come from sfx.py. Voiceover and
-music are added afterwards (see tools/demo/voiceover.md).
+Text is typeset with the app's own fonts; sound effects come from sfx.py and the music
+from music.py. Voiceover is added afterwards (see tools/demo/voiceover.md).
 """
 import json
 import os
@@ -13,6 +13,7 @@ import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
+import music  # tools/demo/music.py
 import sfx as effects  # tools/demo/sfx.py
 
 W, H, FPS = 1920, 1080, 30
@@ -296,13 +297,22 @@ def main():
     fc.append(''.join(f'[a{i}]' for i in range(len(cues))) + f'[0:a]amix=inputs={len(cues) + 1}:normalize=0,alimiter=limit=0.89[sfx]')
     run(['ffmpeg', '-y', '-loglevel', 'error', *ins, '-filter_complex', ';'.join(fc), '-map', '[sfx]',
          '-t', str(total), '-c:a', 'pcm_s16le', f'{OUT}/sfx.wav'])
-    run(['ffmpeg', '-y', '-loglevel', 'error', '-i', f'{OUT}/video.mp4', '-i', f'{OUT}/sfx.wav',
+    # Music: a downbeat on "Hummed.", resolving on the close scene; it dips under each effect.
+    hummed_at = next(t for s, t in cues if s == 'hummed') + 0.05
+    close_at = sum(d for _, d in film[:-1])
+    music_wav, bpm = music.build(total, hummed_at, close_at)
+    run(['ffmpeg', '-y', '-loglevel', 'error', '-i', music_wav, '-i', f'{OUT}/sfx.wav', '-filter_complex',
+         '[0:a]volume=-6dB[m];[1:a]asplit[s1][s2];'
+         '[m][s1]sidechaincompress=threshold=0.03:ratio=3:attack=10:release=350:makeup=1[md];'
+         '[md][s2]amix=inputs=2:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=11[out]',
+         '-map', '[out]', '-ar', '48000', '-t', str(total), '-c:a', 'pcm_s16le', f'{OUT}/mix.wav'])
+    run(['ffmpeg', '-y', '-loglevel', 'error', '-i', f'{OUT}/video.mp4', '-i', f'{OUT}/mix.wav',
          '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart',
          'clips/faara-demo.mp4'])
     with open('clips/faara-demo-cues.json', 'w') as f:
         json.dump({'scenes': [[os.path.basename(p), round(d, 2)] for p, d in film],
                    'sfx': [[s, round(t, 2)] for s, t in cues]}, f, indent=2)
-    print(f'clips/faara-demo.mp4  {total:.1f}s')
+    print(f'clips/faara-demo.mp4  {total:.1f}s  music {bpm:.1f} BPM')
 
 
 if __name__ == '__main__':

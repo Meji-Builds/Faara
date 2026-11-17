@@ -16,8 +16,10 @@ Films the real app with made-up people, for the demo and advertisement video.
 - Cut: `python3 tools/demo/cut.py` → `clips/faara-demo.mp4` (1920x1080, 30 fps, about 80 s), with
   typeset captions in the app's fonts and the sound effects from `sfx.py`
   (`python3 tools/demo/sfx.py` also writes `clips/sfx-audition.wav`; `cut.py --audio-only` remixes
-  without re-rendering). The real hum is 18-20 kHz and near-inaudible, so the film's hum is designed. Voiceover script with timings:
-  `voiceover.md`. Voiceover and music still need recording and mixing over the cut.
+  without re-rendering). The real hum is 18-20 kHz and near-inaudible, so the film's hum is designed.
+  Music is composed by `music.py` (about 103 BPM, a downbeat on "Hummed.", resolving on the close),
+  ducked under the effects; the mix is normalised to -16 LUFS. Voiceover script with timings:
+  `voiceover.md`. Voiceover still needs recording and mixing over the cut.
 - Never merge this branch into `main`.
 
 ## Film (about 90 seconds, 16:9, two phones side by side for the hum)

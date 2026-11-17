@@ -1,8 +1,8 @@
 # Voiceover for the cut (`clips/faara-demo.mp4`, 79.7 s)
 
 Warm, clear, unhurried. Times are where each line starts in the cut; each line fits before the next.
-Music: light afrobeat-leaning instrumental under everything, ducked about 8 dB under the voice,
-and lifted for the last five seconds. The hum, match and "Hummed." effects are already in the cut.
+Music and effects are already in the cut (`music.py`, `sfx.py`); duck the music a further
+6-8 dB under the voice.
 
 | Time | On screen | Line |
 | --- | --- | --- |
