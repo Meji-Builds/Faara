@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { AppState } from 'react-native';
 
+import { DOLLARS_ENABLED } from '@/config/features';
 import { setWalletAddress, useAuth } from '@/features/auth';
 
 import { canUseBiometrics, confirmWithBiometrics } from './biometrics';
@@ -100,7 +101,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const seed = solanaSeedFromPhrase(phrase);
       const address = keypairFromSeed(seed).publicKey.toBase58();
       await vault.save({ phrase, seedHex: toHex(seed), address }, pin);
-      await setWalletAddress(user.uid, address);
+      // While dollars are paused the wallet stays on this device and is not published, so
+      // using Faara on another phone or the web can't clash with it.
+      if (DOLLARS_ENABLED) await setWalletAddress(user.uid, address);
       setDeviceAddress(address);
       setLocked(false); // they just chose the PIN
     },
@@ -146,11 +149,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const status: WalletStatus =
     authStatus !== 'ready' || deviceAddress === undefined
       ? 'loading'
-      : !profile?.walletAddress
-        ? 'needsWallet'
-        : deviceAddress !== profile.walletAddress
-          ? 'needsRestore'
-          : 'ready';
+      : !DOLLARS_ENABLED
+        ? // Naira only needs this phone's PIN, not the account's dollar wallet.
+          deviceAddress
+          ? 'ready'
+          : 'needsWallet'
+        : !profile?.walletAddress
+          ? 'needsWallet'
+          : deviceAddress !== profile.walletAddress
+            ? 'needsRestore'
+            : 'ready';
 
   const value = useMemo<WalletContextValue>(
     () => ({
