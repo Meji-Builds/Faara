@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "416706785843",
+    "project_id": "faara-hum",
+    "storage_bucket": "faara-hum.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:416706785843:android:ced143df652f9fa2482946",
+        "android_client_info": {
+          "package_name": "com.faara.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDi03JJ6GH1A8o7sUz2gHSbkl70JYJ9TNI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
