@@ -9,7 +9,7 @@ import { auth } from '@/lib/firebase';
  * On web the app is served from the same deployment, so relative URLs work on every
  * preview domain. Native builds (and local web dev) use EXPO_PUBLIC_API_URL or production.
  */
-const PRODUCTION_URL = 'https://faara-tau.vercel.app';
+const PRODUCTION_URL = 'https://faara.mejibuilds.com';
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ?? (Platform.OS === 'web' ? '' : PRODUCTION_URL);
 
@@ -24,19 +24,36 @@ export class ApiRequestError extends Error {
   }
 }
 
-/** POSTs JSON to the API as the signed-in user. */
-export async function postJson<Res>(path: string, body: unknown): Promise<Res> {
+/** The signed-in user's ID token, waiting for the saved session to finish loading first. */
+async function idToken(forceRefresh: boolean): Promise<string> {
+  await auth.authStateReady().catch(() => undefined);
   const user = auth.currentUser;
   if (!user) throw new ApiRequestError('unauthenticated', 'Sign in to continue.');
-  const idToken = await user.getIdToken();
+  return user.getIdToken(forceRefresh);
+}
 
+/**
+ * POSTs JSON to the API as the signed-in user. If the server says the session isn't valid
+ * (an expired token after a long time in the background, say), it gets a fresh token and
+ * tries once more before giving up.
+ */
+export async function postJson<Res>(path: string, body: unknown): Promise<Res> {
+  try {
+    return await send<Res>(path, body, await idToken(false));
+  } catch (cause) {
+    if (!(cause instanceof ApiRequestError) || cause.code !== 'unauthenticated') throw cause;
+    return send<Res>(path, body, await idToken(true));
+  }
+}
+
+async function send<Res>(path: string, body: unknown, token: string): Promise<Res> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
       signal: controller.signal,
     });

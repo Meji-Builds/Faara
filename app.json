@@ -29,7 +29,7 @@
           "data": [
             {
               "scheme": "https",
-              "host": "faara-tau.vercel.app",
+              "host": "faara.mejibuilds.com",
               "pathPrefix": "/pay"
             }
           ],
