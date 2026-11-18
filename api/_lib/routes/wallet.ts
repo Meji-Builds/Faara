@@ -1,3 +1,4 @@
+import { parseRequestId, parseWithdrawRequest } from '../../../shared/solana';
 import { authedRoute, errorResponse, getServices, json } from '../http';
 
 /** POST /api/wallet/status: the caller's USDC wallet on the test network (made on first use). */
@@ -43,3 +44,16 @@ export async function treasury(request: Request): Promise<Response> {
     return errorResponse(error);
   }
 }
+
+/** POST /api/wallet/withdraw: send the caller's USDC to a Solana address they choose. */
+export const withdraw = authedRoute(parseWithdrawRequest, ({ uid, services }, request) =>
+  services.circle.withdraw(uid, request),
+);
+
+/** POST /api/wallet/withdrawal: how one of the caller's withdrawals is going. */
+export const withdrawal = authedRoute(
+  (body) => ({ requestId: parseRequestId((body as { requestId?: unknown } | null)?.requestId) }),
+  async ({ uid, services }, request) => ({
+    state: await services.circle.withdrawalState(uid, request.requestId),
+  }),
+);

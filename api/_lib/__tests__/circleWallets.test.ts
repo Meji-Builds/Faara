@@ -154,3 +154,70 @@ describe('CircleWallets', () => {
     expect(await wallets.usdcCents('ada')).toBe(1_250);
   });
 });
+
+describe('CircleWallets errors', () => {
+  it('turns a Circle failure into a plain message', async () => {
+    const { wallets } = setup({
+      makeClient: () => ({
+        ...fakeClient().client,
+        createTransaction: async () => {
+          throw Object.assign(new Error('400'), { response: { data: { message: 'low' } } });
+        },
+      }),
+    });
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expectApiError(wallets.send('payout', 'ada', 100, 'QT1'), 'failed-precondition');
+    expect(spy).toHaveBeenCalledWith('USDC transfer failed', { message: 'low' });
+    spy.mockRestore();
+  });
+});
+
+describe('withdrawals', () => {
+  const address = '9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin';
+
+  it('sends USDC to the chosen address once per request', async () => {
+    const { wallets, calls } = setup();
+    const person = await wallets.ensureWallet('ada');
+    const first = await wallets.withdraw('ada', {
+      address,
+      amountCents: 500,
+      requestId: 'WDabcdefgh1',
+    });
+    const again = await wallets.withdraw('ada', {
+      address,
+      amountCents: 500,
+      requestId: 'WDabcdefgh1',
+    });
+    expect(again).toEqual(first);
+    expect(calls.transfers).toHaveLength(1);
+    expect(calls.transfers[0]).toMatchObject({
+      from: person.walletId,
+      to: address,
+      amount: '5.00',
+    });
+    expect(await wallets.withdrawalState('ada', 'WDabcdefgh1')).toBe('done');
+  });
+
+  it('needs the balance, and keeps each person’s withdrawals private', async () => {
+    const { wallets } = setup();
+    await expectApiError(
+      wallets.withdraw('ada', { address, amountCents: 5_000, requestId: 'WDabcdefgh2' }),
+      'failed-precondition',
+    );
+    await wallets.withdraw('ada', { address, amountCents: 100, requestId: 'WDabcdefgh3' });
+    await expectApiError(wallets.withdrawalState('tolu', 'WDabcdefgh3'), 'not-found');
+    await expectApiError(
+      wallets.withdraw('tolu', { address, amountCents: 100, requestId: 'WDabcdefgh3' }),
+      'not-found',
+    );
+  });
+
+  it('won’t send to the person’s own Faara wallet', async () => {
+    const { wallets } = setup();
+    const own = await wallets.ensureWallet('ada');
+    await expectApiError(
+      wallets.withdraw('ada', { address: own.address, amountCents: 100, requestId: 'WDabcdefgh4' }),
+      'invalid-argument',
+    );
+  });
+});

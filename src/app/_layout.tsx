@@ -11,7 +11,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/inter';
 import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono';
-import { SplashScreen, type ErrorBoundaryProps } from 'expo-router';
+import { SplashScreen, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import * as SystemUI from 'expo-system-ui';
 import { useCallback, useEffect, useState } from 'react';
@@ -21,10 +21,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LaunchScreen } from '@/components/brand';
 import { ErrorScreen } from '@/components/ui';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
+import { OFFLINE_ENABLED } from '@/config/features';
 import { AuthProvider, useAuth } from '@/features/auth';
 import { IncomingBanner } from '@/components/notifications/IncomingBanner';
 import { LockScreen } from '@/components/security/LockScreen';
 import { NotificationsProvider } from '@/features/notifications';
+import { useOfflineSync } from '@/features/offline';
 import { PreferencesProvider, usePreferences } from '@/features/preferences';
 import { useWallet, WalletProvider } from '@/features/wallet';
 import { ThemeProvider, useTheme } from '@/theme';
@@ -80,8 +82,15 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return <ErrorScreen onRetry={retry} />;
 }
 
+/** Settles offline payments in the background whenever the app is open and online. */
+function OfflineSync() {
+  useOfflineSync();
+  return null;
+}
+
 function RootStack({ onReady }: { onReady: () => void }) {
   const { colors } = useTheme();
+  const router = useRouter();
   const { status, profile, signOut } = useAuth();
   const {
     status: walletStatus,
@@ -149,13 +158,17 @@ function RootStack({ onReady }: { onReady: () => void }) {
           <Stack.Screen name="add-money" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="send" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="receipt/[paymentId]" />
+          <Stack.Screen name="offline" />
         </Stack.Protected>
         <Stack.Screen name="pay/[username]" options={{ animation: 'none' }} />
         <Stack.Screen name="lab/sound" />
         <Stack.Screen name="lab/code" />
       </Stack>
       {walletReady && !showLock ? <IncomingBanner /> : null}
-      <OfflineBanner />
+      {walletReady && OFFLINE_ENABLED ? <OfflineSync /> : null}
+      <OfflineBanner
+        onPress={walletReady && OFFLINE_ENABLED ? () => router.push('/offline') : undefined}
+      />
       {showLock ? (
         <LockScreen
           fullName={profile.fullName}

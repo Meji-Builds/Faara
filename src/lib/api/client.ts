@@ -10,7 +10,7 @@ import { auth } from '@/lib/firebase';
  * On web the app is served from the same deployment, so relative URLs work on every
  * preview domain. Native builds (and local web dev) use EXPO_PUBLIC_API_URL or production.
  */
-const PRODUCTION_URL = 'https://faara.mejibuilds.com';
+export const PRODUCTION_URL = 'https://faara.mejibuilds.com';
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ?? (Platform.OS === 'web' ? '' : PRODUCTION_URL);
 

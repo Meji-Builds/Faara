@@ -3,6 +3,7 @@ import { generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
 import { MOCK_STARTING_BALANCE_KOBO } from '../../../shared/hum';
 import {
   OFFLINE_LIMITS,
+  certificateMessage,
   checkNote,
   noteMessage,
   parseOpenPocket,
@@ -271,5 +272,16 @@ describe('checking a note on the receiving phone', () => {
     expect(
       checkNote(signed, { ...options, expect: { toUid: 'chidi', nonce: 'nonce123456' } }).ok,
     ).toBe(false);
+  });
+
+  it('shares the key phones need to check certificates offline', async () => {
+    const s = setup();
+    const device = makeDevice();
+    const cert = await s.service.openPocket('ada', {
+      amountKobo: 100_000,
+      devicePublicKey: device.publicKey,
+    });
+    const key = await s.service.publicKey();
+    expect(verifySignature(key, certificateMessage(cert.certificate), cert.signature)).toBe(true);
   });
 });

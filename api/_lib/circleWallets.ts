@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import { ApiError } from './errors';
+import { consumeRate } from './rateLimit';
 import type { DocumentStore } from './store';
 
 /** The one blockchain and token this uses: USDC on Solana's test network. */
@@ -73,7 +74,16 @@ export interface WalletInfo {
   usdc: string;
 }
 
+interface WithdrawalDoc {
+  uid: string;
+  transferId: string;
+  address: string;
+  amountCents: number;
+  createdAt: number;
+}
+
 const secretPath = 'serverKeys/circle';
+const withdrawalPath = (id: string) => `circleWithdrawals/${id}`;
 const setPath = 'serverKeys/circleWalletSet';
 const walletPath = (uid: string) => `circleWallets/${uid}`;
 
@@ -195,25 +205,99 @@ export class CircleWallets {
    * never moves money twice. Returns Circle's transaction id.
    */
   async send(kind: 'payout' | 'collect', uid: string, cents: number, key: string): Promise<string> {
-    const client = await this.getClient();
     const [person, float] = await Promise.all([
       this.ensureWallet(uid),
       this.ensureWallet(TREASURY),
     ]);
     const [from, to] = kind === 'payout' ? [float, person] : [person, float];
-    const result = await client.createTransaction({
-      walletId: from.walletId,
-      tokenAddress: USDC_DEVNET_MINT,
-      blockchain: BLOCKCHAIN,
-      amount: [(cents / 100).toFixed(2)],
-      destinationAddress: to.address,
-      fee: { type: 'level', config: { feeLevel: 'MEDIUM' } },
-      refId: key,
-      idempotencyKey: idempotencyKey(`${kind}:${key}`),
+    return this.transfer(from.walletId, to.address, cents, key, `${kind}:${key}`);
+  }
+
+  /**
+   * Sends the person's USDC to any Solana address, such as their own phone wallet. The
+   * request id makes retries safe. Returns Circle's transaction id.
+   */
+  async withdraw(
+    uid: string,
+    request: { address: string; amountCents: number; requestId: string },
+  ): Promise<{ transferId: string }> {
+    const { store, now } = this.deps;
+    await consumeRate(store, now, uid, 'withdraw');
+    const path = withdrawalPath(request.requestId);
+    const earlier = await store.transaction((tx) => tx.get<WithdrawalDoc>(path));
+    if (earlier) {
+      if (earlier.uid !== uid) throw new ApiError('not-found', 'That withdrawal wasn’t found.');
+      return { transferId: earlier.transferId };
+    }
+    const person = await this.ensureWallet(uid);
+    if (person.address === request.address) {
+      throw new ApiError('invalid-argument', 'That’s your Faara wallet already.');
+    }
+    if ((await this.usdcCents(uid)) < request.amountCents) {
+      throw new ApiError('failed-precondition', 'You don’t have enough USDC for this.');
+    }
+    const transferId = await this.transfer(
+      person.walletId,
+      request.address,
+      request.amountCents,
+      request.requestId,
+      `withdraw:${uid}:${request.requestId}`,
+    );
+    await store.transaction(async (tx) => {
+      tx.set(path, {
+        uid,
+        transferId,
+        address: request.address,
+        amountCents: request.amountCents,
+        createdAt: now(),
+      } satisfies WithdrawalDoc);
     });
-    const id = result.data?.id;
-    if (!id) throw new ApiError('internal', 'The USDC transfer didn’t start. Try again.');
-    return id;
+    return { transferId };
+  }
+
+  /** Progress of one of the person's withdrawals. */
+  async withdrawalState(uid: string, requestId: string): Promise<TransferState> {
+    const saved = await this.deps.store.transaction((tx) =>
+      tx.get<WithdrawalDoc>(withdrawalPath(requestId)),
+    );
+    if (!saved || saved.uid !== uid) {
+      throw new ApiError('not-found', 'That withdrawal wasn’t found.');
+    }
+    return this.transferState(saved.transferId);
+  }
+
+  /** One USDC transfer through Circle, with Circle's errors kept out of what people see. */
+  private async transfer(
+    walletId: string,
+    destinationAddress: string,
+    cents: number,
+    refId: string,
+    key: string,
+  ): Promise<string> {
+    try {
+      const client = await this.getClient();
+      const result = await client.createTransaction({
+        walletId,
+        tokenAddress: USDC_DEVNET_MINT,
+        blockchain: BLOCKCHAIN,
+        amount: [(cents / 100).toFixed(2)],
+        destinationAddress,
+        fee: { type: 'level', config: { feeLevel: 'MEDIUM' } },
+        refId,
+        idempotencyKey: idempotencyKey(key),
+      });
+      const id = result.data?.id;
+      if (!id) throw new ApiError('internal', 'The USDC transfer didn’t start. Try again.');
+      return id;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      // Circle's own message (for example an empty float) is for the logs, not the screen.
+      console.error('USDC transfer failed', describe(error));
+      throw new ApiError(
+        'failed-precondition',
+        'USDC can’t be moved right now. Nothing was taken. Try again later.',
+      );
+    }
   }
 
   async transferState(id: string): Promise<TransferState> {

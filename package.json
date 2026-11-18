@@ -8,9 +8,12 @@
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@expo/metro-runtime": "~58.0.17",
+    "@noble/curves": "^1.9.7",
     "@noble/hashes": "^2.4.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@scure/bip39": "^2.4.0",
+    "@solana-mobile/mobile-wallet-adapter-protocol": "^2.2.9",
+    "@solana-mobile/mobile-wallet-adapter-protocol-web3js": "^2.2.9",
     "@solana/web3.js": "^1.99.0",
     "buffer": "^6.0.3",
     "expo": "~58.0.25",
@@ -86,5 +89,11 @@
   },
   "engines": {
     "node": "22.x"
+  },
+  "overrides": {
+    "@circle-fin/developer-controlled-wallets": {
+      "@solana/codecs-strings": "6.10.0",
+      "@solana/kit": "6.10.0"
+    }
   }
 }

@@ -1,0 +1,211 @@
+import { ed25519 } from '@noble/curves/ed25519';
+import { Buffer } from 'buffer';
+
+import {
+  checkNote,
+  noteMessage,
+  type NoteStatus,
+  type OfflineRequest,
+  type SignedCertificate,
+  type SignedNote,
+} from '@shared/offline';
+
+/**
+ * The phone's own record of offline payments: the pocket it can spend, what it has paid
+ * and what it has received but not yet settled. Pure functions over plain data, so the
+ * rules can be tested without storage or a camera.
+ */
+
+export interface LocalPocket {
+  signed: SignedCertificate;
+  /** Total signed away from this pocket on this phone, in kobo. */
+  spentKobo: number;
+  nextSequence: number;
+  /** When this phone stored it (phone clock), so a sync that started earlier can't drop it. */
+  openedAt: number;
+}
+
+/** The server's view of the person's pocket, from the last time the phone was online. */
+export interface RemotePocket {
+  pocketId: string;
+  limitKobo: number;
+  remainingKobo: number;
+  expiresAt: number;
+  releasableAt: number;
+}
+
+export interface SentPayment {
+  note: SignedNote;
+  toName: string;
+}
+
+export interface ReceivedPayment {
+  note: SignedNote;
+  fromName: string | null;
+  receivedAt: number;
+  status: 'waiting' | NoteStatus;
+  reason?: string;
+}
+
+export interface OfflineLedger {
+  serverPublicKey: string | null;
+  pocket: LocalPocket | null;
+  remote: RemotePocket | null;
+  sent: SentPayment[];
+  received: ReceivedPayment[];
+}
+
+export const EMPTY_LEDGER: OfflineLedger = {
+  serverPublicKey: null,
+  pocket: null,
+  remote: null,
+  sent: [],
+  received: [],
+};
+
+/** Keeps history short on the phone; settled payments also live in Activity. */
+const HISTORY_LIMIT = 50;
+
+export const toBase64 = (bytes: Uint8Array) => Buffer.from(bytes).toString('base64');
+
+/** The public key (base64) for a 64-byte wallet secret key. */
+export function devicePublicKey(secretKey: Uint8Array): string {
+  return toBase64(ed25519.getPublicKey(secretKey.slice(0, 32)));
+}
+
+/** Verifies an Ed25519 signature over a UTF-8 message. Never throws. */
+export function verifyEd25519(publicKey: string, message: string, signature: string): boolean {
+  try {
+    return ed25519.verify(
+      Buffer.from(signature, 'base64'),
+      new TextEncoder().encode(message),
+      Buffer.from(publicKey, 'base64'),
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** What the pocket can still pay on this phone, in kobo. */
+export function spendable(pocket: LocalPocket | null, now: number): number {
+  if (!pocket) return 0;
+  const cert = pocket.signed.certificate;
+  if (now > cert.expiresAt) return 0;
+  return Math.max(0, cert.limitKobo - pocket.spentKobo);
+}
+
+/** Largest single payment possible right now, in kobo. */
+export function maxPayment(pocket: LocalPocket | null, now: number): number {
+  if (!pocket) return 0;
+  return Math.min(spendable(pocket, now), pocket.signed.certificate.maxNoteKobo);
+}
+
+/**
+ * Signs a payment answering a receiver's request. `secretKey` is the 64-byte wallet key
+ * unlocked by the person's PIN or fingerprint; only its first 32 bytes (the seed) are used.
+ */
+export function payOffline(
+  ledger: OfflineLedger,
+  input: {
+    request: OfflineRequest;
+    amountKobo: number;
+    fromUid: string;
+    secretKey: Uint8Array;
+    now: number;
+    noteId: string;
+  },
+): { ledger: OfflineLedger; note: SignedNote } {
+  const pocket = ledger.pocket;
+  if (!pocket) throw new Error('Fill your offline pocket first.');
+  const { request, amountKobo, fromUid, secretKey, now, noteId } = input;
+  if (request.uid === fromUid) throw new Error('You can’t pay yourself.');
+  if (!Number.isSafeInteger(amountKobo) || amountKobo <= 0) throw new Error('Enter an amount.');
+  if (amountKobo > maxPayment(pocket, now)) {
+    throw new Error('That’s more than your offline pocket can pay.');
+  }
+  const seed = secretKey.slice(0, 32);
+  if (devicePublicKey(secretKey) !== pocket.signed.certificate.devicePublicKey) {
+    throw new Error('This pocket belongs to another phone.');
+  }
+  const note = {
+    noteId,
+    pocketId: pocket.signed.certificate.pocketId,
+    fromUid,
+    toUid: request.uid,
+    amountKobo,
+    nonce: request.nonce,
+    sequence: pocket.nextSequence,
+    createdAt: now,
+  };
+  const signed: SignedNote = {
+    note,
+    signature: toBase64(ed25519.sign(new TextEncoder().encode(noteMessage(note)), seed)),
+    certificate: pocket.signed,
+  };
+  return {
+    note: signed,
+    ledger: {
+      ...ledger,
+      pocket: {
+        ...pocket,
+        spentKobo: pocket.spentKobo + amountKobo,
+        nextSequence: pocket.nextSequence + 1,
+      },
+      sent: [{ note: signed, toName: request.name }, ...ledger.sent].slice(0, HISTORY_LIMIT),
+    },
+  };
+}
+
+/** Checks a scanned payment fully offline and, if it's good, keeps it to settle later. */
+export function receiveOffline(
+  ledger: OfflineLedger,
+  input: { note: SignedNote; fromName: string | null; request: OfflineRequest; now: number },
+): { ledger: OfflineLedger; error: string | null } {
+  const { note, fromName, request, now } = input;
+  if (!ledger.serverPublicKey) {
+    return { ledger, error: 'Open Faara once while online, then you can receive offline.' };
+  }
+  if (ledger.received.some((r) => r.note.note.noteId === note.note.noteId)) {
+    return { ledger, error: null };
+  }
+  const check = checkNote(note, {
+    serverPublicKey: ledger.serverPublicKey,
+    verify: verifyEd25519,
+    now,
+    expect: { toUid: request.uid, nonce: request.nonce },
+  });
+  if (!check.ok) return { ledger, error: check.reason };
+  if (request.amountKobo > 0 && note.note.amountKobo !== request.amountKobo) {
+    return { ledger, error: 'The amount doesn’t match what you asked for.' };
+  }
+  return {
+    error: null,
+    ledger: {
+      ...ledger,
+      received: [
+        { note, fromName, receivedAt: now, status: 'waiting' as const },
+        ...ledger.received,
+      ].slice(0, HISTORY_LIMIT),
+    },
+  };
+}
+
+/** Payments received offline that still need to be settled. */
+export function waitingNotes(ledger: OfflineLedger): SignedNote[] {
+  return ledger.received.filter((r) => r.status === 'waiting').map((r) => r.note);
+}
+
+/** Records what the server said about settled payments. */
+export function applySettlement(
+  ledger: OfflineLedger,
+  results: { noteId: string; status: NoteStatus; reason?: string }[],
+): OfflineLedger {
+  const byId = new Map(results.map((r) => [r.noteId, r]));
+  return {
+    ...ledger,
+    received: ledger.received.map((r) => {
+      const result = byId.get(r.note.note.noteId);
+      return result ? { ...r, status: result.status, reason: result.reason } : r;
+    }),
+  };
+}

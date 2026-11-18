@@ -1,5 +1,5 @@
 import { WifiOff } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useOnline } from '@/lib/connectivity';
@@ -7,8 +7,11 @@ import { radii, useTheme } from '@/theme';
 
 import { AppText } from './AppText';
 
-/** A quiet notice at the top while Faara can't reach its server. */
-export function OfflineBanner() {
+/**
+ * A quiet notice at the top while Faara can't reach its server. With `onPress`, it offers
+ * offline payments.
+ */
+export function OfflineBanner({ onPress }: { onPress?: (() => void) | undefined }) {
   const online = useOnline();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -16,15 +19,22 @@ export function OfflineBanner() {
   return (
     <View
       accessibilityRole="alert"
-      pointerEvents="none"
+      pointerEvents="box-none"
       style={[styles.wrap, { top: insets.top + 8 }]}
     >
-      <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.gold }]}>
+      <Pressable
+        disabled={!onPress}
+        onPress={onPress}
+        accessibilityRole={onPress ? 'button' : undefined}
+        style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.gold }]}
+      >
         <WifiOff size={16} color={colors.gold} strokeWidth={1.75} />
         <AppText variant="label" color="gold">
-          You’re offline. Payments wait until you’re back.
+          {onPress
+            ? 'You’re offline. Tap to pay offline.'
+            : 'You’re offline. Payments wait until you’re back.'}
         </AppText>
-      </View>
+      </Pressable>
     </View>
   );
 }

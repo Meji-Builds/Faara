@@ -5,7 +5,7 @@ import { Platform, Share, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { AppText, Avatar, Button, Card, IconButton, ListRow, Screen } from '@/components/ui';
-import { CONVERT_ENABLED, DOLLARS_ENABLED } from '@/config/features';
+import { CONVERT_ENABLED, DOLLARS_ENABLED, OFFLINE_ENABLED } from '@/config/features';
 import { useAuth, useProfile } from '@/features/auth';
 import { payLink } from '@/lib/links';
 import { initials } from '@/lib/money';
@@ -88,6 +88,9 @@ export default function ProfileScreen() {
         />
         {CONVERT_ENABLED ? (
           <ListRow label="USDC wallet" onPress={() => router.push('/usdc-wallet')} />
+        ) : null}
+        {OFFLINE_ENABLED ? (
+          <ListRow label="Offline payments" onPress={() => router.push('/offline')} />
         ) : null}
         {DOLLARS_ENABLED ? (
           <ListRow

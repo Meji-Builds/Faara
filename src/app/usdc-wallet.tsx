@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, Header, Screen } from '@/components/ui';
+import { ExternalWallet } from '@/components/usdc';
 import { getUsdcWallet } from '@/features/usdc/usdcApi';
 import { groupDigits } from '@/lib/money';
 import { useAsyncValue } from '@/lib/useAsyncValue';
@@ -68,6 +69,11 @@ export default function UsdcWalletScreen() {
                 onPress={copy}
               />
             </Card>
+            <ExternalWallet
+              faaraAddress={wallet.address}
+              faaraCents={Math.floor(Number(wallet.usdc) * 100 + 1e-6)}
+              onChanged={reload}
+            />
             <Button
               label="Get free test USDC"
               variant="outline"

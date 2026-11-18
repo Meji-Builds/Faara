@@ -85,6 +85,11 @@ export class OfflineService {
     return this.storedSigner;
   }
 
+  /** Faara's public key for pocket certificates, so phones can check payments offline. */
+  async publicKey(): Promise<string> {
+    return (await this.requireSigner()).publicKey;
+  }
+
   private async loadStoredSigner(): Promise<Signer> {
     return this.deps.store.transaction(async (tx) => {
       const saved = await tx.get<{ pkcs8: string }>('serverKeys/offline');

@@ -11,10 +11,13 @@ export const settle = authedRoute(parseSettleNotes, async ({ uid, services }, re
   results: await services.offline.settleNotes(uid, request.notes),
 }));
 
-/** POST /api/offline/status: the caller's open pocket, if any. */
+/** POST /api/offline/status: the caller's open pocket, if any, and Faara's certificate key. */
 export const status = authedRoute(
   () => ({}),
-  async ({ uid, services }) => ({ pocket: await services.offline.status(uid) }),
+  async ({ uid, services }) => ({
+    pocket: await services.offline.status(uid),
+    serverPublicKey: await services.offline.publicKey(),
+  }),
 );
 
 /** POST /api/offline/release: return an expired pocket's unspent money to the balance. */

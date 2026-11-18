@@ -1,0 +1,1 @@
+export { ExternalWallet } from './ExternalWallet';

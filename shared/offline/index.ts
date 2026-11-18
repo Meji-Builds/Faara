@@ -192,3 +192,118 @@ export function parseOpenPocket(body: unknown): { amountKobo: number; devicePubl
 
 /** Thrown for malformed requests; the message is safe to show. */
 export class OfflineValidationError extends ValidationError {}
+
+/**
+ * What travels between phones by QR code, with no network:
+ * - a request, shown by the receiver: who they are and a fresh nonce (and an amount, if set);
+ * - a payment, shown by the payer: the signed note answering that request.
+ */
+export interface OfflineRequest {
+  /** Receiver's user id. */
+  uid: string;
+  /** Receiver's name, shown to the payer. */
+  name: string;
+  nonce: string;
+  /** Amount asked for in kobo; 0 lets the payer choose. */
+  amountKobo: number;
+}
+
+const QR_PREFIX = { request: 'FAARA-OFF1-R:', note: 'FAARA-OFF1-N:' } as const;
+
+function toBase64Url(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromBase64Url(text: string): string {
+  const padded = text.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(padded + '='.repeat((4 - (padded.length % 4)) % 4));
+  return new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
+}
+
+function decodeQr(prefix: string, data: string): unknown {
+  if (!data.startsWith(prefix)) return null;
+  try {
+    return JSON.parse(fromBase64Url(data.slice(prefix.length))) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+const isText = (value: unknown, max: number): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= max;
+const isWhole = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+export function encodeOfflineRequest(request: OfflineRequest): string {
+  return QR_PREFIX.request + toBase64Url(JSON.stringify(request));
+}
+
+/** Reads a receiver's request QR; null if it isn't one. */
+export function decodeOfflineRequest(data: string): OfflineRequest | null {
+  const value = decodeQr(QR_PREFIX.request, data) as Partial<OfflineRequest> | null;
+  if (
+    !value ||
+    !isText(value.uid, 128) ||
+    !isText(value.name, 80) ||
+    !isText(value.nonce, 64) ||
+    !isWhole(value.amountKobo) ||
+    !SAFE.test(value.uid) ||
+    !SAFE.test(value.nonce)
+  ) {
+    return null;
+  }
+  return { uid: value.uid, name: value.name, nonce: value.nonce, amountKobo: value.amountKobo };
+}
+
+/** A payment QR. `fromName` is shown to the receiver only; it isn't signed. */
+export function encodeSignedNote(note: SignedNote, fromName?: string): string {
+  const payload = fromName ? { ...note, fromName: fromName.slice(0, 80) } : note;
+  return QR_PREFIX.note + toBase64Url(JSON.stringify(payload));
+}
+
+/** Reads a payment QR with the payer's display name, if given. */
+export function readPaymentQr(data: string): { note: SignedNote; fromName: string | null } | null {
+  const note = decodeSignedNote(data);
+  if (!note) return null;
+  const raw = (decodeQr(QR_PREFIX.note, data) as { fromName?: unknown }).fromName;
+  return { note, fromName: isText(raw, 80) ? raw : null };
+}
+
+/** Reads a payer's payment QR; null if it isn't one. Signatures are checked separately. */
+export function decodeSignedNote(data: string): SignedNote | null {
+  const value = decodeQr(QR_PREFIX.note, data) as Partial<SignedNote> | null;
+  const note = value?.note;
+  const cert = value?.certificate?.certificate;
+  if (
+    !value ||
+    !note ||
+    !cert ||
+    !isText(value.signature, 200) ||
+    !isText(value.certificate?.signature, 200) ||
+    !isText(note.noteId, 128) ||
+    !isText(note.pocketId, 128) ||
+    !isText(note.fromUid, 128) ||
+    !isText(note.toUid, 128) ||
+    !isText(note.nonce, 64) ||
+    !isWhole(note.amountKobo) ||
+    !isWhole(note.sequence) ||
+    !isWhole(note.createdAt) ||
+    !isText(cert.pocketId, 128) ||
+    !isText(cert.uid, 128) ||
+    !isText(cert.devicePublicKey, 64) ||
+    !isWhole(cert.limitKobo) ||
+    !isWhole(cert.maxNoteKobo) ||
+    !isWhole(cert.issuedAt) ||
+    !isWhole(cert.expiresAt)
+  ) {
+    return null;
+  }
+  return {
+    note: { ...note },
+    signature: value.signature,
+    certificate: { certificate: { ...cert }, signature: value.certificate.signature },
+  } as SignedNote;
+}
