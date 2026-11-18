@@ -15,8 +15,8 @@ interface BalanceCardProps {
   usdc: number | null;
   /** Shown in place of an account number: how people find you. */
   faaraNumber: string;
-  /** Dollar and USDC balances held in Faara, in cents. */
-  ledger?: { usd: number; usdc: number } | null;
+  /** USDC in the person's Faara wallet, in cents (null while unknown). */
+  walletUsdc?: number | null;
   initiallyHidden?: boolean;
 }
 
@@ -26,7 +26,7 @@ export function BalanceCard({
   naira,
   usdc,
   faaraNumber,
-  ledger = null,
+  walletUsdc = null,
   initiallyHidden = false,
 }: BalanceCardProps) {
   const { colors } = useTheme();
@@ -90,9 +90,7 @@ export function BalanceCard({
         ) : CONVERT_ENABLED ? (
           <AppText variant="body" color="onBrand" style={styles.muted}>
             <AppText variant="bodyStrong" color="goldOnBrand">
-              {hidden || ledger === null
-                ? HIDDEN
-                : `${formatMinor(ledger.usd, 'USD')} · ${formatMinor(ledger.usdc, 'USDC')}`}
+              {hidden || walletUsdc === null ? HIDDEN : formatMinor(walletUsdc, 'USDC')}
             </AppText>
           </AppText>
         ) : null}

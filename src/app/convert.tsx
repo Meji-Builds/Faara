@@ -3,31 +3,29 @@ import { ArrowDownUp } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
-import {
-  CONVERT_CURRENCIES,
-  MAX_CONVERT,
-  MIN_CONVERT,
-  type ConvertCurrency,
-  type Quote,
-} from '@shared/convert';
+import { MAX_CONVERT, MIN_CONVERT, type ConvertCurrency, type Quote } from '@shared/convert';
 
 import { SuccessBurst } from '@/components/brand';
 import { CountUp, Reveal } from '@/components/motion';
 import { AppText, Button, Card, Header, Screen, TextField } from '@/components/ui';
 import {
   CURRENCY_NAME,
+  conversionStatus,
   describeRate,
   executeQuote,
   formatMinor,
   getQuote,
   useBalances,
 } from '@/features/convert';
+import { useWalletUsdc } from '@/features/usdc/useWalletUsdc';
 import { friendlyError } from '@/lib/errors';
 import { groupDigits } from '@/lib/money';
 import { haptics } from '@/lib/haptics';
 import { fonts, radii, useTheme } from '@/theme';
 
 const QUOTE_DELAY_MS = 500;
+const POLL_MS = 2_000;
+const POLL_LIMIT = 30;
 
 type Step = { kind: 'form' } | { kind: 'done'; quote: Quote };
 
@@ -36,6 +34,7 @@ export default function ConvertScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const balances = useBalances();
+  const wallet = useWalletUsdc();
   const [from, setFrom] = useState<ConvertCurrency>('NGN');
   const [to, setTo] = useState<ConvertCurrency>('USDC');
   const [amountText, setAmountText] = useState('');
@@ -52,7 +51,7 @@ export default function ConvertScreen() {
     amount >= MIN_CONVERT[from] &&
     amount <= MAX_CONVERT[from] &&
     Math.abs(amount * 100 - Math.round(amount * 100)) < 1e-6;
-  const available = balances ? balances[from] : null;
+  const available = from === 'USDC' ? wallet.cents : balances ? balances[from] : null;
   const tooMuch = validAmount && available !== null && Math.round(amount * 100) > available;
 
   // Price the conversion shortly after the amount or currencies stop changing.
@@ -93,17 +92,6 @@ export default function ConvertScreen() {
       : null;
   const live = currentQuote !== null && secondsLeft > 0 && !tooMuch && validAmount;
 
-  const pick = (side: 'from' | 'to', currency: ConvertCurrency) => {
-    setQuote(null);
-    if (side === 'from') {
-      if (currency === to) setTo(from);
-      setFrom(currency);
-    } else {
-      if (currency === from) setFrom(to);
-      setTo(currency);
-    }
-  };
-
   const swap = () => {
     setQuote(null);
     setFrom(to);
@@ -115,7 +103,23 @@ export default function ConvertScreen() {
     setBusy(true);
     setError(null);
     try {
-      await executeQuote(currentQuote.id);
+      let result = await executeQuote(currentQuote.id);
+      // The USDC moves on the network, so wait for it to confirm.
+      for (let i = 0; result.status === 'pending' && i < POLL_LIMIT; i++) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        result = await conversionStatus(currentQuote.id);
+      }
+      void wallet.refresh();
+      if (result.status === 'failed') {
+        setQuote(null);
+        setError('That conversion didn’t go through. Nothing was taken. Try again.');
+        return;
+      }
+      if (result.status === 'pending') {
+        setQuote(null);
+        setError('Still confirming. Check your balances in a minute.');
+        return;
+      }
       haptics.success();
       setStep({ kind: 'done', quote: currentQuote });
     } catch (cause) {
@@ -194,7 +198,7 @@ export default function ConvertScreen() {
             onPress={live ? convert : () => setQuote(null)}
           />
           <AppText variant="caption" color="textMuted" align="center">
-            Test rates for now. No real money moves yet.
+            Test rates and test USDC. No real money moves yet.
           </AppText>
         </>
       }
@@ -204,7 +208,6 @@ export default function ConvertScreen() {
         <CurrencyRow
           label="From"
           value={from}
-          onPick={(c) => pick('from', c)}
           caption={available === null ? '…' : `Balance ${formatMinor(available, from)}`}
           captionTone={tooMuch ? 'gold' : 'textMuted'}
         />
@@ -219,7 +222,7 @@ export default function ConvertScreen() {
         >
           <ArrowDownUp size={18} color={colors.accentText} strokeWidth={1.75} />
         </Pressable>
-        <CurrencyRow label="To" value={to} onPick={(c) => pick('to', c)} />
+        <CurrencyRow label="To" value={to} />
 
         <TextField
           label={`Amount in ${CURRENCY_NAME[from].toLowerCase()}`}
@@ -238,7 +241,7 @@ export default function ConvertScreen() {
           keyboardType="decimal-pad"
           leading={
             <AppText style={[styles.symbol, { color: colors.textMuted }]}>
-              {from === 'NGN' ? '₦' : '$'}
+              {from === 'NGN' ? '₦' : ''}
             </AppText>
           }
           hint={
@@ -287,13 +290,11 @@ export default function ConvertScreen() {
 function CurrencyRow({
   label,
   value,
-  onPick,
   caption,
   captionTone = 'textMuted',
 }: {
   label: string;
   value: ConvertCurrency;
-  onPick: (currency: ConvertCurrency) => void;
   caption?: string;
   captionTone?: 'textMuted' | 'gold';
 }) {
@@ -310,30 +311,8 @@ function CurrencyRow({
           </AppText>
         ) : null}
       </View>
-      <View style={styles.chips}>
-        {CONVERT_CURRENCIES.map((currency) => {
-          const selected = currency === value;
-          return (
-            <Pressable
-              key={currency}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={`${label} ${CURRENCY_NAME[currency]}`}
-              onPress={() => onPick(currency)}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: selected ? colors.accent : colors.surface,
-                  borderColor: selected ? colors.accent : colors.border,
-                },
-              ]}
-            >
-              <AppText variant="bodyStrong" color={selected ? 'onAccent' : 'text'}>
-                {currency}
-              </AppText>
-            </Pressable>
-          );
-        })}
+      <View style={[styles.fixed, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <AppText variant="bodyStrong">{CURRENCY_NAME[value]}</AppText>
       </View>
     </View>
   );
@@ -362,9 +341,7 @@ const styles = StyleSheet.create({
   body: { gap: 14, marginTop: 20, paddingBottom: 24 },
   rowWrap: { gap: 8 },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between' },
-  chips: { flexDirection: 'row', gap: 8 },
-  chip: {
-    flex: 1,
+  fixed: {
     height: 46,
     borderRadius: radii.pill,
     borderWidth: 1,

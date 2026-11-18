@@ -26,3 +26,20 @@ export async function setup(request: Request): Promise<Response> {
     return errorResponse(error);
   }
 }
+
+/**
+ * GET /api/wallet/treasury?token=...: the address and balance of Faara's own USDC float, so it
+ * can be topped up from the test faucet. Uses the same CIRCLE_SETUP_TOKEN as setup.
+ */
+export async function treasury(request: Request): Promise<Response> {
+  try {
+    const circle = getServices().circle;
+    const token = new URL(request.url).searchParams.get('token');
+    if (!circle.allowsSetup(token)) {
+      return json(403, { error: { code: 'permission-denied', message: 'Not allowed from here.' } });
+    }
+    return json(200, await circle.treasury());
+  } catch (error) {
+    return errorResponse(error);
+  }
+}

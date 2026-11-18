@@ -12,7 +12,7 @@ import { QuickAction } from '@/components/wallet/QuickAction';
 import { useActivity, useNairaBalance, useUsdcBalance } from '@/features/account';
 import { CONVERT_ENABLED } from '@/config/features';
 import { useProfile } from '@/features/auth';
-import { useBalances } from '@/features/convert';
+import { useWalletUsdc } from '@/features/usdc/useWalletUsdc';
 import { useAmbientReceive } from '@/features/hum';
 import { takePendingRecipient } from '@/features/referral';
 import { useNotifications } from '@/features/notifications';
@@ -31,7 +31,7 @@ export default function HomeScreen() {
   const { preferences } = usePreferences();
   const naira = useNairaBalance();
   const usdc = useUsdcBalance();
-  const ledger = useBalances();
+  const walletUsdc = useWalletUsdc().cents;
   const activity = useActivity(10);
   const { unreadCount } = useNotifications();
   // Someone who opened a pay link before joining carries on to pay them.
@@ -84,7 +84,7 @@ export default function HomeScreen() {
         naira={naira}
         usdc={usdc.value}
         faaraNumber={faaraNumber(profile.phone)}
-        ledger={ledger ? { usd: ledger.USD, usdc: ledger.USDC } : null}
+        walletUsdc={walletUsdc}
         initiallyHidden={preferences.hideBalances}
       />
 

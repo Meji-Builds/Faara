@@ -46,6 +46,27 @@ export function getServices(): Services {
     const newId = () => randomBytes(15).toString('base64url');
     const naira = new MockNairaLedger(store, now);
     const notify = createNotifier(store);
+    const circle = new CircleWallets({
+      store,
+      now,
+      apiKey: process.env.CIRCLE_API_KEY,
+      entitySecret: process.env.CIRCLE_ENTITY_SECRET,
+      setupToken: process.env.CIRCLE_SETUP_TOKEN,
+      makeClient: (apiKey, entitySecret) =>
+        loadCircleSdk().initiateDeveloperControlledWalletsClient({
+          apiKey,
+          entitySecret,
+        }) as unknown as WalletClient,
+      registerSecret: async (apiKey, entitySecret) => {
+        const response = await loadCircleSdk().registerEntitySecretCiphertext({
+          apiKey,
+          entitySecret,
+          recoveryFileDownloadPath: '/tmp',
+        });
+        const file = (response as { data?: { recoveryFile?: string } }).data?.recoveryFile;
+        return file ?? null;
+      },
+    });
     services = {
       hum: new HumService({
         store,
@@ -63,6 +84,7 @@ export function getServices(): Services {
         newId,
         // Mock rate until an exchange partner is connected.
         exchange: new MockExchange(Number(process.env.MOCK_NGN_PER_USD ?? 1550), now),
+        usdc: circle.configured ? circle : undefined,
       }),
       offline: new OfflineService({
         store,
@@ -73,27 +95,7 @@ export function getServices(): Services {
           : null,
         notify,
       }),
-      circle: new CircleWallets({
-        store,
-        now,
-        apiKey: process.env.CIRCLE_API_KEY,
-        entitySecret: process.env.CIRCLE_ENTITY_SECRET,
-        setupToken: process.env.CIRCLE_SETUP_TOKEN,
-        makeClient: (apiKey, entitySecret) =>
-          loadCircleSdk().initiateDeveloperControlledWalletsClient({
-            apiKey,
-            entitySecret,
-          }) as unknown as WalletClient,
-        registerSecret: async (apiKey, entitySecret) => {
-          const response = await loadCircleSdk().registerEntitySecretCiphertext({
-            apiKey,
-            entitySecret,
-            recoveryFileDownloadPath: '/tmp',
-          });
-          const file = (response as { data?: { recoveryFile?: string } }).data?.recoveryFile;
-          return file ?? null;
-        },
-      }),
+      circle,
       funding: new FundingService({
         store,
         now,

@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 import { ApiError } from './errors';
 import type { DocumentStore } from './store';
@@ -21,6 +21,30 @@ export interface WalletClient {
       tokenBalances?: { amount: string; token: { symbol?: string; tokenAddress?: string } }[];
     };
   }>;
+  createTransaction(input: {
+    walletId: string;
+    tokenAddress: string;
+    blockchain: typeof BLOCKCHAIN;
+    amount: string[];
+    destinationAddress: string;
+    fee: { type: 'level'; config: { feeLevel: 'LOW' | 'MEDIUM' | 'HIGH' } };
+    refId?: string;
+    idempotencyKey?: string;
+  }): Promise<{ data?: { id?: string } }>;
+  getTransaction(input: { id: string }): Promise<{ data?: { transaction?: { state?: string } } }>;
+}
+
+/** Progress of a USDC transfer. */
+export type TransferState = 'pending' | 'done' | 'failed';
+
+const FAILED_STATES = new Set(['FAILED', 'DENIED', 'CANCELLED']);
+/** Reserved wallet id for Faara's own USDC float. */
+const TREASURY = '_treasury';
+
+/** A stable UUID for a key, so a retried transfer is recognised and not sent twice. */
+function idempotencyKey(key: string): string {
+  const h = createHash('sha256').update(key).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
 export interface CircleDeps {
@@ -59,6 +83,11 @@ export class CircleWallets {
 
   get configured(): boolean {
     return Boolean(this.deps.apiKey);
+  }
+
+  /** Whether this token is the configured setup token. */
+  allowsSetup(token: string | null): boolean {
+    return Boolean(this.deps.setupToken) && token === this.deps.setupToken;
   }
 
   private async entitySecret(): Promise<string | null> {
@@ -139,15 +168,59 @@ export class CircleWallets {
     return { address, usdc: usdc?.amount ?? '0' };
   }
 
+  /** USDC held by the person's wallet, in cents. */
+  async usdcCents(uid: string): Promise<number> {
+    return Math.floor(Number((await this.info(uid)).usdc) * 100 + 1e-6);
+  }
+
+  /** Faara's own USDC float: the wallet conversions are paid from and into. */
+  treasury(): Promise<WalletInfo> {
+    return this.info(TREASURY);
+  }
+
+  /**
+   * Moves USDC on the test network. A payout goes from Faara's float to the person; a
+   * collect goes from the person to the float. The key makes retries safe: the same key
+   * never moves money twice. Returns Circle's transaction id.
+   */
+  async send(kind: 'payout' | 'collect', uid: string, cents: number, key: string): Promise<string> {
+    const client = await this.getClient();
+    const [person, float] = await Promise.all([
+      this.ensureWallet(uid),
+      this.ensureWallet(TREASURY),
+    ]);
+    const [from, to] = kind === 'payout' ? [float, person] : [person, float];
+    const result = await client.createTransaction({
+      walletId: from.walletId,
+      tokenAddress: USDC_DEVNET_MINT,
+      blockchain: BLOCKCHAIN,
+      amount: [(cents / 100).toFixed(2)],
+      destinationAddress: to.address,
+      fee: { type: 'level', config: { feeLevel: 'MEDIUM' } },
+      refId: key,
+      idempotencyKey: idempotencyKey(`${kind}:${key}`),
+    });
+    const id = result.data?.id;
+    if (!id) throw new ApiError('internal', 'The USDC transfer didn’t start. Try again.');
+    return id;
+  }
+
+  async transferState(id: string): Promise<TransferState> {
+    const client = await this.getClient();
+    const state = (await client.getTransaction({ id })).data?.transaction?.state ?? '';
+    if (state === 'COMPLETE') return 'done';
+    return FAILED_STATES.has(state) ? 'failed' : 'pending';
+  }
+
   /**
    * One-time setup: makes an entity secret, registers it with Circle, and keeps it
    * server-side. Returns Circle's recovery file, which the owner must save: it is the only
    * way to recover the wallets if the secret is ever lost.
    */
   async setup(token: string | null): Promise<{ recoveryFile: string | null }> {
-    const { apiKey, setupToken, store, now, registerSecret } = this.deps;
+    const { apiKey, store, now, registerSecret } = this.deps;
     if (!apiKey) throw new ApiError('failed-precondition', 'Add the Circle API key first.');
-    if (!setupToken || token !== setupToken) {
+    if (!this.allowsSetup(token)) {
       throw new ApiError('permission-denied', 'Setup isn’t allowed from here.');
     }
     if (this.deps.entitySecret || (await this.entitySecret())) {

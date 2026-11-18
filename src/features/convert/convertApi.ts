@@ -10,8 +10,19 @@ export function getQuote(from: ConvertCurrency, to: ConvertCurrency, amount: num
   return postJson<Quote>('/api/convert/quote', { from, to, amount }, { retry: true });
 }
 
+export interface ConversionResult {
+  id: string;
+  status: 'pending' | 'done' | 'failed';
+  balances: Balances;
+}
+
 export function executeQuote(quoteId: string) {
-  return postJson<Balances>('/api/convert/execute', { quoteId }, { retry: true });
+  return postJson<ConversionResult>('/api/convert/execute', { quoteId }, { retry: true });
+}
+
+/** Checks a started conversion; finishes it once the USDC transfer has confirmed. */
+export function conversionStatus(quoteId: string) {
+  return postJson<ConversionResult>('/api/convert/status', { quoteId }, { retry: true });
 }
 
 /** Live balances in naira, dollars and USDC (minor units), from the ledger. */
