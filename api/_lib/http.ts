@@ -4,6 +4,7 @@ import { ValidationError, type ApiErrorBody } from '../../shared/hum';
 
 import { ApiError } from './errors';
 import { adminDb, firestoreStore, verifyIdToken } from './firebaseAdmin';
+import { CircleWallets, type WalletClient } from './circleWallets';
 import { ConvertService, MockExchange } from './convertService';
 import { signerFromPkcs8 } from './ed25519';
 import { FundingService } from './fundingService';
@@ -19,11 +20,20 @@ import { fetchWalletRisk } from './webacy';
 // function down with a non-JSON 500; log it so it shows up in Vercel's logs.
 process.on('unhandledRejection', (reason) => console.error('Unhandled rejection', reason));
 
+type CircleSdk = typeof import('@circle-fin/developer-controlled-wallets');
+
+/** Loaded only when dollar wallets are used, so a problem in the library can't take down every route. */
+function loadCircleSdk(): CircleSdk {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('@circle-fin/developer-controlled-wallets') as CircleSdk;
+}
+
 interface Services {
   hum: HumService;
   funding: FundingService;
   convert: ConvertService;
   offline: OfflineService;
+  circle: CircleWallets;
 }
 
 let services: Services | undefined;
@@ -62,6 +72,27 @@ export function getServices(): Services {
           ? signerFromPkcs8(process.env.OFFLINE_SIGNING_KEY)
           : null,
         notify,
+      }),
+      circle: new CircleWallets({
+        store,
+        now,
+        apiKey: process.env.CIRCLE_API_KEY,
+        entitySecret: process.env.CIRCLE_ENTITY_SECRET,
+        setupToken: process.env.CIRCLE_SETUP_TOKEN,
+        makeClient: (apiKey, entitySecret) =>
+          loadCircleSdk().initiateDeveloperControlledWalletsClient({
+            apiKey,
+            entitySecret,
+          }) as unknown as WalletClient,
+        registerSecret: async (apiKey, entitySecret) => {
+          const response = await loadCircleSdk().registerEntitySecretCiphertext({
+            apiKey,
+            entitySecret,
+            recoveryFileDownloadPath: '/tmp',
+          });
+          const file = (response as { data?: { recoveryFile?: string } }).data?.recoveryFile;
+          return file ?? null;
+        },
       }),
       funding: new FundingService({
         store,

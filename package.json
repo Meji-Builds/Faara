@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "main": "index.ts",
   "dependencies": {
+    "@circle-fin/developer-controlled-wallets": "^10.8.1",
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",

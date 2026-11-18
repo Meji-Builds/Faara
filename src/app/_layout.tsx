@@ -141,6 +141,7 @@ function RootStack({ onReady }: { onReady: () => void }) {
           <Stack.Screen name="wallet" />
           <Stack.Screen name="change-pin" />
           <Stack.Screen name="convert" />
+          <Stack.Screen name="usdc-wallet" />
           <Stack.Screen name="personal-details" />
           <Stack.Screen name="limits" />
           <Stack.Screen name="help" />

@@ -5,7 +5,7 @@ import { Platform, Share, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { AppText, Avatar, Button, Card, IconButton, ListRow, Screen } from '@/components/ui';
-import { DOLLARS_ENABLED } from '@/config/features';
+import { CONVERT_ENABLED, DOLLARS_ENABLED } from '@/config/features';
 import { useAuth, useProfile } from '@/features/auth';
 import { payLink } from '@/lib/links';
 import { initials } from '@/lib/money';
@@ -86,6 +86,9 @@ export default function ProfileScreen() {
           value={`Tier ${profile.verificationTier}`}
           onPress={() => router.push('/limits')}
         />
+        {CONVERT_ENABLED ? (
+          <ListRow label="USDC wallet" onPress={() => router.push('/usdc-wallet')} />
+        ) : null}
         {DOLLARS_ENABLED ? (
           <ListRow
             label="Dollar wallet (Solana)"

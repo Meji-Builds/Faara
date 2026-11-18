@@ -76,6 +76,9 @@ service cloud.firestore {
     match /serverKeys/{id} {
       allow read, write: if false;
     }
+    match /circleWallets/{id} {
+      allow read, write: if false;
+    }
     match /pockets/{id} {
       allow read, write: if false;
     }
