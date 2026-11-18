@@ -33,11 +33,11 @@ export function chooseRecipient(paymentId: string, claimId: string) {
 }
 
 export function settleHum(paymentId: string, signature?: string) {
-  return postJson<SettleHumResponse>('/api/hums/settle', { paymentId, signature });
+  return postJson<SettleHumResponse>('/api/hums/settle', { paymentId, signature }, { retry: true });
 }
 
 export function cancelHum(paymentId: string) {
-  return postJson<{ ok: true }>('/api/hums/cancel', { paymentId });
+  return postJson<{ ok: true }>('/api/hums/cancel', { paymentId }, { retry: true });
 }
 
 /** A claim as the app sees it. */

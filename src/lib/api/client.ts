@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 
 import type { ApiErrorBody, ApiErrorCode } from '@shared/hum';
 
+import { reportNetwork } from '@/lib/connectivity';
 import { auth } from '@/lib/firebase';
 
 /**
@@ -37,12 +38,41 @@ async function idToken(forceRefresh: boolean): Promise<string> {
  * (an expired token after a long time in the background, say), it gets a fresh token and
  * tries once more before giving up.
  */
-export async function postJson<Res>(path: string, body: unknown): Promise<Res> {
+export async function postJson<Res>(
+  path: string,
+  body: unknown,
+  options: { retry?: boolean } = {},
+): Promise<Res> {
   try {
-    return await send<Res>(path, body, await idToken(false));
+    return await sendWithRetry<Res>(path, body, await idToken(false), options.retry === true);
   } catch (cause) {
     if (!(cause instanceof ApiRequestError) || cause.code !== 'unauthenticated') throw cause;
-    return send<Res>(path, body, await idToken(true));
+    return sendWithRetry<Res>(path, body, await idToken(true), options.retry === true);
+  }
+}
+
+/** Waits before each retry of a request that never reached the server. */
+const RETRY_DELAYS_MS = [700, 1_600];
+
+/**
+ * Requests that are safe to repeat (the server applies them once) are retried when the
+ * connection drops, so a patchy network doesn't turn into a failed payment.
+ */
+async function sendWithRetry<Res>(
+  path: string,
+  body: unknown,
+  token: string,
+  retry: boolean,
+): Promise<Res> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await send<Res>(path, body, token);
+    } catch (cause) {
+      const delay = RETRY_DELAYS_MS[attempt];
+      const dropped = cause instanceof ApiRequestError && cause.code === 'network';
+      if (!retry || !dropped || delay === undefined) throw cause;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
   }
 }
 
@@ -58,10 +88,12 @@ async function send<Res>(path: string, body: unknown, token: string): Promise<Re
       signal: controller.signal,
     });
   } catch {
+    reportNetwork(false);
     throw new ApiRequestError('network', 'No connection. Check your internet and try again.');
   } finally {
     clearTimeout(timer);
   }
+  reportNetwork(true);
 
   const payload: unknown = await response.json().catch(() => null);
   const error = (payload as Partial<ApiErrorBody> | null)?.error;

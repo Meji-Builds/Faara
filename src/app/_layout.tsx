@@ -20,6 +20,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LaunchScreen } from '@/components/brand';
 import { ErrorScreen } from '@/components/ui';
+import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { AuthProvider, useAuth } from '@/features/auth';
 import { IncomingBanner } from '@/components/notifications/IncomingBanner';
 import { LockScreen } from '@/components/security/LockScreen';
@@ -153,6 +154,7 @@ function RootStack({ onReady }: { onReady: () => void }) {
         <Stack.Screen name="lab/code" />
       </Stack>
       {walletReady && !showLock ? <IncomingBanner /> : null}
+      <OfflineBanner />
       {showLock ? (
         <LockScreen
           fullName={profile.fullName}

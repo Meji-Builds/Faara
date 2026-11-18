@@ -5,8 +5,10 @@ import { ValidationError, type ApiErrorBody } from '../../shared/hum';
 import { ApiError } from './errors';
 import { adminDb, firestoreStore, verifyIdToken } from './firebaseAdmin';
 import { ConvertService, MockExchange } from './convertService';
+import { signerFromPkcs8 } from './ed25519';
 import { FundingService } from './fundingService';
 import { HumService } from './humService';
+import { OfflineService } from './offlineService';
 import { MockNairaLedger } from './naira';
 import { paystackCheckout } from './paystack';
 import { createNotifier } from './push';
@@ -21,6 +23,7 @@ interface Services {
   hum: HumService;
   funding: FundingService;
   convert: ConvertService;
+  offline: OfflineService;
 }
 
 let services: Services | undefined;
@@ -50,6 +53,15 @@ export function getServices(): Services {
         newId,
         // Mock rate until an exchange partner is connected.
         exchange: new MockExchange(Number(process.env.MOCK_NGN_PER_USD ?? 1550), now),
+      }),
+      offline: new OfflineService({
+        store,
+        now,
+        newId,
+        signer: process.env.OFFLINE_SIGNING_KEY
+          ? signerFromPkcs8(process.env.OFFLINE_SIGNING_KEY)
+          : null,
+        notify,
       }),
       funding: new FundingService({
         store,

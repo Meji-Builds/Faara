@@ -6,4 +6,5 @@ export const CHANNEL_LABEL: Record<PaymentChannel, string> = {
   qr: 'Hum ring',
   manual: 'Typed code',
   username: 'Username',
+  offline: 'Offline pocket',
 };

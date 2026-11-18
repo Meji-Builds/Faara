@@ -72,6 +72,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Faara's own server keys and offline pockets: server-only.
+    match /serverKeys/{id} {
+      allow read, write: if false;
+    }
+    match /pockets/{id} {
+      allow read, write: if false;
+    }
+    match /activePockets/{id} {
+      allow read, write: if false;
+    }
+    match /offlineNotes/{id} {
+      allow read, write: if false;
+    }
+
     // Who brought someone to Faara (the owner of the pay link they opened). Write-once, private.
     match /referrals/{uid} {
       allow create: if signedIn()

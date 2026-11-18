@@ -54,7 +54,11 @@ export function usePayFlow(
         onSettled({ ...result, elapsedMs: Date.now() - startedAt });
       } catch (cause) {
         setError(
-          cause instanceof ApiRequestError ? apiErrorMessage(cause) : solanaErrorMessage(cause),
+          cause instanceof ApiRequestError && cause.code === 'network'
+            ? 'We couldn’t confirm your payment. Check your connection and tap pay again; you won’t be charged twice.'
+            : cause instanceof ApiRequestError
+              ? apiErrorMessage(cause)
+              : solanaErrorMessage(cause),
         );
         setStage('review');
       }

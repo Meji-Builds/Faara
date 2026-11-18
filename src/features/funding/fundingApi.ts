@@ -7,5 +7,5 @@ export function initializeFunding(amount: number, platform: 'web' | 'native') {
 }
 
 export function verifyFunding(reference: string) {
-  return postJson<VerifyFundingResponse>('/api/funding/verify', { reference });
+  return postJson<VerifyFundingResponse>('/api/funding/verify', { reference }, { retry: true });
 }

@@ -7,11 +7,11 @@ import { postJson } from '@/lib/api/client';
 import { db } from '@/lib/firebase';
 
 export function getQuote(from: ConvertCurrency, to: ConvertCurrency, amount: number) {
-  return postJson<Quote>('/api/convert/quote', { from, to, amount });
+  return postJson<Quote>('/api/convert/quote', { from, to, amount }, { retry: true });
 }
 
 export function executeQuote(quoteId: string) {
-  return postJson<Balances>('/api/convert/execute', { quoteId });
+  return postJson<Balances>('/api/convert/execute', { quoteId }, { retry: true });
 }
 
 /** Live balances in naira, dollars and USDC (minor units), from the ledger. */
