@@ -34,6 +34,8 @@ export class MockExchange implements ExchangeProvider {
 /** Moves real (test-network) USDC. Implemented by Circle wallets. */
 export interface UsdcRail {
   usdcCents(uid: string): Promise<number>;
+  /** USDC Faara holds to pay conversions out of, in cents. */
+  floatCents(): Promise<number>;
   send(kind: 'payout' | 'collect', uid: string, cents: number, key: string): Promise<string>;
   transferState(id: string): Promise<'pending' | 'done' | 'failed'>;
 }
@@ -147,6 +149,13 @@ export class ConvertService {
     const buying = quote.to === 'USDC';
     if (!buying && (await usdc.usdcCents(uid)) < quote.fromMinor) {
       throw new ApiError('failed-precondition', 'You don’t have enough USDC for this.');
+    }
+
+    if (buying && (await usdc.floatCents()) < quote.toMinor) {
+      throw new ApiError(
+        'failed-precondition',
+        'Faara’s test USDC is running low. Try a smaller amount.',
+      );
     }
 
     // Claim the quote and take the naira in one step, so it can only start once.

@@ -9,6 +9,7 @@ const RATE = 1_500;
 /** A stand-in for Circle: holds wallet balances and confirms transfers when told to. */
 function fakeRail(initialCents = 0) {
   const state = {
+    float: 1_000_000,
     wallet: initialCents,
     sends: [] as string[],
     next: 'done' as 'done' | 'pending' | 'failed',
@@ -16,6 +17,7 @@ function fakeRail(initialCents = 0) {
   };
   const rail: UsdcRail = {
     usdcCents: async () => state.wallet,
+    floatCents: async () => state.float,
     send: async (kind, _uid, cents, key) => {
       if (state.failSend) throw new Error('circle down');
       state.sends.push(`${kind}:${cents}:${key}`);
@@ -155,6 +157,15 @@ describe('ConvertService', () => {
     const result = await service.settle('ada', quote.id);
     expect(result.status).toBe('failed');
     expect(result.balances.NGN).toBe(MOCK_STARTING_BALANCE_KOBO);
+  });
+
+  it('says so, and takes nothing, when Faara’s USDC float is too small', async () => {
+    const { service, wallet } = setup();
+    wallet.float = 500;
+    const quote = await service.quote('ada', { from: 'NGN', to: 'USDC', amount: 15_000 });
+    await expectApiError(service.execute('ada', quote.id), 'failed-precondition');
+    expect((await service.balances('ada')).NGN).toBe(MOCK_STARTING_BALANCE_KOBO);
+    expect(wallet.sends).toHaveLength(0);
   });
 
   it('refuses an expired quote', async () => {

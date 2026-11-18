@@ -41,6 +41,12 @@ const FAILED_STATES = new Set(['FAILED', 'DENIED', 'CANCELLED']);
 /** Reserved wallet id for Faara's own USDC float. */
 const TREASURY = '_treasury';
 
+/** The useful part of a Circle SDK error, for logs. */
+function describe(error: unknown): unknown {
+  const response = (error as { response?: { data?: unknown } })?.response?.data;
+  return response ?? (error instanceof Error ? error.message : error);
+}
+
 /** A stable UUID for a key, so a retried transfer is recognised and not sent twice. */
 function idempotencyKey(key: string): string {
   const h = createHash('sha256').update(key).digest('hex');
@@ -171,6 +177,11 @@ export class CircleWallets {
   /** USDC held by the person's wallet, in cents. */
   async usdcCents(uid: string): Promise<number> {
     return Math.floor(Number((await this.info(uid)).usdc) * 100 + 1e-6);
+  }
+
+  /** USDC in Faara's float, in cents. */
+  floatCents(): Promise<number> {
+    return this.usdcCents(TREASURY);
   }
 
   /** Faara's own USDC float: the wallet conversions are paid from and into. */
