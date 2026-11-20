@@ -11,9 +11,9 @@ import {
   type ScamVerdict,
 } from '@shared/ai';
 
-import { LanguagePicker } from '@/components/assistant';
+import { AiConsentCard, AnswerFeedback, LanguagePicker } from '@/components/assistant';
 import { AppText, Button, Card, Header, Screen, TextField } from '@/components/ui';
-import { checkForScam, useAssistantLanguage } from '@/features/assistant';
+import { checkForScam, useAiConsent, useAssistantLanguage } from '@/features/assistant';
 import { friendlyError } from '@/lib/errors';
 import { radii, useTheme } from '@/theme';
 
@@ -33,6 +33,7 @@ const VERDICT: Record<ScamVerdict, { title: string; Icon: typeof ShieldAlert }> 
 export default function ScamCheckScreen() {
   const { colors } = useTheme();
   const [language, setLanguage] = useAssistantLanguage();
+  const aiConsent = useAiConsent();
   const [text, setText] = useState('');
   const [image, setImage] = useState<Picked | null>(null);
   const [busy, setBusy] = useState(false);
@@ -106,6 +107,11 @@ export default function ScamCheckScreen() {
     >
       <Header center={<AppText variant="subheading">Is this a scam?</AppText>} />
       <View style={styles.body}>
+        {aiConsent.consent === null ? (
+          <AiConsentCard
+            onChoose={(value) => void aiConsent.choose(value).catch(() => undefined)}
+          />
+        ) : null}
         <LanguagePicker value={language} onChange={setLanguage} />
         <TextField
           label="Paste the message"
@@ -156,6 +162,7 @@ export default function ScamCheckScreen() {
             {result.advice.map((tip) => (
               <AppText key={tip}>• {tip}</AppText>
             ))}
+            {result.exampleId ? <AnswerFeedback exampleId={result.exampleId} /> : null}
           </Card>
         ) : null}
       </View>

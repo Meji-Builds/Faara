@@ -8,7 +8,10 @@ import {
   type PaymentCheck,
   type RiskLevel,
   type ScamCheck,
+  redact,
 } from '../../shared/ai';
+
+import type { AiData } from './aiData';
 
 import { objectSchema, type AiClient } from './claude';
 import { ApiError } from './errors';
@@ -19,6 +22,8 @@ export interface AssistantDeps {
   store: DocumentStore;
   now: () => number;
   ai: AiClient;
+  /** Keeps examples (only with the person's permission) to train Faara's own models. */
+  examples?: AiData;
 }
 
 interface UserDoc {
@@ -213,7 +218,7 @@ export class AssistantService {
         }
       }
     }
-    return {
+    const result: AssistantIntent = {
       action,
       recipient,
       amountNaira: validAmount(answer.amountNaira, MAX_NAIRA),
@@ -222,6 +227,22 @@ export class AssistantService {
       reply: answer.reply.slice(0, 300),
       language: ASSISTANT_LANGUAGES.includes(answer.language) ? answer.language : request.language,
     };
+    const names = [...contacts.map((c) => c.fullName), ...(recipient ? [recipient.fullName] : [])];
+    result.exampleId =
+      (await this.deps.examples?.record(uid, {
+        task: 'intent',
+        language: result.language,
+        input: redact(request.text, names),
+        output: {
+          action: result.action,
+          matchedRecipient: recipient !== null,
+          amountNaira: result.amountNaira,
+          amountUsdc: result.amountUsdc,
+          note: redact(result.note, names),
+          chosenLanguage: request.language,
+        },
+      })) ?? null;
+    return result;
   }
 
   /**
@@ -317,11 +338,25 @@ export class AssistantService {
       maxTokens: 2_000,
       content,
     });
-    return {
+    const result: ScamCheck = {
       verdict: answer.verdict,
       pattern: answer.verdict === 'looks_safe' ? '' : answer.pattern.slice(0, 80),
       explanation: answer.explanation.slice(0, 800),
       advice: answer.advice.slice(0, 4).map((a) => a.slice(0, 200)),
     };
+    // Screenshots are never kept; only the pasted text, with personal details removed.
+    result.exampleId =
+      (await this.deps.examples?.record(uid, {
+        task: 'scam',
+        language: request.language,
+        input: redact(request.text),
+        output: {
+          hadScreenshot: request.image !== null,
+          verdict: result.verdict,
+          pattern: result.pattern,
+          explanation: redact(result.explanation),
+        },
+      })) ?? null;
+    return result;
   }
 }

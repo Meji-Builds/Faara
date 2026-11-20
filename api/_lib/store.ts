@@ -10,18 +10,28 @@ export interface StoreTransaction {
   update(path: string, data: object): void;
 }
 
+export interface ListOptions {
+  orderBy: string;
+  limit: number;
+  after?: number;
+  oldestFirst?: boolean;
+}
+
 export interface DocumentStore {
   transaction<R>(fn: (tx: StoreTransaction) => Promise<R>): Promise<R>;
   /** The id of the first document in `collection` whose `field` equals `value`. */
   findId(collection: string, field: string, value: string): Promise<string | undefined>;
   /**
-   * Up to `limit` documents of a collection, newest first by the numeric field `orderBy`,
-   * optionally only those whose `orderBy` is greater than `after`. Not transactional.
+   * Up to `limit` documents of a collection ordered by the numeric field `orderBy` (newest
+   * first unless `oldestFirst`), optionally only those whose `orderBy` is greater than
+   * `after`. Not transactional.
    */
   list<T extends object>(
     collection: string,
-    options: { orderBy: string; limit: number; after?: number },
+    options: ListOptions,
   ): Promise<{ id: string; data: T }[]>;
+  /** Deletes every document in `collection` whose `field` equals `value`; returns how many. */
+  deleteWhere(collection: string, field: string, value: string): Promise<number>;
 }
 
 /** In-memory store for tests. Transactions run one at a time and commit atomically. */
@@ -45,16 +55,32 @@ export class MemoryStore implements DocumentStore {
 
   async list<T extends object>(
     collection: string,
-    options: { orderBy: string; limit: number; after?: number },
+    options: ListOptions,
   ): Promise<{ id: string; data: T }[]> {
     const depth = collection.split('/').length + 1;
     const value = (doc: object) => Number((doc as Record<string, unknown>)[options.orderBy] ?? 0);
     return [...this.docs]
       .filter(([path]) => path.startsWith(`${collection}/`) && path.split('/').length === depth)
       .filter(([, doc]) => options.after === undefined || value(doc) > options.after)
-      .sort(([, a], [, b]) => value(b) - value(a))
+      .sort(([, a], [, b]) => (options.oldestFirst ? value(a) - value(b) : value(b) - value(a)))
       .slice(0, options.limit)
       .map(([path, doc]) => ({ id: path.split('/').pop() ?? '', data: structuredClone(doc) as T }));
+  }
+
+  async deleteWhere(collection: string, field: string, value: string): Promise<number> {
+    let count = 0;
+    for (const [path, doc] of [...this.docs]) {
+      const parts = path.split('/');
+      if (
+        parts.length === 2 &&
+        parts[0] === collection &&
+        (doc as Record<string, unknown>)[field] === value
+      ) {
+        this.docs.delete(path);
+        count++;
+      }
+    }
+    return count;
   }
 
   transaction<R>(fn: (tx: StoreTransaction) => Promise<R>): Promise<R> {

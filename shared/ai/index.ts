@@ -45,6 +45,8 @@ export interface AssistantIntent {
   /** What the assistant says back, in the person's language. */
   reply: string;
   language: AssistantLanguage;
+  /** Set when this answer was kept (with permission) to improve Faara's AI. */
+  exampleId?: string | null;
 }
 
 export type RiskLevel = 'ok' | 'caution' | 'warning';
@@ -66,6 +68,26 @@ export interface ScamCheck {
   pattern: string;
   explanation: string;
   advice: string[];
+  /** Set when this answer was kept (with permission) to improve Faara's AI. */
+  exampleId?: string | null;
+}
+
+/** Reads a JSON body as a plain object. */
+const record = (body: unknown) =>
+  (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+
+export function parseConsentRequest(body: unknown): { consent: boolean | null } {
+  const consent = record(body).consent;
+  return { consent: typeof consent === 'boolean' ? consent : null };
+}
+
+export function parseFeedbackRequest(body: unknown): { exampleId: string; good: boolean } {
+  const data = record(body);
+  if (typeof data.exampleId !== 'string' || !/^EX[A-Za-z0-9_-]{8,40}$/.test(data.exampleId)) {
+    throw new AssistantValidationError('That answer isn’t valid.');
+  }
+  if (typeof data.good !== 'boolean') throw new AssistantValidationError('Choose yes or no.');
+  return { exampleId: data.exampleId, good: data.good };
 }
 
 export const MAX_INSTRUCTION_LENGTH = 500;
@@ -74,9 +96,6 @@ export const MAX_SCAM_TEXT_LENGTH = 4_000;
 export const MAX_IMAGE_BASE64_LENGTH = 3_000_000;
 export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export type ImageType = (typeof IMAGE_TYPES)[number];
-
-const record = (body: unknown) =>
-  (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
 
 function language(value: unknown): AssistantLanguage {
   return ASSISTANT_LANGUAGES.includes(value as AssistantLanguage)
@@ -146,3 +165,4 @@ export function parseScamCheckRequest(body: unknown): {
   return { text, image, language: language(data.language) };
 }
 export * from './agent';
+export * from './redact';

@@ -5,7 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import type { AgentLogEntry, MoneyRule, RuleDraft } from '@shared/ai';
 
-import { LanguagePicker, MicButton } from '@/components/assistant';
+import { AnswerFeedback, LanguagePicker, MicButton } from '@/components/assistant';
 import { Approve } from '@/components/security/Approve';
 import { AppText, Button, Card, Header, Screen, TextField } from '@/components/ui';
 import {
@@ -46,6 +46,7 @@ export default function AgentScreen() {
   const [rules, setRules] = useState<MoneyRule[] | null>(null);
   const [log, setLog] = useState<AgentLogEntry[]>([]);
   const [draft, setDraft] = useState<RuleDraft | null>(null);
+  const [exampleId, setExampleId] = useState<string | null>(null);
   const [question, setQuestion] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +77,7 @@ export default function AgentScreen() {
     try {
       const result = await draftRule(trimmed, language);
       setDraft(result.draft);
+      setExampleId(result.exampleId);
       if (!result.draft) setQuestion(result.question);
     } catch (cause) {
       setError(friendlyError(cause, 'Faara couldn’t read that rule. Try again.'));
@@ -157,6 +159,7 @@ export default function AgentScreen() {
             <AppText color="textMuted">
               Approve to turn it on. You can remove it at any time.
             </AppText>
+            {exampleId ? <AnswerFeedback exampleId={exampleId} /> : null}
           </Card>
         ) : (
           <>

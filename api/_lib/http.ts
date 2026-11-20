@@ -3,6 +3,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { ValidationError, type ApiErrorBody } from '../../shared/hum';
 
 import { AgentService } from './agentService';
+import { AiData } from './aiData';
 import { AssistantService } from './assistantService';
 import { claudeClient } from './claude';
 import { ApiError } from './errors';
@@ -39,6 +40,7 @@ interface Services {
   circle: CircleWallets;
   assistant: AssistantService;
   agent: AgentService;
+  aiData: AiData;
 }
 
 let services: Services | undefined;
@@ -73,6 +75,7 @@ export function getServices(): Services {
       },
     });
     const ai = claudeClient();
+    const aiData = new AiData({ store, now, newId });
     const convert = new ConvertService({
       store,
       now,
@@ -93,13 +96,15 @@ export function getServices(): Services {
         notify,
       }),
       convert,
-      assistant: new AssistantService({ store, now, ai }),
+      aiData,
+      assistant: new AssistantService({ store, now, ai, examples: aiData }),
       agent: new AgentService({
         store,
         now,
         newId,
         ai,
         notify,
+        examples: aiData,
         // The agent saves into dollars by buying USDC at the current quoted rate.
         buyUsdc: async (uid, amountKobo) => {
           const quote = await convert.quote(uid, {

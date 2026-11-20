@@ -184,6 +184,10 @@ describe('AgentService', () => {
       question: 'I can only save into dollars for now.',
     });
     const result = await odd.service.draft('ada', { text: 'buy me stocks', language: 'en' });
-    expect(result).toEqual({ draft: null, question: 'I can only save into dollars for now.' });
+    expect(result).toEqual({
+      draft: null,
+      question: 'I can only save into dollars for now.',
+      exampleId: null,
+    });
   });
 });

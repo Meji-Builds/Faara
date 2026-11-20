@@ -4,6 +4,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemeOption } from '@/components/settings/ThemeOption';
 import { AppText, BackButton, Card, ListRow, Screen, Toggle } from '@/components/ui';
+import { ASSISTANT_ENABLED } from '@/config/features';
+import { useAiConsent } from '@/features/assistant';
 import { usePreferences, type HumVolume, type Preferences } from '@/features/preferences';
 import { useTheme, type ThemePreference } from '@/theme';
 
@@ -21,6 +23,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { preference, setPreference } = useTheme();
   const { preferences, setPreference: setAppPreference } = usePreferences();
+  const aiConsent = useAiConsent();
 
   const toggle = (key: ToggleKey, label: string) => (
     <Toggle
@@ -93,6 +96,28 @@ export default function SettingsScreen() {
         </View>
       </Section>
 
+      {ASSISTANT_ENABLED ? (
+        <Section title="Faara AI">
+          <Card divided>
+            <ListRow
+              label="Help improve Faara’s AI"
+              trailing={
+                <Toggle
+                  value={aiConsent.consent === true}
+                  onValueChange={(value) => void aiConsent.choose(value).catch(() => undefined)}
+                  accessibilityLabel="Help improve Faara’s AI"
+                />
+              }
+            />
+          </Card>
+          <AppText variant="caption" color="textMuted" style={styles.caption}>
+            Keeps what you ask Faara, with names, numbers, accounts and links removed, to train its
+            own AI. Never screenshots, never tied to your account. Turning this off deletes what was
+            kept.
+          </AppText>
+        </Section>
+      ) : null}
+
       <Section title="Notifications">
         <Card divided>
           <ListRow
@@ -137,4 +162,5 @@ const styles = StyleSheet.create({
   section: { marginTop: 24 },
   sectionTitle: { marginBottom: 10 },
   themeRow: { flexDirection: 'row', gap: 12 },
+  caption: { marginTop: 8 },
 });

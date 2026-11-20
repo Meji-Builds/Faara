@@ -4,10 +4,10 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import type { AssistantIntent } from '@shared/ai';
 
-import { LanguagePicker, MicButton } from '@/components/assistant';
+import { AiConsentCard, AnswerFeedback, LanguagePicker, MicButton } from '@/components/assistant';
 import { AppText, Button, Card, Header, Screen, TextField } from '@/components/ui';
 import { useNairaBalance } from '@/features/account';
-import { askAssistant, useAssistantLanguage, useSpeech } from '@/features/assistant';
+import { askAssistant, useAiConsent, useAssistantLanguage, useSpeech } from '@/features/assistant';
 import { formatMinor } from '@/features/convert';
 import { useWalletUsdc } from '@/features/usdc/useWalletUsdc';
 import { friendlyError } from '@/lib/errors';
@@ -31,6 +31,7 @@ export default function AssistantScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AssistantIntent | null>(null);
+  const aiConsent = useAiConsent();
   const naira = useNairaBalance();
   const usdcCents = useWalletUsdc().cents;
 
@@ -132,6 +133,11 @@ export default function AssistantScreen() {
     >
       <Header center={<AppText variant="subheading">Ask Faara</AppText>} />
       <View style={styles.body}>
+        {aiConsent.consent === null ? (
+          <AiConsentCard
+            onChoose={(value) => void aiConsent.choose(value).catch(() => undefined)}
+          />
+        ) : null}
         <LanguagePicker value={language} onChange={setLanguage} />
 
         <MicButton
@@ -169,6 +175,7 @@ export default function AssistantScreen() {
                 {usdcCents === null ? '' : ` · ${formatMinor(usdcCents, 'USDC')}`}
               </AppText>
             ) : null}
+            {result.exampleId ? <AnswerFeedback exampleId={result.exampleId} tone="brand" /> : null}
           </Card>
         ) : !text ? (
           <View style={styles.examples}>

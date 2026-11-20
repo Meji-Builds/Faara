@@ -6,7 +6,10 @@ import {
   type AssistantLanguage,
   type MoneyRule,
   type RuleDraft,
+  redact,
 } from '../../shared/ai';
+
+import type { AiData } from './aiData';
 
 import { objectSchema, type AiClient } from './claude';
 import { ApiError } from './errors';
@@ -27,6 +30,8 @@ export interface AgentDeps {
   ai: AiClient;
   buyUsdc: BuyUsdc;
   notify?: (uid: string, message: PushMessage) => Promise<void>;
+  /** Keeps examples (only with the person's permission) to train Faara's own models. */
+  examples?: AiData;
 }
 
 interface AgentDoc {
@@ -77,6 +82,21 @@ export class AgentService {
 
   /** Turns a sentence into a rule for the person to approve. Nothing is saved yet. */
   async draft(
+    uid: string,
+    request: { text: string; language: AssistantLanguage },
+  ): Promise<{ draft: RuleDraft | null; question: string; exampleId: string | null }> {
+    const result = await this.understand(uid, request);
+    const exampleId =
+      (await this.deps.examples?.record(uid, {
+        task: 'rule',
+        language: request.language,
+        input: redact(request.text),
+        output: result.draft ? { ...result.draft } : { unsupported: true },
+      })) ?? null;
+    return { ...result, exampleId };
+  }
+
+  private async understand(
     uid: string,
     request: { text: string; language: AssistantLanguage },
   ): Promise<{ draft: RuleDraft | null; question: string }> {

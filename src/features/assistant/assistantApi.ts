@@ -28,10 +28,13 @@ export function checkForScam(
 }
 
 export function draftRule(text: string, language: AssistantLanguage) {
-  return postJson<{ draft: RuleDraft | null; question: string }>('/api/ai/draft', {
-    text,
-    language,
-  });
+  return postJson<{ draft: RuleDraft | null; question: string; exampleId: string | null }>(
+    '/api/ai/draft',
+    {
+      text,
+      language,
+    },
+  );
 }
 
 export function getRules() {
@@ -48,4 +51,17 @@ export function removeRule(id: string) {
 
 export function runMoneyAgent() {
   return postJson<{ actions: AgentLogEntry[] }>('/api/ai/run', {});
+}
+
+/** The person's choice about helping improve Faara's AI (null if never asked). */
+export function getAiConsent() {
+  return postJson<{ consent: boolean | null }>('/api/ai/consent', {});
+}
+
+export function setAiConsent(consent: boolean) {
+  return postJson<{ consent: boolean; deleted: number }>('/api/ai/consent', { consent });
+}
+
+export function sendAnswerFeedback(exampleId: string, good: boolean) {
+  return postJson<{ ok: true }>('/api/ai/feedback', { exampleId, good });
 }

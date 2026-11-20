@@ -64,6 +64,14 @@ service cloud.firestore {
       }
     }
 
+    // AI training examples (anonymised, opt-in) and each person's choice: server-only.
+    match /aiExamples/{id} {
+      allow read, write: if false;
+    }
+    match /aiConsent/{uid} {
+      allow read, write: if false;
+    }
+
     // Money agent rules: changed only through the server, after the person approves.
     match /moneyAgents/{uid} {
       allow read, write: if false;
