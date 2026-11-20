@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { Bot, Trash2 } from 'lucide-react-native';
+import { Trash2 } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
@@ -138,12 +138,9 @@ export default function AgentScreen() {
       <Header center={<AppText variant="subheading">Money agent</AppText>} />
       <View style={styles.body}>
         <Card tone="brand" padded style={styles.intro}>
-          <View style={styles.introTop}>
-            <Bot size={20} color={colors.onBrandMuted} strokeWidth={1.75} />
-            <AppText variant="overline" color="onBrandMuted">
-              SAVES IN DOLLARS FOR YOU
-            </AppText>
-          </View>
+          <AppText variant="overline" color="onBrandMuted">
+            SAVES IN DOLLARS FOR YOU
+          </AppText>
           <AppText color="onBrand">
             Tell Faara how you want to save. It moves naira into USDC on its own, exactly as you
             approved, and tells you each time.
@@ -245,7 +242,6 @@ export default function AgentScreen() {
 const styles = StyleSheet.create({
   body: { gap: 18, marginTop: 16, paddingBottom: 24 },
   intro: { gap: 8 },
-  introTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   draft: { gap: 8 },
   section: { marginBottom: 6 },
   rule: {
