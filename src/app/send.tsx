@@ -3,11 +3,14 @@ import { Download, UserRound } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import type { PaymentCheck } from '@shared/ai';
 import { nationalPhone, type CreateTransferResponse, type LookupUserResponse } from '@shared/hum';
 
 import { SuccessBurst } from '@/components/brand';
 import { CountUp, Reveal } from '@/components/motion';
+import { RiskBanner } from '@/components/assistant';
 import { ApprovalFooter, PaymentDetails, PaymentHeader } from '@/components/payments';
+import { checkPayment } from '@/features/assistant';
 import {
   AppText,
   Avatar,
@@ -62,12 +65,16 @@ export default function SendScreen() {
   const naira = useNairaBalance();
   const usdc = useUsdcBalance().value;
 
-  const { to } = useLocalSearchParams<{ to?: string }>();
-  const [recipientInput, setRecipientInput] = useState(to ?? '');
+  const params = useLocalSearchParams<{ to?: string; amount?: string; note?: string }>();
+  const [recipientInput, setRecipientInput] = useState(params.to ?? '');
   const [lookup, setLookup] = useState<Lookup>({ state: 'idle' });
   const [currency, setCurrency] = useState<Currency>('NGN');
-  const [amountText, setAmountText] = useState('');
-  const [note, setNote] = useState('');
+  // Ask Faara can fill these in; the person still reviews and approves.
+  const [amountText, setAmountText] = useState(
+    params.amount && /^\d+(\.\d{1,2})?$/.test(params.amount) ? params.amount : '',
+  );
+  const [note, setNote] = useState((params.note ?? '').slice(0, 100));
+  const [risk, setRisk] = useState<PaymentCheck | null>(null);
   const [transfer, setTransfer] = useState<CreateTransferResponse | null>(null);
   const [claim, setClaim] = useState<HumClaim | null>(null);
   const [settlement, setSettlement] = useState<Settlement | null>(null);
@@ -156,8 +163,16 @@ export default function SendScreen() {
     if (!recipient || amount === null) return;
     setBusy(true);
     setError(null);
+    setRisk(null);
     try {
       setTransfer(await createTransfer(recipient.username, amount, currency, note.trim()));
+      // The scam guard looks at the payment while it is being reviewed. It only advises:
+      // a failed check never blocks paying.
+      if (currency === 'NGN') {
+        checkPayment(recipient.username, Math.round(amount * 100), note.trim())
+          .then(setRisk)
+          .catch(() => undefined);
+      }
     } catch (cause) {
       setError(apiErrorMessage(cause));
     } finally {
@@ -265,6 +280,9 @@ export default function SendScreen() {
         <AppText variant="label" color="textMuted" align="center" style={styles.username}>
           @{transfer.recipient.username}
         </AppText>
+        {risk && risk.level !== 'ok' ? (
+          <RiskBanner level={risk.level} title={risk.title} reason={risk.reason} />
+        ) : null}
         <PaymentDetails safety={claim?.safety ?? null} style={styles.details} />
       </Screen>
     );
@@ -298,7 +316,7 @@ export default function SendScreen() {
           placeholder="Username or phone number"
           autoCapitalize="none"
           autoCorrect={false}
-          autoFocus={!to}
+          autoFocus={!params.to}
           accessibilityLabel="Username or phone number"
         />
         <RecipientPreview lookup={lookup} lookupKey={lookupKey} isSelf={isSelf} colors={colors} />

@@ -1,5 +1,5 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useEffect, useRef } from 'react';
+import { Component, useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Button } from '@/components/ui';
@@ -10,8 +10,43 @@ interface QrScannerProps {
   onScan: (data: string) => boolean;
 }
 
-/** A camera view that reads QR codes. Works with no network. */
+/** Shows a message instead of closing the app if the camera fails. */
+class CameraBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  override render() {
+    return this.state.failed ? (
+      <View style={styles.message}>
+        <AppText color="textMuted" align="center">
+          The camera couldn’t start. Close other apps using it and try again.
+        </AppText>
+      </View>
+    ) : (
+      this.props.children
+    );
+  }
+}
+
+/** A camera view that reads QR codes. Works with no network. The camera starts on a tap. */
 export function QrScanner({ onScan }: QrScannerProps) {
+  const [started, setStarted] = useState(false);
+  if (!started) {
+    return (
+      <View style={styles.message}>
+        <Button label="Start camera" onPress={() => setStarted(true)} />
+      </View>
+    );
+  }
+  return (
+    <CameraBoundary>
+      <Scanner onScan={onScan} />
+    </CameraBoundary>
+  );
+}
+
+function Scanner({ onScan }: QrScannerProps) {
   const { colors } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const done = useRef(false);

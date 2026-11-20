@@ -43,6 +43,8 @@ export const RATE_LIMITS = {
   convert: 20,
   offline: 20,
   withdraw: 10,
+  assistant: 20,
+  agent: 20,
 } as const;
 export type RateLimitedAction = keyof typeof RATE_LIMITS;
 

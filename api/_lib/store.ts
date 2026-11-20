@@ -14,6 +14,14 @@ export interface DocumentStore {
   transaction<R>(fn: (tx: StoreTransaction) => Promise<R>): Promise<R>;
   /** The id of the first document in `collection` whose `field` equals `value`. */
   findId(collection: string, field: string, value: string): Promise<string | undefined>;
+  /**
+   * Up to `limit` documents of a collection, newest first by the numeric field `orderBy`,
+   * optionally only those whose `orderBy` is greater than `after`. Not transactional.
+   */
+  list<T extends object>(
+    collection: string,
+    options: { orderBy: string; limit: number; after?: number },
+  ): Promise<{ id: string; data: T }[]>;
 }
 
 /** In-memory store for tests. Transactions run one at a time and commit atomically. */
@@ -33,6 +41,20 @@ export class MemoryStore implements DocumentStore {
         return id;
     }
     return undefined;
+  }
+
+  async list<T extends object>(
+    collection: string,
+    options: { orderBy: string; limit: number; after?: number },
+  ): Promise<{ id: string; data: T }[]> {
+    const depth = collection.split('/').length + 1;
+    const value = (doc: object) => Number((doc as Record<string, unknown>)[options.orderBy] ?? 0);
+    return [...this.docs]
+      .filter(([path]) => path.startsWith(`${collection}/`) && path.split('/').length === depth)
+      .filter(([, doc]) => options.after === undefined || value(doc) > options.after)
+      .sort(([, a], [, b]) => value(b) - value(a))
+      .slice(0, options.limit)
+      .map(([path, doc]) => ({ id: path.split('/').pop() ?? '', data: structuredClone(doc) as T }));
   }
 
   transaction<R>(fn: (tx: StoreTransaction) => Promise<R>): Promise<R> {

@@ -210,17 +210,67 @@ export interface OfflineRequest {
 
 const QR_PREFIX = { request: 'FAARA-OFF1-R:', note: 'FAARA-OFF1-N:' } as const;
 
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+/** UTF-8 bytes of a string. Written out so it runs the same on every phone and server. */
+function utf8Encode(text: string): number[] {
+  const bytes: number[] = [];
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code < 0x80) bytes.push(code);
+    else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63));
+    else if (code < 0x10000)
+      bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));
+    else
+      bytes.push(
+        0xf0 | (code >> 18),
+        0x80 | ((code >> 12) & 63),
+        0x80 | ((code >> 6) & 63),
+        0x80 | (code & 63),
+      );
+  }
+  return bytes;
+}
+
+function utf8Decode(bytes: number[]): string {
+  let text = '';
+  for (let i = 0; i < bytes.length;) {
+    const byte = bytes[i] ?? 0;
+    const extra = byte >= 0xf0 ? 3 : byte >= 0xe0 ? 2 : byte >= 0xc0 ? 1 : 0;
+    let code = extra === 0 ? byte : byte & (0x3f >> extra);
+    for (let k = 1; k <= extra; k++) code = (code << 6) | ((bytes[i + k] ?? 0) & 63);
+    text += String.fromCodePoint(code);
+    i += extra + 1;
+  }
+  return text;
+}
+
 function toBase64Url(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const bytes = utf8Encode(text);
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const n = ((bytes[i] ?? 0) << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
+    const chars = Math.min(4, Math.ceil(((bytes.length - i) * 8) / 6));
+    for (let k = 0; k < chars; k++) out += B64[(n >> (18 - 6 * k)) & 63];
+  }
+  return out;
 }
 
 function fromBase64Url(text: string): string {
-  const padded = text.replace(/-/g, '+').replace(/_/g, '/');
-  const binary = atob(padded + '='.repeat((4 - (padded.length % 4)) % 4));
-  return new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
+  const bytes: number[] = [];
+  let buffer = 0;
+  let bits = 0;
+  for (const char of text) {
+    const value = B64.indexOf(char);
+    if (value < 0) throw new Error('Not base64url');
+    buffer = (buffer << 6) | value;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes.push((buffer >> bits) & 0xff);
+    }
+  }
+  return utf8Decode(bytes);
 }
 
 function decodeQr(prefix: string, data: string): unknown {

@@ -1,3 +1,5 @@
+import { Buffer } from 'buffer';
+
 import {
   decodeOfflineRequest,
   decodeSignedNote,
@@ -37,6 +39,16 @@ describe('offline QR codes', () => {
   it('round-trips a request, names included', () => {
     const request = { uid: 'tolu', name: 'Tolú Adébáyọ̀', nonce: 'abc123', amountKobo: 0 };
     expect(decodeOfflineRequest(encodeOfflineRequest(request))).toEqual(request);
+  });
+
+  it('encodes exactly like standard base64url, for any name', () => {
+    for (const name of ['A', 'Ab', 'Abc', 'Ọlá', 'Chidi 🙌🏾', 'Ẹ̀gbọ́n ìyá']) {
+      const request = { uid: 'u1', name, nonce: 'n', amountKobo: 0 };
+      const code = encodeOfflineRequest(request);
+      const expected = Buffer.from(JSON.stringify(request)).toString('base64url');
+      expect(code.slice(code.indexOf(':') + 1)).toBe(expected);
+      expect(decodeOfflineRequest(code)).toEqual(request);
+    }
   });
 
   it('round-trips a signed payment', () => {

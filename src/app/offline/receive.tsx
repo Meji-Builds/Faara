@@ -7,7 +7,7 @@ import { encodeOfflineRequest, readPaymentQr, type OfflineRequest } from '@share
 import { SuccessBurst } from '@/components/brand';
 import { QrScanner, ShowCode } from '@/components/offline';
 import { AppText, Button, Header, Screen, TextField } from '@/components/ui';
-import { useAuth, useProfile } from '@/features/auth';
+import { useAuth } from '@/features/auth';
 import { randomId, receiveOffline, updateLedger, useLedger } from '@/features/offline';
 import { formatMoney, groupDigits } from '@/lib/money';
 import { haptics } from '@/lib/haptics';
@@ -23,8 +23,8 @@ const naira = (kobo: number) => formatMoney(kobo / 100, 'NGN');
 /** Get paid with no network: show a request code, then scan the payer's payment. */
 export default function ReceiveOfflineScreen() {
   const router = useRouter();
-  const { user } = useAuth();
-  const profile = useProfile();
+  const { user, profile } = useAuth();
+  const myName = profile?.fullName ?? 'A Faara user';
   const uid = user?.uid ?? '';
   const ledger = useLedger(uid);
   const [step, setStep] = useState<Step>({ kind: 'amount' });
@@ -145,7 +145,7 @@ export default function ReceiveOfflineScreen() {
           onPress={() =>
             setStep({
               kind: 'request',
-              request: { uid, name: profile.fullName, nonce: randomId('N'), amountKobo },
+              request: { uid, name: myName, nonce: randomId('N'), amountKobo },
             })
           }
         />

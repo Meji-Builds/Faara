@@ -78,6 +78,20 @@
         {
           "color": "#14E0C1"
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Faara uses the microphone to hear payment hums and what you ask it to do.",
+          "speechRecognitionPermission": "Faara turns what you say into text so it can fill in payments for you to approve.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Faara reads a screenshot you choose to check whether it is a scam."
+        }
       ]
     ],
     "experiments": {

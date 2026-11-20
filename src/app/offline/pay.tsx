@@ -5,9 +5,10 @@ import { StyleSheet, View } from 'react-native';
 import { decodeOfflineRequest, encodeSignedNote, type OfflineRequest } from '@shared/offline';
 
 import { SuccessBurst } from '@/components/brand';
-import { Approve, QrScanner, ShowCode } from '@/components/offline';
+import { QrScanner, ShowCode } from '@/components/offline';
+import { Approve } from '@/components/security/Approve';
 import { AppText, Button, Header, Screen, TextField } from '@/components/ui';
-import { useAuth, useProfile } from '@/features/auth';
+import { useAuth } from '@/features/auth';
 import { maxPayment, payOffline, randomId, updateLedger, useLedger } from '@/features/offline';
 import { formatMoney, groupDigits } from '@/lib/money';
 import { haptics } from '@/lib/haptics';
@@ -23,8 +24,8 @@ const naira = (kobo: number) => formatMoney(kobo / 100, 'NGN');
 /** Pay someone with no network: scan their request, approve, then show them the payment. */
 export default function PayOfflineScreen() {
   const router = useRouter();
-  const { user } = useAuth();
-  const profile = useProfile();
+  const { user, profile } = useAuth();
+  const myName = profile?.fullName ?? 'A Faara user';
   const uid = user?.uid ?? '';
   const ledger = useLedger(uid);
   const [step, setStep] = useState<Step>({ kind: 'scan' });
@@ -91,7 +92,7 @@ export default function PayOfflineScreen() {
                 kind: 'show',
                 request,
                 amountKobo,
-                code: encodeSignedNote(note, profile.fullName),
+                code: encodeSignedNote(note, myName),
               });
             }}
           />

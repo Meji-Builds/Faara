@@ -1,5 +1,5 @@
 import { useIsFocused, useRouter } from 'expo-router';
-import { ArrowDownUp, ArrowLeft, ArrowRight, Bell, Plus } from 'lucide-react-native';
+import { ArrowDownUp, ArrowLeft, ArrowRight, Bell, Mic, Plus } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
@@ -10,7 +10,7 @@ import { ActivityList } from '@/components/wallet/ActivityList';
 import { BalanceCard } from '@/components/wallet/BalanceCard';
 import { QuickAction } from '@/components/wallet/QuickAction';
 import { useActivity, useNairaBalance, useUsdcBalance } from '@/features/account';
-import { CONVERT_ENABLED } from '@/config/features';
+import { ASSISTANT_ENABLED, CONVERT_ENABLED } from '@/config/features';
 import { useProfile } from '@/features/auth';
 import { useWalletUsdc } from '@/features/usdc/useWalletUsdc';
 import { useAmbientReceive } from '@/features/hum';
@@ -22,7 +22,7 @@ import { greeting } from '@/lib/greeting';
 import { useAppActive } from '@/lib/useAppActive';
 import { initials } from '@/lib/money';
 import { faaraNumber } from '@/lib/phone';
-import { palette, useTheme } from '@/theme';
+import { palette, radii, useTheme } from '@/theme';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -141,6 +141,25 @@ export default function HomeScreen() {
         ) : null}
       </View>
 
+      {ASSISTANT_ENABLED ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Ask Faara"
+          onPress={() => router.push('/assistant')}
+          style={[styles.ask, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        >
+          <View style={[styles.askMic, { backgroundColor: colors.accent }]}>
+            <Mic size={18} color={palette.nearBlack} strokeWidth={1.75} />
+          </View>
+          <View style={styles.askText}>
+            <AppText variant="bodyStrong">Ask Faara</AppText>
+            <AppText variant="label" color="textMuted" numberOfLines={1}>
+              “Send Tolu 5k” · Pidgin, Yorùbá, Hausa, Igbo
+            </AppText>
+          </View>
+        </Pressable>
+      ) : null}
+
       <View style={styles.sectionHeader}>
         <AppText variant="heading">Recent</AppText>
         <AppText
@@ -166,6 +185,23 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8, marginBottom: 18 },
   greeting: { flex: 1 },
   actions: { flexDirection: 'row', marginTop: 20, marginBottom: 8 },
+  ask: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    marginTop: 8,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+  },
+  askMic: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  askText: { flex: 1, gap: 2 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

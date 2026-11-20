@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "main": "index.ts",
   "dependencies": {
+    "@anthropic-ai/sdk": "~1.6.0",
     "@circle-fin/developer-controlled-wallets": "^10.8.1",
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
     "@expo-google-fonts/inter": "^0.4.2",
@@ -25,6 +26,7 @@
     "expo-font": "~58.0.12",
     "expo-haptics": "~58.0.8",
     "expo-image-manipulator": "~58.0.16",
+    "expo-image-picker": "~58.0.9",
     "expo-linking": "~58.0.17",
     "expo-local-authentication": "~58.0.3",
     "expo-notifications": "~58.1.9",
@@ -32,6 +34,7 @@
     "expo-router": "~58.0.31",
     "expo-secure-store": "~58.0.3",
     "expo-sharing": "~58.0.23",
+    "expo-speech-recognition": "^58.0.1",
     "expo-splash-screen": "~58.0.14",
     "expo-status-bar": "~58.0.5",
     "expo-system-ui": "~58.0.7",

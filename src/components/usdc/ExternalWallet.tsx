@@ -4,7 +4,7 @@ import { Linking, StyleSheet, View } from 'react-native';
 
 import { SOLANA_ADDRESS_PATTERN, explorerTxUrl } from '@shared/solana';
 
-import { Approve } from '@/components/offline';
+import { Approve } from '@/components/security/Approve';
 import { AppText, Button, Card, TextField } from '@/components/ui';
 import { useAuth } from '@/features/auth';
 import { randomId } from '@/features/offline';

@@ -2,6 +2,9 @@ import { randomBytes, randomInt } from 'node:crypto';
 
 import { ValidationError, type ApiErrorBody } from '../../shared/hum';
 
+import { AgentService } from './agentService';
+import { AssistantService } from './assistantService';
+import { claudeClient } from './claude';
 import { ApiError } from './errors';
 import { adminDb, firestoreStore, verifyIdToken } from './firebaseAdmin';
 import { CircleWallets, type WalletClient } from './circleWallets';
@@ -34,6 +37,8 @@ interface Services {
   convert: ConvertService;
   offline: OfflineService;
   circle: CircleWallets;
+  assistant: AssistantService;
+  agent: AgentService;
 }
 
 let services: Services | undefined;
@@ -67,6 +72,15 @@ export function getServices(): Services {
         return file ?? null;
       },
     });
+    const ai = claudeClient();
+    const convert = new ConvertService({
+      store,
+      now,
+      newId,
+      // Mock rate until an exchange partner is connected.
+      exchange: new MockExchange(Number(process.env.MOCK_NGN_PER_USD ?? 1550), now),
+      usdc: circle.configured ? circle : undefined,
+    });
     services = {
       hum: new HumService({
         store,
@@ -78,13 +92,23 @@ export function getServices(): Services {
         walletRisk: fetchWalletRisk,
         notify,
       }),
-      convert: new ConvertService({
+      convert,
+      assistant: new AssistantService({ store, now, ai }),
+      agent: new AgentService({
         store,
         now,
         newId,
-        // Mock rate until an exchange partner is connected.
-        exchange: new MockExchange(Number(process.env.MOCK_NGN_PER_USD ?? 1550), now),
-        usdc: circle.configured ? circle : undefined,
+        ai,
+        notify,
+        // The agent saves into dollars by buying USDC at the current quoted rate.
+        buyUsdc: async (uid, amountKobo) => {
+          const quote = await convert.quote(uid, {
+            from: 'NGN',
+            to: 'USDC',
+            amount: amountKobo / 100,
+          });
+          return { status: (await convert.execute(uid, quote.id)).status };
+        },
       }),
       offline: new OfflineService({
         store,

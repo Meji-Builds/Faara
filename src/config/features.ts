@@ -9,3 +9,6 @@ export const CONVERT_ENABLED = true;
 
 /** Paying and being paid with no network, from a pocket of naira set aside on the phone. */
 export const OFFLINE_ENABLED = true;
+
+/** Ask Faara (voice and text), the scam guard and the money agent. */
+export const ASSISTANT_ENABLED = true;

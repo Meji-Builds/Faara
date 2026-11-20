@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowDownUp } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
@@ -35,9 +35,17 @@ export default function ConvertScreen() {
   const { colors } = useTheme();
   const balances = useBalances();
   const wallet = useWalletUsdc();
-  const [from, setFrom] = useState<ConvertCurrency>('NGN');
-  const [to, setTo] = useState<ConvertCurrency>('USDC');
-  const [amountText, setAmountText] = useState('');
+  // Ask Faara can open this with the direction and amount filled in.
+  const params = useLocalSearchParams<{ from?: string; amount?: string }>();
+  const startFrom: ConvertCurrency = params.from === 'USDC' ? 'USDC' : 'NGN';
+  const [from, setFrom] = useState<ConvertCurrency>(startFrom);
+  const [to, setTo] = useState<ConvertCurrency>(startFrom === 'NGN' ? 'USDC' : 'NGN');
+  const [amountText, setAmountText] = useState(() => {
+    const amount = Number(params.amount);
+    if (!params.amount || !Number.isFinite(amount) || amount <= 0) return '';
+    const [whole = '', fraction] = amount.toFixed(2).replace(/\.00$/, '').split('.');
+    return fraction ? `${groupDigits(whole)}.${fraction}` : groupDigits(whole);
+  });
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [busy, setBusy] = useState(false);

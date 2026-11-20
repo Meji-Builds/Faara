@@ -15,18 +15,20 @@ import { SplashScreen, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import * as SystemUI from 'expo-system-ui';
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LaunchScreen } from '@/components/brand';
 import { ErrorScreen } from '@/components/ui';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
-import { OFFLINE_ENABLED } from '@/config/features';
+import { ASSISTANT_ENABLED, OFFLINE_ENABLED } from '@/config/features';
 import { AuthProvider, useAuth } from '@/features/auth';
 import { IncomingBanner } from '@/components/notifications/IncomingBanner';
 import { LockScreen } from '@/components/security/LockScreen';
 import { NotificationsProvider } from '@/features/notifications';
+import { useMoneyAgentRun } from '@/features/assistant';
 import { useOfflineSync } from '@/features/offline';
+import { takeLastCrash } from '@/lib/crashLog';
 import { PreferencesProvider, usePreferences } from '@/features/preferences';
 import { useWallet, WalletProvider } from '@/features/wallet';
 import { ThemeProvider, useTheme } from '@/theme';
@@ -88,6 +90,12 @@ function OfflineSync() {
   return null;
 }
 
+/** Lets the money agent catch up whenever the app is opened. */
+function MoneyAgentRunner() {
+  useMoneyAgentRun(true);
+  return null;
+}
+
 function RootStack({ onReady }: { onReady: () => void }) {
   const { colors } = useTheme();
   const router = useRouter();
@@ -107,6 +115,18 @@ function RootStack({ onReady }: { onReady: () => void }) {
   const [restored, setRestored] = useState(false);
   const restoring = !restored && loading;
   if (!restored && !loading) setRestored(true);
+
+  // If the app closed on an error last time, say why, so it can be reported.
+  useEffect(() => {
+    void takeLastCrash().then((text) => {
+      if (text) {
+        Alert.alert(
+          'Faara closed unexpectedly last time',
+          `Please take a screenshot of this and send it to support.\n\n${text}`,
+        );
+      }
+    });
+  }, []);
 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(colors.background).catch(() => undefined);
@@ -158,7 +178,12 @@ function RootStack({ onReady }: { onReady: () => void }) {
           <Stack.Screen name="add-money" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="send" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="receipt/[paymentId]" />
-          <Stack.Screen name="offline" />
+          <Stack.Screen name="offline/index" />
+          <Stack.Screen name="offline/pay" />
+          <Stack.Screen name="offline/receive" />
+          <Stack.Screen name="assistant" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="scam-check" />
+          <Stack.Screen name="agent" />
         </Stack.Protected>
         <Stack.Screen name="pay/[username]" options={{ animation: 'none' }} />
         <Stack.Screen name="lab/sound" />
@@ -166,6 +191,7 @@ function RootStack({ onReady }: { onReady: () => void }) {
       </Stack>
       {walletReady && !showLock ? <IncomingBanner /> : null}
       {walletReady && OFFLINE_ENABLED ? <OfflineSync /> : null}
+      {walletReady && ASSISTANT_ENABLED ? <MoneyAgentRunner /> : null}
       <OfflineBanner
         onPress={walletReady && OFFLINE_ENABLED ? () => router.push('/offline') : undefined}
       />

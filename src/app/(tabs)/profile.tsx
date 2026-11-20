@@ -5,7 +5,12 @@ import { Platform, Share, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { AppText, Avatar, Button, Card, IconButton, ListRow, Screen } from '@/components/ui';
-import { CONVERT_ENABLED, DOLLARS_ENABLED, OFFLINE_ENABLED } from '@/config/features';
+import {
+  ASSISTANT_ENABLED,
+  CONVERT_ENABLED,
+  DOLLARS_ENABLED,
+  OFFLINE_ENABLED,
+} from '@/config/features';
 import { useAuth, useProfile } from '@/features/auth';
 import { payLink } from '@/lib/links';
 import { initials } from '@/lib/money';
@@ -88,6 +93,12 @@ export default function ProfileScreen() {
         />
         {CONVERT_ENABLED ? (
           <ListRow label="USDC wallet" onPress={() => router.push('/usdc-wallet')} />
+        ) : null}
+        {ASSISTANT_ENABLED ? (
+          <>
+            <ListRow label="Money agent" onPress={() => router.push('/agent')} />
+            <ListRow label="Is this a scam?" onPress={() => router.push('/scam-check')} />
+          </>
         ) : null}
         {OFFLINE_ENABLED ? (
           <ListRow label="Offline payments" onPress={() => router.push('/offline')} />

@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { OFFLINE_LIMITS } from '@shared/offline';
 
-import { Approve } from '@/components/offline';
+import { Approve } from '@/components/security/Approve';
 import { AppText, Button, Card, Header, ListRow, Screen, TextField } from '@/components/ui';
 import { useAuth } from '@/features/auth';
 import {
