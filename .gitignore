@@ -41,7 +41,8 @@ yarn-error.*
 /android
 
 # EAS
-.eas/
+.eas/*
+!.eas/workflows/
 
 # Native type-check cache
 .cache/

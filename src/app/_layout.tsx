@@ -29,6 +29,7 @@ import { NotificationsProvider } from '@/features/notifications';
 import { useMoneyAgentRun } from '@/features/assistant';
 import { useOfflineSync } from '@/features/offline';
 import { takeLastCrash } from '@/lib/crashLog';
+import { useAppUpdate } from '@/lib/useAppUpdate';
 import { PreferencesProvider, usePreferences } from '@/features/preferences';
 import { useWallet, WalletProvider } from '@/features/wallet';
 import { ThemeProvider, useTheme } from '@/theme';
@@ -115,6 +116,8 @@ function RootStack({ onReady }: { onReady: () => void }) {
   const [restored, setRestored] = useState(false);
   const restoring = !restored && loading;
   if (!restored && !loading) setRestored(true);
+
+  useAppUpdate();
 
   // If the app closed on an error last time, say why, so it can be reported.
   useEffect(() => {
