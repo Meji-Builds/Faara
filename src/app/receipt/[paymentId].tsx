@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ReceiptText } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet } from 'react-native';
@@ -6,7 +6,7 @@ import { ActivityIndicator, StyleSheet } from 'react-native';
 import type { ActivityEntry } from '@shared/hum';
 
 import { ReceiptActions, ReceiptView } from '@/components/payments';
-import { AppText, EmptyState, Header, Screen } from '@/components/ui';
+import { AppText, Button, EmptyState, Header, Screen } from '@/components/ui';
 import { watchActivityEntry } from '@/features/account';
 import { useAuth } from '@/features/auth';
 import { receiptFromActivity } from '@/features/receipts';
@@ -15,6 +15,7 @@ import { useTheme } from '@/theme';
 
 /** Receipt for one settled payment, shareable as an image or PDF. */
 export default function ReceiptScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const { user } = useAuth();
   const { paymentId } = useLocalSearchParams<{ paymentId: string }>();
@@ -54,6 +55,11 @@ export default function ReceiptScreen() {
     <Screen footer={<ReceiptActions receipt={receipt} captureRef={captureRef} />}>
       {header}
       <ReceiptView receipt={receipt} captureRef={captureRef} />
+      <Button
+        label="Report a problem with this payment"
+        variant="text"
+        onPress={() => router.push({ pathname: '/support/new', params: { paymentId } })}
+      />
     </Screen>
   );
 }

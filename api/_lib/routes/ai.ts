@@ -52,6 +52,7 @@ export const remove = authedRoute(parseRuleId, async ({ uid, services }, request
 export const run = authedRoute(
   () => ({}),
   async ({ uid, services }) => ({ actions: await services.agent.runNow(uid) }),
+  { movesMoney: true },
 );
 
 /**

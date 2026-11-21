@@ -12,6 +12,8 @@ import {
   OFFLINE_ENABLED,
 } from '@/config/features';
 import { useAuth, useProfile } from '@/features/auth';
+import { useIsAdmin } from '@/features/admin';
+import { useVendorStatus } from '@/features/vendors';
 import { payLink } from '@/lib/links';
 import { initials } from '@/lib/money';
 import { maskPhone, normalizePhoneInput } from '@/lib/phone';
@@ -22,6 +24,8 @@ export default function ProfileScreen() {
   const { colors } = useTheme();
   const { signOut } = useAuth();
   const profile = useProfile();
+  const vendor = useVendorStatus();
+  const isAdmin = useIsAdmin();
 
   const invite = async () => {
     const message = `Pay me on Faara: ${payLink(profile.username)}`;
@@ -94,6 +98,18 @@ export default function ProfileScreen() {
         {CONVERT_ENABLED ? (
           <ListRow label="USDC wallet" onPress={() => router.push('/usdc-wallet')} />
         ) : null}
+        <ListRow
+          label={vendor.status?.vendor ? 'Vendor dashboard' : 'Become a vendor'}
+          value={
+            vendor.status?.vendor
+              ? vendor.status.vendor.businessName
+              : vendor.status?.application?.status === 'pending'
+                ? 'In review'
+                : undefined
+          }
+          onPress={() => router.push('/vendor')}
+        />
+        {isAdmin ? <ListRow label="Admin" onPress={() => router.push('/admin')} /> : null}
         {ASSISTANT_ENABLED ? (
           <>
             <ListRow label="Money agent" onPress={() => router.push('/agent')} />

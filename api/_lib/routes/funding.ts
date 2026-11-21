@@ -16,12 +16,15 @@ function webReturnUrl(http: Request): string {
 }
 
 /** POST /api/funding/initialize: start a naira top-up and get the checkout link. */
-export const initialize = authedRoute(parseInitializeFunding, ({ uid, services, http }, request) =>
-  services.funding.initialize(
-    uid,
-    request.amount,
-    request.platform === 'native' ? NATIVE_RETURN_URL : webReturnUrl(http),
-  ),
+export const initialize = authedRoute(
+  parseInitializeFunding,
+  ({ uid, services, http }, request) =>
+    services.funding.initialize(
+      uid,
+      request.amount,
+      request.platform === 'native' ? NATIVE_RETURN_URL : webReturnUrl(http),
+    ),
+  { movesMoney: true },
 );
 
 /** POST /api/funding/verify: check a top-up after returning from checkout, and credit it. */

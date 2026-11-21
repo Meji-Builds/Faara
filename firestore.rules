@@ -57,6 +57,18 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Each person's copy of payment requests they sent or are asked to pay.
+      match /requests/{requestId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow write: if false;
+      }
+
+      // Each person's copy of their support tickets.
+      match /tickets/{ticketId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow write: if false;
+      }
+
       // What the money agent did, written by the server.
       match /agentLog/{entryId} {
         allow read: if signedIn() && request.auth.uid == uid;
@@ -69,6 +81,34 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /aiConsent/{uid} {
+      allow read, write: if false;
+    }
+
+    // Support tickets, account pauses and the admin log: server-only.
+    match /supportTickets/{id} {
+      allow read, write: if false;
+    }
+    match /supportTickets/{id}/messages/{messageId} {
+      allow read, write: if false;
+    }
+    match /accountHolds/{uid} {
+      allow read, write: if false;
+    }
+    match /adminLog/{id} {
+      allow read, write: if false;
+    }
+
+    // Payment requests, vendor applications and vendors: changed only through the server.
+    match /paymentRequests/{id} {
+      allow read, write: if false;
+    }
+    match /vendorApplications/{uid} {
+      allow read, write: if false;
+    }
+    match /vendorNins/{hash} {
+      allow read, write: if false;
+    }
+    match /vendors/{uid} {
       allow read, write: if false;
     }
 

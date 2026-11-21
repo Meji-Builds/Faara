@@ -5,3 +5,8 @@ export const WEB_URL = 'https://faara.mejibuilds.com';
 export function payLink(username: string): string {
   return `${WEB_URL}/pay/${username}`;
 }
+
+/** The link to a payment request: opens it, ready to pay. */
+export function requestLink(id: string): string {
+  return `${WEB_URL}/r/${id}`;
+}

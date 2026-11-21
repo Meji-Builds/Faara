@@ -65,6 +65,8 @@ export interface CreateTransferRequest {
   amount: number;
   currency: HumCurrency;
   note?: string;
+  /** Paying a payment request: the transfer must match it exactly. */
+  requestId?: string;
 }
 
 export interface CreateTransferResponse {

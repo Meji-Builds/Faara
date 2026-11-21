@@ -46,8 +46,10 @@ export async function treasury(request: Request): Promise<Response> {
 }
 
 /** POST /api/wallet/withdraw: send the caller's USDC to a Solana address they choose. */
-export const withdraw = authedRoute(parseWithdrawRequest, ({ uid, services }, request) =>
-  services.circle.withdraw(uid, request),
+export const withdraw = authedRoute(
+  parseWithdrawRequest,
+  ({ uid, services }, request) => services.circle.withdraw(uid, request),
+  { movesMoney: true },
 );
 
 /** POST /api/wallet/withdrawal: how one of the caller's withdrawals is going. */

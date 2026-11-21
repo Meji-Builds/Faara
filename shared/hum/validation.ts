@@ -135,7 +135,19 @@ export function parseLookupUser(body: unknown): LookupUserRequest {
 export function parseCreateTransfer(body: unknown): CreateTransferRequest {
   const data = requireRecord(body);
   const { amount, currency, note } = parseCreateHum(data);
-  return { username: requireUsername(data.username), amount, currency, note };
+  const transfer: CreateTransferRequest = {
+    username: requireUsername(data.username),
+    amount,
+    currency,
+    note,
+  };
+  if (data.requestId !== undefined) {
+    if (typeof data.requestId !== 'string' || !/^RQ[A-Za-z0-9_-]{8,40}$/.test(data.requestId)) {
+      throw new ValidationError('requestId is invalid.');
+    }
+    transfer.requestId = data.requestId;
+  }
+  return transfer;
 }
 
 export function parseInitializeFunding(body: unknown): InitializeFundingRequest {

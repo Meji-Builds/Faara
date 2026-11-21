@@ -36,14 +36,20 @@ export function firestoreStore(db: Firestore): DocumentStore {
       const snapshot = await db.collection(collection).where(field, '==', value).limit(1).get();
       return snapshot.docs[0]?.id;
     },
-    list: async (collection, { orderBy, limit, after, oldestFirst }) => {
+    list: async (collection, { orderBy, limit, after, oldestFirst, where }) => {
       let query = db
         .collection(collection)
         .orderBy(orderBy, oldestFirst ? 'asc' : 'desc')
         .limit(limit);
       if (after !== undefined) query = query.where(orderBy, '>', after);
+      if (where) query = query.where(where.field, '==', where.equals);
       const snapshot = await query.get();
       return snapshot.docs.map((d) => ({ id: d.id, data: d.data() as never }));
+    },
+    count: async (collection, where) => {
+      const base = db.collection(collection);
+      const query = where ? base.where(where.field, '==', where.equals) : base;
+      return (await query.count().get()).data().count;
     },
     deleteWhere: async (collection, field, value) => {
       let count = 0;

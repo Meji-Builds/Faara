@@ -39,6 +39,7 @@ import {
 } from '../../shared/solana';
 
 import { ApiError } from './errors';
+import { publicRequest, requestPath, writeRequest, type RequestDoc } from './requestService';
 import type { NairaProvider } from './naira';
 import type { DocumentStore, StoreTransaction } from './store';
 
@@ -75,6 +76,8 @@ export interface HumDoc {
   signature: string | null;
   /** `transfer` for Send-by-username payments; absent (hum) otherwise. */
   kind?: 'hum' | 'transfer';
+  /** The payment request this pays, if any. */
+  requestId?: string;
 }
 
 export interface ClaimDoc {
@@ -254,6 +257,23 @@ export class HumService {
       if (found.uid === uid)
         throw new ApiError('invalid-argument', 'You can’t send money to yourself.');
       const recipientWallet = found.profile.walletAddress ?? null;
+      if (request.requestId) {
+        const asked = await tx.get<RequestDoc>(requestPath(request.requestId));
+        const status = asked ? publicRequest(request.requestId, asked, now()).status : null;
+        if (!asked || (asked.fromUid !== null && asked.fromUid !== uid)) {
+          throw new ApiError('not-found', 'That request wasn’t found.');
+        }
+        if (status !== 'open') {
+          throw new ApiError('failed-precondition', `This request is ${status}.`);
+        }
+        if (
+          asked.requesterUid !== found.uid ||
+          request.currency !== 'NGN' ||
+          toMinorUnits(request.amount) !== asked.amountKobo
+        ) {
+          throw new ApiError('invalid-argument', 'The payment doesn’t match the request.');
+        }
+      }
       if (request.currency === 'USDC') {
         if (!sender.walletAddress)
           throw new ApiError('failed-precondition', 'Set up your dollar wallet first.');
@@ -286,6 +306,7 @@ export class HumService {
         settledAt: null,
         signature: null,
         kind: 'transfer',
+        ...(request.requestId ? { requestId: request.requestId } : {}),
       };
       const claim: ClaimDoc = {
         claimantUid: found.uid,
@@ -451,6 +472,15 @@ export class HumService {
       throw new ApiError('failed-precondition', 'Choose who gets paid first.');
     }
     const claimId = hum.chosenClaimId;
+    if (hum.requestId) {
+      // Check before any money moves: a request someone else already paid is closed.
+      const asked = await store.transaction((tx) =>
+        tx.get<RequestDoc>(requestPath(hum.requestId as string)),
+      );
+      if (asked && asked.status !== 'open' && asked.paymentId !== request.paymentId) {
+        throw new ApiError('failed-precondition', `This request is ${asked.status}.`);
+      }
+    }
 
     let signature: string | null = null;
     if (hum.currency === 'USDC') {
@@ -491,12 +521,30 @@ export class HumService {
       }
       const recipient = await tx.get<ClaimDoc>(claimPath(request.paymentId, claimId));
       const pair = await tx.get<PairDoc>(pairPath(uid, claimId));
+      const asked = current.requestId
+        ? await tx.get<RequestDoc>(requestPath(current.requestId))
+        : undefined;
       const settledAt = now();
 
       tx.update(humPath(request.paymentId), { status: 'settled', settledAt, signature });
       tx.update(claimPath(request.paymentId, claimId), { status: 'settled' });
       if (signature) tx.set(settlementPath(signature), { paymentId: request.paymentId, settledAt });
       tx.set(pairPath(uid, claimId), { count: (pair?.count ?? 0) + 1 } satisfies PairDoc);
+      if (current.requestId && asked && asked.status === 'open') {
+        writeRequest(
+          tx,
+          current.requestId,
+          {
+            ...asked,
+            status: 'paid',
+            paidAt: settledAt,
+            paidBy: { fullName: current.senderName, username: current.senderUsername },
+            paidByUid: uid,
+            paymentId: request.paymentId,
+          },
+          settledAt,
+        );
+      }
 
       const base = {
         kind: current.kind ?? 'hum',

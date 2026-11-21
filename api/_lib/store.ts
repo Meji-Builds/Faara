@@ -10,11 +10,19 @@ export interface StoreTransaction {
   update(path: string, data: object): void;
 }
 
+/** An equality filter on one field. */
+export interface Where {
+  field: string;
+  equals: string | number | boolean;
+}
+
 export interface ListOptions {
   orderBy: string;
   limit: number;
   after?: number;
   oldestFirst?: boolean;
+  /** Only documents where `field` equals the value. */
+  where?: Where;
 }
 
 export interface DocumentStore {
@@ -30,8 +38,14 @@ export interface DocumentStore {
     collection: string,
     options: ListOptions,
   ): Promise<{ id: string; data: T }[]>;
+  /** How many documents a collection holds, optionally only those matching `where`. */
+  count(collection: string, where?: Where): Promise<number>;
   /** Deletes every document in `collection` whose `field` equals `value`; returns how many. */
   deleteWhere(collection: string, field: string, value: string): Promise<number>;
+}
+
+function matches(doc: object, where: Where | undefined): boolean {
+  return !where || (doc as Record<string, unknown>)[where.field] === where.equals;
 }
 
 /** In-memory store for tests. Transactions run one at a time and commit atomically. */
@@ -62,9 +76,20 @@ export class MemoryStore implements DocumentStore {
     return [...this.docs]
       .filter(([path]) => path.startsWith(`${collection}/`) && path.split('/').length === depth)
       .filter(([, doc]) => options.after === undefined || value(doc) > options.after)
+      .filter(([, doc]) => matches(doc, options.where))
       .sort(([, a], [, b]) => (options.oldestFirst ? value(a) - value(b) : value(b) - value(a)))
       .slice(0, options.limit)
       .map(([path, doc]) => ({ id: path.split('/').pop() ?? '', data: structuredClone(doc) as T }));
+  }
+
+  async count(collection: string, where?: Where): Promise<number> {
+    const depth = collection.split('/').length + 1;
+    return [...this.docs].filter(
+      ([path, doc]) =>
+        path.startsWith(`${collection}/`) &&
+        path.split('/').length === depth &&
+        matches(doc, where),
+    ).length;
   }
 
   async deleteWhere(collection: string, field: string, value: string): Promise<number> {

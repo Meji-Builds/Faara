@@ -11,11 +11,14 @@ export function createTransfer(
   amount: number,
   currency: HumCurrency,
   note: string,
+  /** When paying a payment request: the transfer must match it. */
+  requestId?: string,
 ) {
   return postJson<CreateTransferResponse>('/api/payments/transfer', {
     username,
     amount,
     currency,
     note,
+    ...(requestId ? { requestId } : {}),
   });
 }

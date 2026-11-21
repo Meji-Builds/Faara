@@ -31,6 +31,11 @@
               "scheme": "https",
               "host": "faara.mejibuilds.com",
               "pathPrefix": "/pay"
+            },
+            {
+              "scheme": "https",
+              "host": "faara.mejibuilds.com",
+              "pathPrefix": "/r/"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]

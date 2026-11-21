@@ -28,8 +28,10 @@ export const choose = humRoute(parseChooseRecipient, (service, uid, request) =>
 );
 
 /** POST /api/hums/cancel: the sender abandons an open hum. */
-export const cancel = humRoute(parseCancelHum, (service, uid, request) =>
-  service.cancelHum(uid, request),
+export const cancel = humRoute(
+  parseCancelHum,
+  (service, uid, request) => service.cancelHum(uid, request),
+  { movesMoney: false },
 );
 
 /** POST /api/hums/settle: complete a chosen hum (verify the USDC transfer, or move naira). */

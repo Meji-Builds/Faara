@@ -187,8 +187,22 @@ function RootStack({ onReady }: { onReady: () => void }) {
           <Stack.Screen name="assistant" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="scam-check" />
           <Stack.Screen name="agent" />
+          <Stack.Screen name="request-new" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="vendor/index" />
+          <Stack.Screen name="vendor/apply" />
+          <Stack.Screen name="vendor/review" />
+          <Stack.Screen name="support/index" />
+          <Stack.Screen name="support/new" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="support/[id]" />
+          <Stack.Screen name="admin/index" />
+          <Stack.Screen name="admin/support" />
+          <Stack.Screen name="admin/users" />
+          <Stack.Screen name="admin/user/[uid]" />
+          <Stack.Screen name="admin/payments" />
+          <Stack.Screen name="admin/log" />
         </Stack.Protected>
         <Stack.Screen name="pay/[username]" options={{ animation: 'none' }} />
+        <Stack.Screen name="r/[id]" />
         <Stack.Screen name="lab/sound" />
         <Stack.Screen name="lab/code" />
       </Stack>

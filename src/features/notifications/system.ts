@@ -66,10 +66,20 @@ export async function showSystemNotification(
 }
 
 /** Calls `onOpen` with the payment id when a payment notification is tapped. */
-export function onNotificationOpened(onOpen: (paymentId: string) => void): () => void {
+/** What a tapped notification points at: a payment's receipt, or a payment request. */
+export type OpenedNotification =
+  | { paymentId: string }
+  | { requestId: string }
+  | { ticketId: string }
+  | { screen: 'vendor' | 'agent' };
+
+export function onNotificationOpened(onOpen: (target: OpenedNotification) => void): () => void {
   const subscription = addNotificationResponseReceivedListener((response) => {
-    const paymentId = response.notification.request.content.data?.paymentId;
-    if (typeof paymentId === 'string') onOpen(paymentId);
+    const data = response.notification.request.content.data;
+    if (typeof data?.ticketId === 'string') onOpen({ ticketId: data.ticketId });
+    else if (data?.screen === 'vendor' || data?.screen === 'agent') onOpen({ screen: data.screen });
+    else if (typeof data?.requestId === 'string') onOpen({ requestId: data.requestId });
+    else if (typeof data?.paymentId === 'string') onOpen({ paymentId: data.paymentId });
   });
   return () => subscription.remove();
 }

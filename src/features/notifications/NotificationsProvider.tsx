@@ -134,12 +134,23 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [alert]);
 
-  // Tapping a system notification opens the receipt.
+  // Tapping a system notification opens what it's about: a receipt, request, ticket or screen.
   useEffect(
     () =>
-      onNotificationOpened((paymentId) =>
-        router.push({ pathname: '/receipt/[paymentId]', params: { paymentId } }),
-      ),
+      onNotificationOpened((target) => {
+        if ('ticketId' in target) {
+          router.push({ pathname: '/support/[id]', params: { id: target.ticketId } });
+        } else if ('screen' in target) {
+          router.push(target.screen === 'vendor' ? '/vendor' : '/agent');
+        } else if ('requestId' in target) {
+          router.push({ pathname: '/r/[id]', params: { id: target.requestId } });
+        } else {
+          router.push({
+            pathname: '/receipt/[paymentId]',
+            params: { paymentId: target.paymentId },
+          });
+        }
+      }),
     [router],
   );
 

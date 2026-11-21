@@ -2,6 +2,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 
 import { ValidationError, type ApiErrorBody } from '../../shared/hum';
 
+import { AdminService } from './adminService';
 import { AgentService } from './agentService';
 import { AiData } from './aiData';
 import { AssistantService } from './assistantService';
@@ -14,6 +15,9 @@ import { signerFromPkcs8 } from './ed25519';
 import { FundingService } from './fundingService';
 import { HumService } from './humService';
 import { OfflineService } from './offlineService';
+import { RequestService } from './requestService';
+import { SupportService } from './supportService';
+import { VendorService } from './vendorService';
 import { MockNairaLedger } from './naira';
 import { paystackCheckout } from './paystack';
 import { createNotifier } from './push';
@@ -41,6 +45,10 @@ interface Services {
   assistant: AssistantService;
   agent: AgentService;
   aiData: AiData;
+  requests: RequestService;
+  vendors: VendorService;
+  admin: AdminService;
+  support: SupportService;
 }
 
 let services: Services | undefined;
@@ -75,6 +83,12 @@ export function getServices(): Services {
       },
     });
     const ai = claudeClient();
+    // Usernames of Faara's team, comma-separated: they see the admin area.
+    const admins = (process.env.FAARA_ADMINS ?? '')
+      .split(',')
+      .map((name) => name.trim().replace(/^@/, '').toLowerCase())
+      .filter(Boolean);
+    const admin = new AdminService({ store, now, newId, admins });
     const aiData = new AiData({ store, now, newId });
     const convert = new ConvertService({
       store,
@@ -97,6 +111,17 @@ export function getServices(): Services {
       }),
       convert,
       aiData,
+      requests: new RequestService({ store, now, newId, notify }),
+      vendors: new VendorService({
+        store,
+        now,
+        notify,
+        reviewers: admins,
+        audit: (adminUid, action, targetUid, detail) =>
+          admin.record(adminUid, action, targetUid, detail),
+      }),
+      admin,
+      support: new SupportService({ store, now, newId, admin, notify }),
       assistant: new AssistantService({ store, now, ai, examples: aiData }),
       agent: new AgentService({
         store,
@@ -188,6 +213,8 @@ export function authedRoute<Req, Res>(
     context: { uid: string; services: Services; http: Request },
     request: Req,
   ) => Promise<Res>,
+  /** `movesMoney`: refused while Faara's team has paused the account. */
+  options: { movesMoney?: boolean } = {},
 ) {
   return async function POST(request: Request): Promise<Response> {
     try {
@@ -206,7 +233,15 @@ export function authedRoute<Req, Res>(
       } catch {
         throw new ValidationError('Request body must be JSON.');
       }
-      const result = await action({ uid, services: getServices(), http: request }, parse(body));
+      const services = getServices();
+      const input = parse(body);
+      if (options.movesMoney && (await services.admin.isPaused(uid))) {
+        throw new ApiError(
+          'permission-denied',
+          'Your account is paused. Contact support from Help to sort it out.',
+        );
+      }
+      const result = await action({ uid, services, http: request }, input);
       return json(200, result ?? { ok: true });
     } catch (error) {
       return errorResponse(error);
@@ -214,12 +249,17 @@ export function authedRoute<Req, Res>(
   };
 }
 
-/** `authedRoute` for hum endpoints. */
+/** `authedRoute` for hum endpoints, which move money unless told otherwise. */
 export function humRoute<Req, Res>(
   parse: (body: unknown) => Req,
   action: (service: HumService, uid: string, request: Req) => Promise<Res>,
+  options: { movesMoney?: boolean } = { movesMoney: true },
 ) {
-  return authedRoute(parse, ({ uid, services: all }, request) => action(all.hum, uid, request));
+  return authedRoute(
+    parse,
+    ({ uid, services: all }, request) => action(all.hum, uid, request),
+    options,
+  );
 }
 
 export { errorResponse, json };

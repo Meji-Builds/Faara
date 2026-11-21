@@ -1,8 +1,9 @@
+import { useRouter } from 'expo-router';
 import { ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Card, Header, Screen } from '@/components/ui';
+import { AppText, Button, Card, Header, Screen } from '@/components/ui';
 import { useTheme } from '@/theme';
 
 const QUESTIONS: { question: string; answer: string }[] = [
@@ -29,7 +30,7 @@ const QUESTIONS: { question: string; answer: string }[] = [
   {
     question: 'I paid but my balance didn’t change',
     answer:
-      'Bank transfers can take a minute or two. Open Add money again and it will check. If it still hasn’t arrived after ten minutes, keep your receipt reference and contact us.',
+      'Bank transfers can take a minute or two. Open Add money again and it will check. If it still hasn’t arrived after ten minutes, tap Contact support below.',
   },
   {
     question: 'I forgot my PIN',
@@ -40,10 +41,22 @@ const QUESTIONS: { question: string; answer: string }[] = [
 
 /** Answers to the questions people ask most. */
 export default function HelpScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const [open, setOpen] = useState<number | null>(0);
   return (
-    <Screen>
+    <Screen
+      footer={
+        <>
+          <Button label="Contact support" onPress={() => router.push('/support/new')} />
+          <Button
+            label="My conversations with support"
+            variant="text"
+            onPress={() => router.push('/support')}
+          />
+        </>
+      }
+    >
       <Header center={<AppText variant="subheading">Help and support</AppText>} />
       <View style={styles.list}>
         {QUESTIONS.map((item, index) => {
