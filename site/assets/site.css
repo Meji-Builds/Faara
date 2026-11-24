@@ -556,7 +556,9 @@ section {
 /* Scroll sequence */
 .story-track {
   position: relative;
-  height: 460vh;
+  height: 320vh;
+  /* Keep the browser from nudging the page while the captions change. */
+  overflow-anchor: none;
 }
 
 .story-stage {
@@ -641,9 +643,25 @@ section {
   border: 3px solid var(--mint);
   border-radius: 28px;
   background: var(--ink);
-  /* --x and --r come from the scroll position. */
-  transform: translate3d(calc(-50% + var(--x, 0px)), -50%, 0) rotate(var(--r, 0deg));
+  /* Apart before the hum, side by side after. The script measures --apart and --close;
+     the move itself is a CSS transition, so it never follows the finger frame by frame. */
+  --gap: var(--apart, 160px);
+  --tilt: 12deg;
+  transition: transform 0.8s cubic-bezier(0.22, 0.8, 0.24, 1);
   will-change: transform;
+}
+
+.story-stage:not([data-stage='0']) .s-phone {
+  --gap: var(--close, 70px);
+  --tilt: 4deg;
+}
+
+.s-left {
+  transform: translate3d(calc(-50% - var(--gap)), -50%, 0) rotate(calc(var(--tilt) * -1));
+}
+
+.s-right {
+  transform: translate3d(calc(-50% + var(--gap)), -50%, 0) rotate(var(--tilt));
 }
 
 .s-who {
@@ -1302,6 +1320,9 @@ footer a {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  .s-phone {
+    transition: none;
   }
   .ring,
   .s-wave i,

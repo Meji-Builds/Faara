@@ -23,93 +23,66 @@
 })();
 
 // Scroll sequence: as the section scrolls past, the phones come together, hum and pay.
-// Scrolling only sets a target; a frame loop eases the scene toward it, so uneven
-// scroll events on phones never show as jumps, and it settles gently when you stop.
+// Scrolling only picks which step is showing. Each change of step plays as a CSS
+// transition, so nothing on the page follows the finger or keeps moving after it stops.
 (function () {
   const track = document.querySelector('.story-track');
   const stage = document.querySelector('.story-stage');
   if (!track || !stage) return;
   const left = stage.querySelector('.s-left');
-  const right = stage.querySelector('.s-right');
   const scene = stage.querySelector('.story-scene');
   const dots = [...stage.querySelectorAll('.story-dots i')];
-  const bounds = [0.12, 0.34, 0.56, 0.78];
-  const margin = 0.015; // a step only changes once you're clearly past its edge
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const clamp = (n) => Math.min(1, Math.max(0, n));
-  const ease = (t) => t * t * (3 - 2 * t);
+  const bounds = [0.1, 0.32, 0.54, 0.76];
+  const margin = 0.02; // a step only changes once you're clearly past its edge
 
-  // Layout is measured once and again only when the width changes, not on every
-  // scroll (a phone's address bar showing or hiding changes only the height).
+  // Measured on load and when the width changes, never while scrolling (a phone's
+  // address bar showing or hiding changes only the height).
   let trackTop = 0;
   let travel = 1;
-  let apart = 0;
-  let close = 0;
   let width = 0;
   const measure = () => {
     width = window.innerWidth;
-    trackTop =
-      track.getBoundingClientRect().top +
-      window.scrollY -
-      (parseFloat(getComputedStyle(stage).top) || 0);
+    const stickyTop = parseFloat(getComputedStyle(stage).top) || 0;
+    trackTop = track.getBoundingClientRect().top + window.scrollY - stickyTop;
     travel = Math.max(1, track.offsetHeight - stage.offsetHeight);
     const phoneWidth = left.offsetWidth;
     // Far enough apart to read as two people, never past the edge of the screen.
-    apart = Math.min(scene.offsetWidth / 2 - phoneWidth / 2 - 4, phoneWidth * 1.6);
-    close = phoneWidth / 2 + 6;
+    const apart = Math.min(scene.offsetWidth / 2 - phoneWidth / 2 - 4, phoneWidth * 1.6);
+    scene.style.setProperty('--apart', `${Math.round(apart)}px`);
+    scene.style.setProperty('--close', `${Math.round(phoneWidth / 2 + 6)}px`);
   };
 
-  const target = () => clamp((window.scrollY - trackTop) / travel);
-  let shown = target();
   let step = -1;
-  let running = false;
-
-  const render = (progress) => {
+  let queued = false;
+  const update = () => {
+    queued = false;
+    const progress = Math.min(1, Math.max(0, (window.scrollY - trackTop) / travel));
     let next = step < 0 ? bounds.filter((b) => progress >= b).length : step;
     while (next < bounds.length && progress >= bounds[next] + margin) next += 1;
     while (next > 0 && progress < bounds[next - 1] - margin) next -= 1;
-    if (next !== step) {
-      step = next;
-      stage.dataset.stage = String(step);
-      dots.forEach((dot, i) => dot.classList.toggle('on', i <= step));
-    }
-    // Apart at the start, side by side (just not touching) by the time they hum.
-    const together = ease(clamp((progress - 0.04) / 0.28));
-    const x = apart + (close - apart) * together;
-    const r = 12 - 8 * together;
-    left.style.setProperty('--x', `${(-x).toFixed(2)}px`);
-    left.style.setProperty('--r', `${(-r).toFixed(3)}deg`);
-    right.style.setProperty('--x', `${x.toFixed(2)}px`);
-    right.style.setProperty('--r', `${r.toFixed(3)}deg`);
+    if (next === step) return;
+    step = next;
+    stage.dataset.stage = String(step);
+    dots.forEach((dot, i) => dot.classList.toggle('on', i <= step));
+  };
+  const queue = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(update);
   };
 
-  const frame = () => {
-    const goal = target();
-    const gap = goal - shown;
-    shown = reduced || Math.abs(gap) < 0.0005 ? goal : shown + gap * 0.18;
-    render(shown);
-    running = shown !== goal;
-    if (running) requestAnimationFrame(frame);
-  };
-  const wake = () => {
-    if (running) return;
-    running = true;
-    requestAnimationFrame(frame);
-  };
-
-  window.addEventListener('scroll', wake, { passive: true });
+  window.addEventListener('scroll', queue, { passive: true });
   window.addEventListener('resize', () => {
     if (window.innerWidth === width) return;
     measure();
-    wake();
+    queue();
   });
   window.addEventListener('load', () => {
     measure();
-    wake();
+    queue();
   });
   measure();
-  shown = target();
-  render(shown);
+  update();
 })();
 
 // Interactive demo: a simulation only; nothing here talks to Faara.
