@@ -553,85 +553,63 @@ section {
   }
 }
 
-/* Scroll sequence */
-.story-track {
-  position: relative;
-  height: 320vh;
-  /* Keep the browser from nudging the page while the captions change. */
-  overflow-anchor: none;
-}
-
-.story-stage {
-  position: sticky;
-  top: 68px;
-  display: flex;
-  align-items: center;
-  height: calc(100vh - 68px);
-  height: calc(100svh - 68px);
-  overflow: hidden;
+/* How a payment happens: a still picture, nothing pinned or moving. */
+.story {
+  padding: 96px 0;
 }
 
 .story-inner {
   display: grid;
-  grid-template-columns: 0.9fr 1.1fr;
-  gap: 32px;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
   align-items: center;
 }
 
-.captions {
+.story-copy h2 {
+  margin: 10px 0 24px;
+}
+
+.story-steps {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.story-steps li {
   position: relative;
-  min-height: 150px;
+  padding-left: 44px;
+  font-size: 17px;
+  line-height: 1.5;
+  counter-increment: step;
 }
 
-.caption {
+.story-steps li::before {
+  content: counter(step);
   position: absolute;
-  inset: 0 auto auto 0;
-  font-size: clamp(20px, 2.4vw, 28px);
-  line-height: 1.35;
-  opacity: 0;
-  transform: translateY(14px);
-  transition:
-    opacity 0.35s ease,
-    transform 0.35s ease;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid var(--teal);
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--teal);
 }
 
-.caption b {
+.story-steps b {
   font-weight: 600;
   color: var(--fg);
 }
 
-.story-stage[data-stage='0'] .caption[data-at='0'],
-.story-stage[data-stage='1'] .caption[data-at='1'],
-.story-stage[data-stage='2'] .caption[data-at='2'],
-.story-stage[data-stage='3'] .caption[data-at='3'],
-.story-stage[data-stage='4'] .caption[data-at='4'] {
-  opacity: 1;
-  transform: none;
-}
-
-.story-dots {
-  display: flex;
-  gap: 8px;
-  margin-top: 24px;
-}
-
-.story-dots i {
-  width: 28px;
-  height: 4px;
-  border-radius: 4px;
-  background: #1d4b3c;
-  transition: background 0.3s ease;
-}
-
-.story-dots i.on {
-  background: var(--teal);
-}
-
 .story-scene {
   position: relative;
-  display: grid;
-  place-items: center;
-  height: min(520px, 70vh);
+  height: 440px;
 }
 
 .s-phone {
@@ -643,25 +621,15 @@ section {
   border: 3px solid var(--mint);
   border-radius: 28px;
   background: var(--ink);
-  /* Apart before the hum, side by side after. The script measures --apart and --close;
-     the move itself is a CSS transition, so it never follows the finger frame by frame. */
-  --gap: var(--apart, 160px);
-  --tilt: 12deg;
-  transition: transform 0.8s cubic-bezier(0.22, 0.8, 0.24, 1);
-  will-change: transform;
 }
 
-.story-stage:not([data-stage='0']) .s-phone {
-  --gap: var(--close, 70px);
-  --tilt: 4deg;
-}
-
+/* Side by side, just not touching: each phone sits half its own width plus a little out. */
 .s-left {
-  transform: translate3d(calc(-50% - var(--gap)), -50%, 0) rotate(calc(var(--tilt) * -1));
+  transform: translate(calc(-100% - 6px), -50%) rotate(-4deg);
 }
 
 .s-right {
-  transform: translate3d(calc(-50% + var(--gap)), -50%, 0) rotate(var(--tilt));
+  transform: translate(6px, -50%) rotate(4deg);
 }
 
 .s-who {
@@ -684,38 +652,11 @@ section {
   justify-content: center;
   gap: 8px;
   text-align: center;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.story-stage[data-stage='0'] .s0,
-.story-stage[data-stage='1'] .s1,
-.story-stage[data-stage='2'] .s2,
-.story-stage[data-stage='3'] .s3,
-.story-stage[data-stage='4'] .s4 {
-  opacity: 1;
-}
-
-.s-amt {
-  font:
-    800 clamp(22px, 2.6vw, 30px) / 1 'Bricolage Grotesque',
-    sans-serif;
-  color: var(--mint);
 }
 
 .s-sub {
   font-size: 13px;
   color: var(--muted-on-dark);
-}
-
-.s-btn {
-  margin-top: 14px;
-  padding: 8px 22px;
-  border-radius: 999px;
-  background: var(--teal);
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 600;
 }
 
 .shapes {
@@ -749,118 +690,16 @@ section {
   stroke-linecap: round;
 }
 
-.story-stage .tick {
-  transform: scale(0.6);
-  transition: transform 0.35s cubic-bezier(0.2, 1.4, 0.4, 1);
-}
-
-.story-stage[data-stage='4'] .tick {
-  transform: scale(1);
-}
-
-.s-wave {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  height: 30px;
-}
-
-.s-wave i {
-  width: 4px;
-  border-radius: 4px;
-  background: var(--teal);
-  animation: bars 0.9s ease-in-out infinite;
-}
-
-.s-wave i:nth-child(2) {
-  animation-delay: 0.12s;
-}
-
-.s-wave i:nth-child(3) {
-  animation-delay: 0.24s;
-}
-
-.s-wave i:nth-child(4) {
-  animation-delay: 0.36s;
-}
-
-.s-wave i:nth-child(5) {
-  animation-delay: 0.48s;
-}
-
-@keyframes bars {
-  0%,
-  100% {
-    height: 8px;
-  }
-  50% {
-    height: 28px;
-  }
-}
-
-.s-rings {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-}
-
-.s-rings span {
-  position: absolute;
-  border: 2px solid var(--teal);
-  border-radius: 50%;
-  opacity: 0;
-}
-
-.story-stage[data-stage='2'] .s-rings span {
-  animation: ring 1.6s ease-out infinite;
-}
-
-.story-stage[data-stage='2'] .s-rings span:nth-child(2) {
-  animation-delay: 0.53s;
-}
-
-.story-stage[data-stage='2'] .s-rings span:nth-child(3) {
-  animation-delay: 1.06s;
-}
-
-.s-receipt {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: var(--teal);
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  opacity: 0;
-  transform: translate(-50%, 16px);
-  transition:
-    opacity 0.35s ease,
-    transform 0.35s ease;
-}
-
-.story-stage[data-stage='4'] .s-receipt {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
 @media (max-width: 860px) {
+  .story {
+    padding: 64px 0;
+  }
   .story-inner {
     grid-template-columns: 1fr;
-    gap: 8px;
-  }
-  .captions {
-    min-height: 118px;
-  }
-  .story-dots {
-    margin-top: 8px;
+    gap: 16px;
   }
   .story-scene {
-    height: min(440px, 56svh);
+    height: 300px;
   }
 }
 
@@ -1304,16 +1143,9 @@ footer a {
     width: 112px;
     border-radius: 22px;
   }
-  .s-amt {
-    font-size: 20px;
-  }
   .shapes svg {
     width: 18px;
     height: 18px;
-  }
-  .s-receipt {
-    padding: 8px 12px;
-    font-size: 12px;
   }
 }
 
@@ -1321,13 +1153,8 @@ footer a {
   html {
     scroll-behavior: auto;
   }
-  .s-phone {
-    transition: none;
-  }
   .ring,
-  .s-wave i,
-  .stage.humming .wave,
-  .story-stage[data-stage='2'] .s-rings span {
+  .stage.humming .wave {
     animation: none;
   }
 }

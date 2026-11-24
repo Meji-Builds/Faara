@@ -1,4 +1,4 @@
-// Faara website behaviour: the phone menu, the scroll sequence, and the interactive demo.
+// Faara website behaviour: the phone menu and the interactive demo.
 
 // Menu: the Faara bars open the links on phones; a link, Escape or a tap outside closes them.
 (function () {
@@ -20,69 +20,6 @@
   document.addEventListener('click', (event) => {
     if (nav.classList.contains('open') && !nav.contains(event.target)) setOpen(false);
   });
-})();
-
-// Scroll sequence: as the section scrolls past, the phones come together, hum and pay.
-// Scrolling only picks which step is showing. Each change of step plays as a CSS
-// transition, so nothing on the page follows the finger or keeps moving after it stops.
-(function () {
-  const track = document.querySelector('.story-track');
-  const stage = document.querySelector('.story-stage');
-  if (!track || !stage) return;
-  const left = stage.querySelector('.s-left');
-  const scene = stage.querySelector('.story-scene');
-  const dots = [...stage.querySelectorAll('.story-dots i')];
-  const bounds = [0.1, 0.32, 0.54, 0.76];
-  const margin = 0.02; // a step only changes once you're clearly past its edge
-
-  // Measured on load and when the width changes, never while scrolling (a phone's
-  // address bar showing or hiding changes only the height).
-  let trackTop = 0;
-  let travel = 1;
-  let width = 0;
-  const measure = () => {
-    width = window.innerWidth;
-    const stickyTop = parseFloat(getComputedStyle(stage).top) || 0;
-    trackTop = track.getBoundingClientRect().top + window.scrollY - stickyTop;
-    travel = Math.max(1, track.offsetHeight - stage.offsetHeight);
-    const phoneWidth = left.offsetWidth;
-    // Far enough apart to read as two people, never past the edge of the screen.
-    const apart = Math.min(scene.offsetWidth / 2 - phoneWidth / 2 - 4, phoneWidth * 1.6);
-    scene.style.setProperty('--apart', `${Math.round(apart)}px`);
-    scene.style.setProperty('--close', `${Math.round(phoneWidth / 2 + 6)}px`);
-  };
-
-  let step = -1;
-  let queued = false;
-  const update = () => {
-    queued = false;
-    const progress = Math.min(1, Math.max(0, (window.scrollY - trackTop) / travel));
-    let next = step < 0 ? bounds.filter((b) => progress >= b).length : step;
-    while (next < bounds.length && progress >= bounds[next] + margin) next += 1;
-    while (next > 0 && progress < bounds[next - 1] - margin) next -= 1;
-    if (next === step) return;
-    step = next;
-    stage.dataset.stage = String(step);
-    dots.forEach((dot, i) => dot.classList.toggle('on', i <= step));
-  };
-  const queue = () => {
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(update);
-  };
-
-  window.addEventListener('scroll', queue, { passive: true });
-  window.addEventListener('resize', () => {
-    if (window.innerWidth === width) return;
-    measure();
-    queue();
-  });
-  window.addEventListener('load', () => {
-    measure();
-    queue();
-  });
-  measure();
-  update();
 })();
 
 // Interactive demo: a simulation only; nothing here talks to Faara.
