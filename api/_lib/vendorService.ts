@@ -1,12 +1,15 @@
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHmac, randomBytes, randomInt } from 'node:crypto';
 
 import type {
   ApplicationForReview,
   VendorApplication,
   VendorApplicationInput,
+  ShopInfo,
+  TillResponse,
   VendorProfile,
   VendorStatus,
 } from '../../shared/vendors';
+import { TILL_PREFIX } from '../../shared/vendors';
 
 import { ApiError } from './errors';
 import type { PushMessage } from './push';
@@ -38,6 +41,14 @@ const applicationPath = (uid: string) => `vendorApplications/${uid}`;
 const vendorPath = (uid: string) => `vendors/${uid}`;
 const ninPath = (hash: string) => `vendorNins/${hash}`;
 const saltPath = 'serverKeys/vendorNin';
+const tillPath = (code: string) => `vendorTills/${code}`;
+
+/** Crockford base32, as hums use, so a till code can be hummed and typed. */
+const TILL_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+interface VendorDoc extends VendorProfile {
+  tillCode?: string;
+}
 
 /**
  * Vendor applications. A person applies with business details and their NIN; a reviewer
@@ -129,6 +140,53 @@ export class VendorService {
       tx.set(ninPath(ninHash), { uid });
     });
     return this.status(uid);
+  }
+
+  /**
+   * The vendor's till code, made the first time it's asked for. It stays the same so a
+   * printed sticker keeps working; the code only ever pays this vendor.
+   */
+  async till(uid: string): Promise<TillResponse> {
+    const { store } = this.deps;
+    return store.transaction(async (tx) => {
+      const vendor = await tx.get<VendorDoc>(vendorPath(uid));
+      const profile = await tx.get<ProfileDoc>(`users/${uid}`);
+      if (!vendor || !profile) {
+        throw new ApiError('permission-denied', 'Only approved vendors have a till.');
+      }
+      let code = vendor.tillCode;
+      if (!code) {
+        for (let attempt = 0; attempt < 5 && !code; attempt++) {
+          let candidate = TILL_PREFIX;
+          for (let i = 1; i < 10; i++) candidate += TILL_ALPHABET[randomInt(TILL_ALPHABET.length)];
+          if (!(await tx.get(tillPath(candidate)))) code = candidate;
+        }
+        if (!code) throw new ApiError('unavailable', 'Couldn’t make a till code. Try again.');
+        tx.set(tillPath(code), { uid });
+        tx.update(vendorPath(uid), { tillCode: code });
+      }
+      return { code, username: profile.username, businessName: vendor.businessName };
+    });
+  }
+
+  /** The verified shop a till code belongs to. */
+  async shop(code: string): Promise<ShopInfo> {
+    return this.deps.store.transaction(async (tx) => {
+      const till = await tx.get<{ uid: string }>(tillPath(code));
+      const vendor = till ? await tx.get<VendorDoc>(vendorPath(till.uid)) : undefined;
+      const profile = till ? await tx.get<ProfileDoc>(`users/${till.uid}`) : undefined;
+      // A till only works while its owner is still an approved vendor.
+      if (!till || !vendor || !profile || vendor.tillCode !== code) {
+        throw new ApiError('not-found', 'That shop isn’t on Faara.');
+      }
+      return {
+        code,
+        username: profile.username,
+        businessName: vendor.businessName,
+        category: vendor.category,
+        location: vendor.location,
+      };
+    });
   }
 
   /** Applications waiting for review, oldest first (reviewers only). */

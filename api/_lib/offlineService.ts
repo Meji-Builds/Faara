@@ -229,7 +229,10 @@ export class OfflineService {
   async identity(uid: string): Promise<SignedIdentity> {
     const { store, now } = this.deps;
     const signer = await this.requireSigner();
-    const profile = await store.transaction((tx) => tx.get<ProfileDoc>(`users/${uid}`));
+    const { profile, vendor } = await store.transaction(async (tx) => ({
+      profile: await tx.get<ProfileDoc>(`users/${uid}`),
+      vendor: await tx.get<{ businessName: string }>(`vendors/${uid}`),
+    }));
     if (!profile?.fullName) {
       throw new ApiError('failed-precondition', 'Finish setting up your profile first.');
     }
@@ -237,6 +240,7 @@ export class OfflineService {
     const card = {
       uid,
       name: profile.fullName.slice(0, 80),
+      shop: (vendor?.businessName ?? '').slice(0, 80),
       issuedAt,
       expiresAt: issuedAt + OFFLINE_LIMITS.identityTtlMs,
     };

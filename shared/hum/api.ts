@@ -57,6 +57,8 @@ export interface LookupUserResponse {
   username: string;
   /** Whether they can receive USDC. */
   hasWallet: boolean;
+  /** Their verified business name, if they're an approved vendor. */
+  shop?: string;
 }
 
 /** Send to a username: creates a payment already addressed to the recipient. */

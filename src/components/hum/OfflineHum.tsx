@@ -219,8 +219,10 @@ export function OfflineHum() {
 
   if (current.kind === 'confirm') {
     const { offer, shapes } = current;
-    const name = offer.identity.card.name;
-    const first = name.split(/\s+/)[0] ?? name;
+    const { shop } = offer.identity.card;
+    // Shops show under their verified business name.
+    const name = shop || offer.identity.card.name;
+    const first = shop || (name.split(/\s+/)[0] ?? name);
     return (
       <Screen
         footer={
@@ -275,15 +277,27 @@ export function OfflineHum() {
             <AppText variant="title" align="center">
               {name}
             </AppText>
+            {shop ? (
+              <AppText variant="label" color="accentText">
+                Verified shop · {offer.identity.card.name}
+              </AppText>
+            ) : null}
             <AppText variant="title" color="accentText" align="center">
               {naira(amountKobo)}
             </AppText>
             {note ? <AppText color="textMuted">{note}</AppText> : null}
           </View>
-          <ShapeMatch
-            shapes={shapes}
-            hint={`${first}’s screen shows the same three shapes. If it doesn’t, don’t approve.`}
-          />
+          {shop ? (
+            <AppText color="textMuted" align="center">
+              Faara checked this is {shop}, a verified shop. Their till shows your payment as soon
+              as it arrives.
+            </AppText>
+          ) : (
+            <ShapeMatch
+              shapes={shapes}
+              hint={`${first}’s screen shows the same three shapes. If it doesn’t, don’t approve.`}
+            />
+          )}
         </View>
       </Screen>
     );

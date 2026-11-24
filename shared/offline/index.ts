@@ -71,6 +71,8 @@ export interface SignedNote {
 export interface IdentityCard {
   uid: string;
   name: string;
+  /** The verified business name for vendors; empty for everyone else. */
+  shop: string;
   issuedAt: number;
   expiresAt: number;
 }
@@ -135,6 +137,7 @@ export function identityMessage(c: IdentityCard): string {
     'faara-id-v1',
     field(c.uid, 'uid'),
     field(toBase64Url(c.name), 'name'),
+    field(c.shop ? toBase64Url(c.shop) : '-', 'shop'),
     whole(c.issuedAt, 'issuedAt'),
     whole(c.expiresAt, 'expiresAt'),
   ].join('|');
@@ -424,13 +427,20 @@ function identityFrom(raw: unknown): SignedIdentity | null {
     !isText(card.uid, 128) ||
     !SAFE.test(card.uid) ||
     !isText(card.name, 80) ||
+    !(card.shop === '' || isText(card.shop, 80)) ||
     !isWhole(card.issuedAt) ||
     !isWhole(card.expiresAt)
   ) {
     return null;
   }
   return {
-    card: { uid: card.uid, name: card.name, issuedAt: card.issuedAt, expiresAt: card.expiresAt },
+    card: {
+      uid: card.uid,
+      name: card.name,
+      shop: card.shop,
+      issuedAt: card.issuedAt,
+      expiresAt: card.expiresAt,
+    },
     signature: value.signature,
   };
 }

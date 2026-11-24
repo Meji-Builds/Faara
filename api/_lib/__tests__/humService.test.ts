@@ -80,6 +80,14 @@ describe('HumService', () => {
     });
   });
 
+  it('never starts a hum code with the shop till prefix', () => {
+    const { service } = setup();
+    const generate = () => (service as unknown as { generateToken(): string }).generateToken();
+    const firsts = new Set(Array.from({ length: 500 }, () => generate()[0]));
+    expect(firsts.has('V')).toBe(false);
+    expect(firsts.size).toBeGreaterThan(25);
+  });
+
   it('requires a profile to create a hum', async () => {
     const { service } = setup();
     await expectApiError(service.createHum('stranger', ngn), 'failed-precondition');

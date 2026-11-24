@@ -1,4 +1,4 @@
-import type { VendorApplicationInput } from '../../../shared/vendors';
+import { isTillCode, parseTillLookup, type VendorApplicationInput } from '../../../shared/vendors';
 import { ApiError } from '../errors';
 import { MemoryStore } from '../store';
 import { VendorService } from '../vendorService';
@@ -100,5 +100,43 @@ describe('vendor applications', () => {
     store.docs.set('users/boss', { fullName: 'N', username: 'nifemi' });
     const vendors = new VendorService({ store, now: () => 1, reviewers: [] });
     expect((await vendors.status('boss')).isReviewer).toBe(false);
+  });
+});
+
+describe('vendor tills', () => {
+  async function approved() {
+    const s = setup();
+    await s.vendors.apply('tolu', application);
+    await s.vendors.review('boss', { uid: 'tolu', approve: true, reason: '' });
+    return s;
+  }
+
+  it('gives an approved vendor one lasting till code that customers can look up', async () => {
+    const { vendors } = await approved();
+    const till = await vendors.till('tolu');
+    expect(till).toMatchObject({ username: 'tolu.a', businessName: 'Mama Tolu Foods' });
+    expect(isTillCode(till.code)).toBe(true);
+    // The same code every time, so a printed sticker keeps working.
+    expect((await vendors.till('tolu')).code).toBe(till.code);
+    expect(await vendors.shop(till.code)).toEqual({
+      code: till.code,
+      username: 'tolu.a',
+      businessName: 'Mama Tolu Foods',
+      category: 'Food and drinks',
+      location: 'Beside the main gate, OOU',
+    });
+  });
+
+  it('has no till for people who aren’t vendors, and unknown codes find nothing', async () => {
+    const { vendors } = await approved();
+    await expectApiError(vendors.till('kola'), 'permission-denied');
+    await expectApiError(vendors.shop('V123456789'), 'not-found');
+  });
+
+  it('only accepts well-formed till codes', () => {
+    expect(parseTillLookup({ code: 'v12345678z' }).code).toBe('V12345678Z');
+    expect(() => parseTillLookup({ code: 'A123456789' })).toThrow();
+    expect(() => parseTillLookup({ code: 'V12345' })).toThrow();
+    expect(isTillCode('VABCDEFGHU')).toBe(false); // U isn't in the alphabet
   });
 });

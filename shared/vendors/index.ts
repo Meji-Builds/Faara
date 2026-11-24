@@ -123,3 +123,37 @@ export function parseVendorReview(body: unknown): {
   }
   return { uid: data.uid, approve: data.approve, reason };
 }
+
+/**
+ * A vendor's till: a fixed code the vendor's phone hums and broadcasts over Bluetooth, so
+ * many customers can pay the shop at once. Till codes always start with "V"; ordinary hum
+ * codes never do, so a phone can tell them apart without asking the server.
+ */
+export const TILL_PREFIX = 'V';
+const TILL_PATTERN = /^V[0-9A-HJKMNP-TV-Z]{9}$/;
+
+export function isTillCode(code: string): boolean {
+  return TILL_PATTERN.test(code.toUpperCase());
+}
+
+/** A shop as a paying customer sees it. */
+export interface ShopInfo {
+  code: string;
+  username: string;
+  businessName: string;
+  category: VendorCategory;
+  location: string;
+}
+
+/** The caller's own till. */
+export interface TillResponse {
+  code: string;
+  username: string;
+  businessName: string;
+}
+
+export function parseTillLookup(body: unknown): { code: string } {
+  const code = String(record(body).code ?? '').toUpperCase();
+  if (!isTillCode(code)) throw new VendorValidationError('That isn’t a shop code.');
+  return { code };
+}

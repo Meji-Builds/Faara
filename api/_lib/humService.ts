@@ -30,6 +30,7 @@ import {
   type SafetyResult,
   type ShapeTriple,
 } from '../../shared/hum';
+import { TILL_PREFIX } from '../../shared/vendors';
 
 import {
   USDC_MINT,
@@ -231,10 +232,12 @@ export class HumService {
             : 'Nobody on Faara has that phone number.',
         );
       }
+      const vendor = await tx.get<{ businessName: string }>(`vendors/${found.uid}`);
       return {
         fullName: found.profile.fullName,
         username: found.profile.username,
         hasWallet: Boolean(found.profile.walletAddress),
+        ...(vendor ? { shop: vendor.businessName } : {}),
       };
     });
   }
@@ -667,8 +670,10 @@ export class HumService {
   }
 
   private generateToken(): string {
-    let token = '';
-    for (let i = 0; i < TOKEN_LENGTH; i++)
+    // Never start with the till prefix: those codes belong to shops.
+    const first = TOKEN_ALPHABET.replace(TILL_PREFIX, '');
+    let token = first[this.deps.randomInt(first.length)] as string;
+    for (let i = 1; i < TOKEN_LENGTH; i++)
       token += TOKEN_ALPHABET[this.deps.randomInt(TOKEN_ALPHABET.length)];
     return token;
   }

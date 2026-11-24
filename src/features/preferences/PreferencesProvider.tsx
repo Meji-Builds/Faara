@@ -28,6 +28,10 @@ export interface Preferences {
   notificationsSeenAt: number;
   /** Naira (kobo) kept ready for paying with no network; 0 is off. */
   offlineReserveKobo: number;
+  /** How the vendor till reads payments out. */
+  tillVoice: 'off' | 'english' | 'pidgin';
+  /** Whether the vendor till hums out loud (Bluetooth is always on). */
+  tillSound: boolean;
 }
 
 const DEFAULTS: Preferences = {
@@ -41,6 +45,8 @@ const DEFAULTS: Preferences = {
   notifyOffers: false,
   notificationsSeenAt: 0,
   offlineReserveKobo: 0,
+  tillVoice: 'english',
+  tillSound: true,
 };
 
 const STORAGE_KEY = 'faara.preferences';

@@ -1,6 +1,10 @@
 import { parseLookupUser } from '../../../shared/hum';
 import { parseNewTicket, parseTicketRef, parseTicketReply } from '../../../shared/support';
-import { parseVendorApplication, parseVendorReview } from '../../../shared/vendors';
+import {
+  parseTillLookup,
+  parseVendorApplication,
+  parseVendorReview,
+} from '../../../shared/vendors';
 import { authedRoute, humRoute } from '../http';
 
 /** POST /api/users/lookup: find someone by username before sending to them. */
@@ -14,6 +18,17 @@ export const lookup = humRoute(
 export const vendor = authedRoute(
   () => ({}),
   ({ uid, services }) => services.vendors.status(uid),
+);
+
+/** POST /api/users/till: the caller's till code (approved vendors only). */
+export const till = authedRoute(
+  () => ({}),
+  ({ uid, services }) => services.vendors.till(uid),
+);
+
+/** POST /api/users/shop: the verified shop behind a till code a phone picked up. */
+export const shop = authedRoute(parseTillLookup, ({ services }, request) =>
+  services.vendors.shop(request.code),
 );
 
 /** POST /api/users/apply: apply to become a vendor. */

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import type { ClaimChannel, ClaimHumResponse, ShapeTriple } from '@shared/hum';
+import { isTillCode } from '@shared/vendors';
 
 import { ShapeGlyph, SuccessBurst } from '@/components/brand';
 import { CountUp, Reveal } from '@/components/motion';
@@ -79,17 +80,22 @@ export default function ReceiveScreen() {
     );
   }, [caughtToken, caughtChannel, caughtDistance, runClaim]);
 
+  // A shop's till code is for paying the shop, not a payment to this phone: ignore it.
   const onDecode = useCallback(
-    (decoded: DecodedHum) =>
-      submitClaim({ token: decoded.code }, 'sound', estimateDistanceCm(decoded.frameLevel)),
+    (decoded: DecodedHum) => {
+      if (isTillCode(decoded.code)) return;
+      submitClaim({ token: decoded.code }, 'sound', estimateDistanceCm(decoded.frameLevel));
+    },
     [submitClaim],
   );
 
   const listener = useHumListener(onDecode);
   // Race Bluetooth against sound: whichever decodes a code first claims it.
   const onBleToken = useCallback(
-    (token: string, rssi: number) =>
-      submitClaim({ token }, 'bluetooth', estimateDistanceFromRssi(rssi)),
+    (token: string, rssi: number) => {
+      if (isTillCode(token)) return;
+      submitClaim({ token }, 'bluetooth', estimateDistanceFromRssi(rssi));
+    },
     [submitClaim],
   );
   const { start, stop } = listener;

@@ -191,6 +191,8 @@ function RootStack({ onReady }: { onReady: () => void }) {
           <Stack.Screen name="vendor/index" />
           <Stack.Screen name="vendor/apply" />
           <Stack.Screen name="vendor/review" />
+          <Stack.Screen name="vendor/till" />
+          <Stack.Screen name="vendor/sticker" />
           <Stack.Screen name="support/index" />
           <Stack.Screen name="support/new" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="support/[id]" />

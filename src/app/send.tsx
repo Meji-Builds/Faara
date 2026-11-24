@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Download, UserRound } from 'lucide-react-native';
+import { Download, ShieldCheck, UserRound } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
@@ -394,14 +394,20 @@ function RecipientPreview({
   }
   return (
     <Card padded style={styles.recipient}>
-      <Avatar size={44} initials={initials(lookup.user.fullName)} />
+      <Avatar size={44} initials={initials(lookup.user.shop ?? lookup.user.fullName)} />
       <View style={styles.flex}>
-        <AppText variant="subheading">{lookup.user.fullName}</AppText>
+        <AppText variant="subheading">{lookup.user.shop ?? lookup.user.fullName}</AppText>
         <AppText variant="body" color="textMuted">
-          @{lookup.user.username}
+          {lookup.user.shop
+            ? `Verified shop · ${lookup.user.fullName}`
+            : `@${lookup.user.username}`}
         </AppText>
       </View>
-      <UserRound size={20} color={colors.accentText} strokeWidth={1.75} />
+      {lookup.user.shop ? (
+        <ShieldCheck size={20} color={colors.accentText} strokeWidth={1.75} />
+      ) : (
+        <UserRound size={20} color={colors.accentText} strokeWidth={1.75} />
+      )}
     </Card>
   );
 }

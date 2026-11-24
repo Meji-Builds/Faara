@@ -428,3 +428,24 @@ describe('offline hum over Bluetooth', () => {
     expect(seen.size).toBeGreaterThan(60);
   });
 });
+
+describe('shop names on name cards', () => {
+  it('signs the verified business name for vendors, and nothing for everyone else', async () => {
+    const s = setup();
+    s.store.docs.set('vendors/tolu', { businessName: 'Mama Tolu Foods' });
+    const vendor = await s.service.identity('tolu');
+    const person = await s.service.identity('ada');
+    expect(vendor.card.shop).toBe('Mama Tolu Foods');
+    expect(person.card.shop).toBe('');
+    const options = { serverPublicKey: s.signer.publicKey, verify: verifySignature, now: s.now() };
+    expect(checkIdentity(vendor, options)).toBe(true);
+    expect(checkIdentity(person, options)).toBe(true);
+    // Nobody can add a shop name Faara didn't sign.
+    expect(checkIdentity({ ...person, card: { ...person.card, shop: 'Fake Shop' } }, options)).toBe(
+      false,
+    );
+    expect(decodeHumOffer(encodeHumOffer({ identity: vendor, nonce: 'n1' }))?.identity).toEqual(
+      vendor,
+    );
+  });
+});

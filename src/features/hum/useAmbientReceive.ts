@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import type { ClaimChannel } from '@shared/hum';
+import { isTillCode } from '@shared/vendors';
 
 import { estimateDistanceFromRssi, useBleScan, type BleChannelState } from '@/features/ble';
 import { estimateDistanceCm, useHumListener, type ListenState } from '@/features/sound';
@@ -35,7 +36,8 @@ export function useAmbientReceive(
   }, [onCaught]);
 
   const report = useCallback((hum: CaughtHum) => {
-    if (caught.current) return;
+    // A shop's till code is for paying the shop; it isn't money coming to this phone.
+    if (caught.current || isTillCode(hum.token)) return;
     if (recent && recent.token === hum.token && Date.now() - recent.at < COOLDOWN_MS) return;
     caught.current = true;
     recent = { token: hum.token, at: Date.now() };

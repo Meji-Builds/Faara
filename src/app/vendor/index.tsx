@@ -6,6 +6,7 @@ import { AppText, Button, Card, Header, Screen } from '@/components/ui';
 import { useActivity } from '@/features/account';
 import { useVendorStatus } from '@/features/vendors';
 import { formatMoney } from '@/lib/money';
+import { audioEngine } from '@/features/sound';
 import { useTheme } from '@/theme';
 
 const naira = (amount: number) => formatMoney(amount, 'NGN');
@@ -112,12 +113,30 @@ function VendorDashboard({ businessName }: { businessName: string }) {
     <Screen
       footer={
         <>
-          <Button label="Receive a hum" onPress={() => router.push('/receive')} />
           <Button
-            label="New invoice"
-            variant="outline"
-            onPress={() => router.push('/request-new')}
+            label="Open till"
+            onPress={() => {
+              // Unlock audio inside the tap (browsers), so the till can hum.
+              audioEngine.prepare();
+              router.push('/vendor/till');
+            }}
           />
+          <View style={styles.pair}>
+            <View style={styles.half}>
+              <Button
+                label="Shop sticker"
+                variant="outline"
+                onPress={() => router.push('/vendor/sticker')}
+              />
+            </View>
+            <View style={styles.half}>
+              <Button
+                label="New invoice"
+                variant="outline"
+                onPress={() => router.push('/request-new')}
+              />
+            </View>
+          </View>
         </>
       }
     >
@@ -181,4 +200,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rowText: { flex: 1, gap: 2 },
+  pair: { flexDirection: 'row', gap: 10 },
+  half: { flex: 1 },
 });
