@@ -642,7 +642,7 @@ section {
   border-radius: 28px;
   background: var(--ink);
   /* --x and --r come from the scroll position. */
-  transform: translate(-50%, -50%) translateX(var(--x, 0px)) rotate(var(--r, 0deg));
+  transform: translate3d(calc(-50% + var(--x, 0px)), -50%, 0) rotate(var(--r, 0deg));
   will-change: transform;
 }
 
