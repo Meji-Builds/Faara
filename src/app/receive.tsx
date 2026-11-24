@@ -178,7 +178,15 @@ export default function ReceiveScreen() {
       <View style={styles.body}>
         {phase.kind === 'listening' && method === 'scan' ? (
           <View style={styles.method}>
-            <WaveScanner onToken={(token) => submitClaim({ token }, 'qr')} />
+            <WaveScanner
+              onToken={(token) => submitClaim({ token }, 'qr')}
+              // A shop sticker or someone's Faara code means paying them, not receiving.
+              onLink={(link) =>
+                link.kind === 'pay'
+                  ? router.replace({ pathname: '/send', params: { to: link.username } })
+                  : router.replace({ pathname: '/r/[id]', params: { id: link.id } })
+              }
+            />
             <AppText color="textMuted" align="center">
               Point the camera at the spinning hum ring on the sender’s screen and hold steady.
             </AppText>

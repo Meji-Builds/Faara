@@ -46,6 +46,7 @@
     "firebase-admin": "^13.10.0",
     "jest-expo": "~58.0.14",
     "jpeg-js": "^0.4.4",
+    "jsqr": "1.4.0",
     "lucide-react-native": "^1.73.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",

@@ -15,9 +15,12 @@ export interface NearbyShop extends ShopInfo {
 /** A shop drops off the list once its till hasn't been heard for this long. */
 const FORGET_AFTER_MS = 20_000;
 
-/** Shops looked up this session: the verified shop, or null for codes that aren't one. */
+/** Shops looked up this session. Codes that aren't a shop just never show. */
 const known = new Map<string, ShopInfo | null>();
 const pending = new Set<string>();
+/** When a lookup last failed; it's tried again after a short wait. */
+const failedAt = new Map<string, number>();
+const RETRY_AFTER_MS = 8_000;
 
 interface Sighting {
   distanceCm: number | null;
@@ -71,10 +74,14 @@ export function useNearbyShops(enabled: boolean): NearbyShop[] {
       return next;
     });
     if (known.has(upper) || pending.has(upper)) return;
+    if (Date.now() - (failedAt.get(upper) ?? 0) < RETRY_AFTER_MS) return;
     pending.add(upper);
     lookupShop(upper)
-      .then((shop) => known.set(upper, shop))
-      .catch(() => known.set(upper, null))
+      .then((shop) => {
+        known.set(upper, shop);
+        failedAt.delete(upper);
+      })
+      .catch(() => failedAt.set(upper, Date.now()))
       .finally(() => {
         pending.delete(upper);
         setLookups((n) => n + 1);

@@ -1,5 +1,5 @@
 import { useIsFocused, useRouter } from 'expo-router';
-import { ShieldCheck } from 'lucide-react-native';
+import { ScanLine, ShieldCheck, Store } from 'lucide-react-native';
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
@@ -38,7 +38,11 @@ export default function AmountScreen() {
   // any number of customers can pay it at the same time.
   const focused = useIsFocused();
   const online = useOnline();
-  const shops = useNearbyShops(focused && online && Platform.OS !== 'web');
+  // The shop's phone hums and this phone listens. Phones listen by themselves; browsers only
+  // allow the microphone after a tap, so there the customer taps "Paying a shop?" first.
+  const [listenOnWeb, setListenOnWeb] = useState(false);
+  const findingShops = focused && online && (Platform.OS !== 'web' || listenOnWeb);
+  const shops = useNearbyShops(findingShops);
   const [chosen, setChosen] = useState<NearbyShop | null>(null);
   const shop = chosen && shops.some((s) => s.code === chosen.code) ? chosen : null;
 
@@ -89,6 +93,54 @@ export default function AmountScreen() {
         }
       />
 
+      {online && Platform.OS === 'web' && !listenOnWeb ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            // Unlock audio inside the tap, then listen for the shop's till.
+            audioEngine.prepare();
+            setListenOnWeb(true);
+          }}
+          style={[styles.shop, styles.findShop, { borderColor: colors.border }]}
+        >
+          <Store size={20} color={colors.accentText} strokeWidth={1.75} />
+          <View style={styles.shopText}>
+            <AppText variant="bodyStrong">Paying a shop?</AppText>
+            <AppText variant="label" color="textMuted">
+              Tap, then hold your phone near the shop’s till
+            </AppText>
+          </View>
+        </Pressable>
+      ) : null}
+      {findingShops && Platform.OS === 'web' && shops.length === 0 ? (
+        <View style={[styles.shop, styles.findShop, { borderColor: colors.border }]}>
+          <Store size={20} color={colors.accentText} strokeWidth={1.75} />
+          <View style={styles.shopText}>
+            <AppText variant="bodyStrong">Listening for shops…</AppText>
+            <AppText variant="label" color="textMuted">
+              Hold your phone near the shop’s till. It hums; you don’t need to.
+            </AppText>
+          </View>
+        </View>
+      ) : null}
+      {shop === null ? (
+        <Pressable
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={() =>
+            router.push({
+              pathname: '/scan',
+              params: { ...(amount > 0 ? { amount: amountInput } : {}), ...(note ? { note } : {}) },
+            })
+          }
+          style={styles.scanLink}
+        >
+          <ScanLine size={16} color={colors.accentText} strokeWidth={1.75} />
+          <AppText variant="label" color="accentText">
+            Scan a shop sticker instead
+          </AppText>
+        </Pressable>
+      ) : null}
       {shops.length > 0 ? (
         <View style={styles.shops}>
           <AppText variant="label" color="textMuted">
@@ -221,4 +273,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   shopText: { flex: 1, gap: 2 },
+  findShop: { marginTop: 12 },
+  scanLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
 });

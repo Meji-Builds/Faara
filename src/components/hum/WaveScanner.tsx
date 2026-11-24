@@ -9,11 +9,14 @@ import { parseHumQr } from '@shared/hum';
 import { AppText, Button } from '@/components/ui';
 import { base64ToBytes } from '@/features/sound/audio/pcm';
 import { rgbaToLuminance, scanWave } from '@/features/wavecode';
+import { parseFaaraLink, type FaaraLink } from '@/lib/links';
 import { radii, useTheme } from '@/theme';
 
 interface WaveScannerProps {
   /** Called once with the first hum code read from the camera. */
   onToken: (token: string) => void;
+  /** Called once with a Faara pay or request link, such as a shop's sticker. */
+  onLink?: (link: FaaraLink) => void;
 }
 
 /** Width that captured frames are reduced to before decoding. */
@@ -23,17 +26,19 @@ const PAUSE_BETWEEN_FRAMES_MS = 150;
 /**
  * Native scanner: reads hum rings by taking quiet, low-quality stills in a loop, shrinking
  * them and decoding the pixels in JavaScript (expo-camera exposes no live frames). Expect
- * roughly one attempt per second. Plain Faara QR codes are still accepted.
+ * roughly one attempt per second. Plain Faara QR codes and pay links (shop stickers) are accepted too.
  */
-export function WaveScanner({ onToken }: WaveScannerProps) {
+export function WaveScanner({ onToken, onLink }: WaveScannerProps) {
   const { colors } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView>(null);
   const done = useRef(false);
   const onTokenRef = useRef(onToken);
+  const onLinkRef = useRef(onLink);
   useEffect(() => {
     onTokenRef.current = onToken;
-  }, [onToken]);
+    onLinkRef.current = onLink;
+  }, [onToken, onLink]);
 
   const granted = permission?.granted ?? false;
 
@@ -115,10 +120,19 @@ export function WaveScanner({ onToken }: WaveScannerProps) {
         animateShutter={false}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         onBarcodeScanned={({ data }) => {
+          if (done.current) return;
           const token = parseHumQr(data);
-          if (!token || done.current) return;
-          done.current = true;
-          onTokenRef.current(token);
+          if (token) {
+            done.current = true;
+            onTokenRef.current(token);
+            return;
+          }
+          // A Faara pay link, such as a shop's sticker.
+          const link = parseFaaraLink(data);
+          if (link && onLinkRef.current) {
+            done.current = true;
+            onLinkRef.current(link);
+          }
         }}
       />
     </View>

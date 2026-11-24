@@ -1,13 +1,19 @@
+import jsQR from 'jsqr';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { parseHumQr } from '@shared/hum';
+
 import { AppText } from '@/components/ui';
 import { rgbaToLuminance, scanWave } from '@/features/wavecode';
+import { parseFaaraLink, type FaaraLink } from '@/lib/links';
 import { radii, useTheme } from '@/theme';
 
 interface WaveScannerProps {
   /** Called once with the first hum code read from the camera. */
   onToken: (token: string) => void;
+  /** Called once with a Faara pay or request link, such as a shop's sticker. */
+  onLink?: (link: FaaraLink) => void;
 }
 
 const SCAN_INTERVAL_MS = 140;
@@ -15,14 +21,16 @@ const SCAN_INTERVAL_MS = 140;
 const MAX_SIDE = 640;
 
 /** Web scanner: reads hum rings from the rear camera using a canvas. */
-export function WaveScanner({ onToken }: WaveScannerProps) {
+export function WaveScanner({ onToken, onLink }: WaveScannerProps) {
   const { colors } = useTheme();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const onTokenRef = useRef(onToken);
+  const onLinkRef = useRef(onLink);
   useEffect(() => {
     onTokenRef.current = onToken;
-  }, [onToken]);
+    onLinkRef.current = onLink;
+  }, [onToken, onLink]);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -69,6 +77,19 @@ export function WaveScanner({ onToken }: WaveScannerProps) {
         if (token) {
           done = true;
           onTokenRef.current(token);
+          return;
+        }
+        // Plain QR codes too: a hum code, or a Faara pay link such as a shop sticker.
+        const qr = jsQR(pixels, width, height, { inversionAttempts: 'dontInvert' })?.data;
+        if (!qr) return;
+        const fromQr = parseHumQr(qr);
+        const link = fromQr ? null : parseFaaraLink(qr);
+        if (fromQr) {
+          done = true;
+          onTokenRef.current(fromQr);
+        } else if (link && onLinkRef.current) {
+          done = true;
+          onLinkRef.current(link);
         }
       }, SCAN_INTERVAL_MS);
     })();
