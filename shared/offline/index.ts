@@ -1,3 +1,4 @@
+import { pickShapes, type ShapeTriple } from '../hum/shapes';
 import { ValidationError } from '../hum/validation';
 
 /**
@@ -21,6 +22,8 @@ export const OFFLINE_LIMITS = {
   pocketTtlMs: 7 * 24 * 3_600_000,
   /** After expiry, notes can still settle for this long before the leftover is released. */
   graceMs: 2 * 24 * 3_600_000,
+  /** How long an identity card is good for before the phone fetches a fresh one. */
+  identityTtlMs: 30 * 24 * 3_600_000,
 } as const;
 
 export interface PocketCertificate {
@@ -59,6 +62,22 @@ export interface SignedNote {
   note: SpendNote;
   signature: string;
   certificate: SignedCertificate;
+}
+
+/**
+ * A card Faara signs naming a person. A receiver's phone hands it to the payer over
+ * Bluetooth, so the payer sees a name that no nearby phone can fake.
+ */
+export interface IdentityCard {
+  uid: string;
+  name: string;
+  issuedAt: number;
+  expiresAt: number;
+}
+
+export interface SignedIdentity {
+  card: IdentityCard;
+  signature: string;
 }
 
 export type NoteStatus = 'settled' | 'already-settled' | 'rejected';
@@ -107,6 +126,17 @@ export function noteMessage(n: SpendNote): string {
     field(n.nonce, 'nonce'),
     whole(n.sequence, 'sequence'),
     whole(n.createdAt, 'createdAt'),
+  ].join('|');
+}
+
+/** The exact bytes Faara signs for an identity card. The name is base64url so any text fits. */
+export function identityMessage(c: IdentityCard): string {
+  return [
+    'faara-id-v1',
+    field(c.uid, 'uid'),
+    field(toBase64Url(c.name), 'name'),
+    whole(c.issuedAt, 'issuedAt'),
+    whole(c.expiresAt, 'expiresAt'),
   ].join('|');
 }
 
@@ -324,7 +354,12 @@ export function readPaymentQr(data: string): { note: SignedNote; fromName: strin
 
 /** Reads a payer's payment QR; null if it isn't one. Signatures are checked separately. */
 export function decodeSignedNote(data: string): SignedNote | null {
-  const value = decodeQr(QR_PREFIX.note, data) as Partial<SignedNote> | null;
+  return signedNoteFrom(decodeQr(QR_PREFIX.note, data));
+}
+
+/** Checks the shape of a signed note from any transport; null if it isn't one. */
+function signedNoteFrom(raw: unknown): SignedNote | null {
+  const value = raw as Partial<SignedNote> | null;
   const note = value?.note;
   const cert = value?.certificate?.certificate;
   if (
@@ -352,8 +387,141 @@ export function decodeSignedNote(data: string): SignedNote | null {
     return null;
   }
   return {
-    note: { ...note },
+    note: {
+      noteId: note.noteId,
+      pocketId: note.pocketId,
+      fromUid: note.fromUid,
+      toUid: note.toUid,
+      amountKobo: note.amountKobo,
+      nonce: note.nonce,
+      sequence: note.sequence,
+      createdAt: note.createdAt,
+    },
     signature: value.signature,
-    certificate: { certificate: { ...cert }, signature: value.certificate.signature },
-  } as SignedNote;
+    certificate: {
+      certificate: {
+        pocketId: cert.pocketId,
+        uid: cert.uid,
+        devicePublicKey: cert.devicePublicKey,
+        limitKobo: cert.limitKobo,
+        maxNoteKobo: cert.maxNoteKobo,
+        issuedAt: cert.issuedAt,
+        expiresAt: cert.expiresAt,
+      },
+      signature: value.certificate.signature,
+    },
+  };
+}
+
+/** Checks an identity card's shape; null if it isn't one. Signatures are checked separately. */
+function identityFrom(raw: unknown): SignedIdentity | null {
+  const value = raw as Partial<SignedIdentity> | null;
+  const card = value?.card;
+  if (
+    !value ||
+    !card ||
+    !isText(value.signature, 200) ||
+    !isText(card.uid, 128) ||
+    !SAFE.test(card.uid) ||
+    !isText(card.name, 80) ||
+    !isWhole(card.issuedAt) ||
+    !isWhole(card.expiresAt)
+  ) {
+    return null;
+  }
+  return {
+    card: { uid: card.uid, name: card.name, issuedAt: card.issuedAt, expiresAt: card.expiresAt },
+    signature: value.signature,
+  };
+}
+
+/** Whether Faara signed this identity card and it's still in date. Never throws. */
+export function checkIdentity(
+  signed: SignedIdentity,
+  options: { serverPublicKey: string; verify: VerifySignature; now: number },
+): boolean {
+  try {
+    if (options.now > signed.card.expiresAt) return false;
+    return options.verify(options.serverPublicKey, identityMessage(signed.card), signed.signature);
+  } catch {
+    return false;
+  }
+}
+
+/** Reads a top-up request: naira to add to the pocket (0 just renews it) and the phone's key. */
+export function parseTopUpPocket(body: unknown): { addKobo: number; devicePublicKey: string } {
+  const data = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+  const add = data.addKobo;
+  const key = data.devicePublicKey;
+  if (typeof add !== 'number' || !Number.isSafeInteger(add) || add < 0) {
+    throw new OfflineValidationError('Choose an amount.');
+  }
+  if (add > OFFLINE_LIMITS.maxPocketKobo) {
+    throw new OfflineValidationError('That’s more than an offline pocket can hold.');
+  }
+  if (typeof key !== 'string' || !/^[A-Za-z0-9+/]{43}=$/.test(key)) {
+    throw new OfflineValidationError('The phone’s key isn’t valid.');
+  }
+  return { addKobo: add, devicePublicKey: key };
+}
+
+/**
+ * What two phones say to each other over Bluetooth during an offline hum:
+ * - the offer, from the receiver: their Faara-signed identity and a fresh nonce;
+ * - the payment, from the payer: the signed note answering that offer.
+ * Both are compact JSON; each side checks everything it reads.
+ */
+export interface HumOffer {
+  identity: SignedIdentity;
+  nonce: string;
+}
+
+export interface HumPayment {
+  note: SignedNote;
+  /** Shown to the receiver only; it isn't signed. */
+  fromName: string;
+}
+
+export const encodeHumOffer = (offer: HumOffer): string => JSON.stringify(offer);
+export const encodeHumPayment = (payment: HumPayment): string => JSON.stringify(payment);
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/** Reads a receiver's offer; null if it isn't one. */
+export function decodeHumOffer(text: string): HumOffer | null {
+  const value = parseJson(text) as Partial<HumOffer> | null;
+  const identity = identityFrom(value?.identity ?? null);
+  if (!value || !identity || !isText(value.nonce, 64) || !SAFE.test(value.nonce)) return null;
+  return { identity, nonce: value.nonce };
+}
+
+/** Reads a payer's payment; null if it isn't one. */
+export function decodeHumPayment(text: string): HumPayment | null {
+  const value = parseJson(text) as Partial<HumPayment> | null;
+  const note = signedNoteFrom(value?.note ?? null);
+  if (!value || !note) return null;
+  return { note, fromName: isText(value.fromName, 80) ? value.fromName : 'A Faara user' };
+}
+
+/**
+ * The three shapes both phones show for an offline hum, worked out from the receiver's nonce
+ * so the two screens agree with no server. FNV-1a seeds a small generator; it only has to
+ * spread the 120 combinations evenly, not be secret.
+ */
+export function shapesForNonce(nonce: string): ShapeTriple {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < nonce.length; i++) {
+    hash ^= nonce.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return pickShapes((n) => {
+    hash = (Math.imul(hash ^ (hash >>> 15), 0x2c1b3c6d) + 0x9e3779b9) >>> 0;
+    return hash % n;
+  });
 }

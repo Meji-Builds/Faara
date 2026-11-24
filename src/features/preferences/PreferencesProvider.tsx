@@ -26,6 +26,8 @@ export interface Preferences {
   notifyOffers: boolean;
   /** When the notifications screen was last opened (epoch ms). */
   notificationsSeenAt: number;
+  /** Naira (kobo) kept ready for paying with no network; 0 is off. */
+  offlineReserveKobo: number;
 }
 
 const DEFAULTS: Preferences = {
@@ -38,6 +40,7 @@ const DEFAULTS: Preferences = {
   notifyMoneyReceived: true,
   notifyOffers: false,
   notificationsSeenAt: 0,
+  offlineReserveKobo: 0,
 };
 
 const STORAGE_KEY = 'faara.preferences';

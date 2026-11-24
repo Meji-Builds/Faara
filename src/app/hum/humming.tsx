@@ -10,6 +10,7 @@ import {
   ChannelList,
   FallbackCode,
   HumPulse,
+  OfflineHum,
   type ChannelStatus,
 } from '@/components/hum';
 import { AppText, Avatar, Button, Header, Screen } from '@/components/ui';
@@ -18,6 +19,7 @@ import { cancelHum, createHum, useHumDraft } from '@/features/hum';
 import { HUM_VOLUME_GAIN, usePreferences } from '@/features/preferences';
 import { useHumBroadcaster } from '@/features/sound';
 import { apiErrorMessage } from '@/lib/api/client';
+import { useOnline } from '@/lib/connectivity';
 import { initials } from '@/lib/money';
 import { fonts, radii, useTheme } from '@/theme';
 
@@ -48,7 +50,19 @@ function bluetoothStatus(state: BleChannelState, live: boolean): ChannelStatus {
     : { id: 'bluetooth', state: 'idle', statusLabel: 'Starting' };
 }
 
+/**
+ * A hum. With a network the server pairs the phones; with none (or if the network drops
+ * before the hum starts) the same screen pays over Bluetooth from the offline pocket. Once
+ * offline it stays offline, so a payment is never interrupted by the network coming back.
+ */
 export default function HummingScreen() {
+  const online = useOnline();
+  const [offline, setOffline] = useState(!online);
+  if (!online && !offline) setOffline(true);
+  return offline ? <OfflineHum /> : <OnlineHumming />;
+}
+
+function OnlineHumming() {
   const router = useRouter();
   const { colors } = useTheme();
   const { amount, currency, note, amountLabel, session, setSession, claims } = useHumDraft();

@@ -2,11 +2,13 @@ import { ed25519 } from '@noble/curves/ed25519';
 import { Buffer } from 'buffer';
 
 import {
+  OFFLINE_LIMITS,
   checkNote,
   noteMessage,
   type NoteStatus,
   type OfflineRequest,
   type SignedCertificate,
+  type SignedIdentity,
   type SignedNote,
 } from '@shared/offline';
 
@@ -37,6 +39,14 @@ export interface RemotePocket {
 export interface SentPayment {
   note: SignedNote;
   toName: string;
+  /**
+   * Whether the receiver's phone took it (Bluetooth payments only). Confirmed payments are
+   * also settled from this phone, so they land even if the receiver's phone is lost. Others
+   * are left to the receiver: this phone can't know they were handed over.
+   */
+  delivery?: 'confirmed' | 'refused' | 'unknown';
+  /** Settlement, for confirmed payments. */
+  status?: 'waiting' | NoteStatus;
 }
 
 export interface ReceivedPayment {
@@ -49,6 +59,8 @@ export interface ReceivedPayment {
 
 export interface OfflineLedger {
   serverPublicKey: string | null;
+  /** This person's Faara-signed name card, handed to payers when receiving by Bluetooth. */
+  identity: SignedIdentity | null;
   pocket: LocalPocket | null;
   remote: RemotePocket | null;
   sent: SentPayment[];
@@ -57,6 +69,7 @@ export interface OfflineLedger {
 
 export const EMPTY_LEDGER: OfflineLedger = {
   serverPublicKey: null,
+  identity: null,
   pocket: null,
   remote: null,
   sent: [],
@@ -190,9 +203,30 @@ export function receiveOffline(
   };
 }
 
-/** Payments received offline that still need to be settled. */
+/** Records whether the receiver's phone took a payment sent by Bluetooth. */
+export function markDelivery(
+  ledger: OfflineLedger,
+  noteId: string,
+  delivery: NonNullable<SentPayment['delivery']>,
+): OfflineLedger {
+  return {
+    ...ledger,
+    sent: ledger.sent.map((s) =>
+      s.note.note.noteId === noteId
+        ? { ...s, delivery, status: delivery === 'confirmed' ? 'waiting' : s.status }
+        : s,
+    ),
+  };
+}
+
+/** Payments this phone should settle: received ones, and sent ones the receiver confirmed. */
 export function waitingNotes(ledger: OfflineLedger): SignedNote[] {
-  return ledger.received.filter((r) => r.status === 'waiting').map((r) => r.note);
+  return [
+    ...ledger.received.filter((r) => r.status === 'waiting').map((r) => r.note),
+    ...ledger.sent
+      .filter((s) => s.delivery === 'confirmed' && s.status === 'waiting')
+      .map((s) => s.note),
+  ];
 }
 
 /** Records what the server said about settled payments. */
@@ -207,5 +241,51 @@ export function applySettlement(
       const result = byId.get(r.note.note.noteId);
       return result ? { ...r, status: result.status, reason: result.reason } : r;
     }),
+    sent: ledger.sent.map((s) => {
+      const result = byId.get(s.note.note.noteId);
+      return result && s.delivery === 'confirmed' ? { ...s, status: result.status } : s;
+    }),
+  };
+}
+
+/** Renew a pocket this long before it would expire, so it never lapses while in use. */
+const RENEW_BEFORE_MS = 2 * 24 * 3_600_000;
+/** Smaller refills aren't worth a trip to the server. */
+const MIN_REFILL_KOBO = 500_00;
+
+/**
+ * How much to add so `reserveKobo` is ready to spend offline: null when nothing needs doing,
+ * 0 to only renew a pocket that is about to expire. Stays within what a pocket may hold.
+ */
+export function topUpNeeded(
+  ledger: OfflineLedger,
+  reserveKobo: number,
+  now: number,
+): number | null {
+  if (reserveKobo <= 0) return null;
+  const { pocket, remote } = ledger;
+  // A pocket opened on another phone can't be topped up from here; it releases on expiry.
+  if (!pocket) return remote ? null : Math.min(reserveKobo, OFFLINE_LIMITS.maxPocketKobo);
+  if (!remote || remote.pocketId !== pocket.signed.certificate.pocketId) return null;
+  const want = reserveKobo - spendable(pocket, now);
+  const room = OFFLINE_LIMITS.maxPocketKobo - remote.remainingKobo;
+  const add = Math.max(0, Math.min(want, room));
+  if (add >= MIN_REFILL_KOBO) return add;
+  return pocket.signed.certificate.expiresAt - now < RENEW_BEFORE_MS ? 0 : null;
+}
+
+/** Stores a certificate from a top-up, keeping what this phone has already spent from it. */
+export function applyTopUp(
+  ledger: OfflineLedger,
+  signed: SignedCertificate,
+  now: number,
+): OfflineLedger {
+  const same = ledger.pocket?.signed.certificate.pocketId === signed.certificate.pocketId;
+  return {
+    ...ledger,
+    pocket:
+      same && ledger.pocket
+        ? { ...ledger.pocket, signed }
+        : { signed, spentKobo: 0, nextSequence: 0, openedAt: now },
   };
 }

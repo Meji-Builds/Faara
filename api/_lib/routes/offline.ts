@@ -1,4 +1,4 @@
-import { parseOpenPocket, parseSettleNotes } from '../../../shared/offline';
+import { parseOpenPocket, parseSettleNotes, parseTopUpPocket } from '../../../shared/offline';
 import { authedRoute } from '../http';
 
 /** POST /api/offline/open: lock naira into an offline pocket and get its certificate. */
@@ -30,4 +30,17 @@ export const status = authedRoute(
 export const release = authedRoute(
   () => ({}),
   ({ uid, services }) => services.offline.release(uid),
+);
+
+/** POST /api/offline/topup: add to the open pocket on this phone, or renew it. */
+export const topup = authedRoute(
+  parseTopUpPocket,
+  ({ uid, services }, request) => services.offline.topUpPocket(uid, request),
+  { movesMoney: true },
+);
+
+/** POST /api/offline/identity: a Faara-signed card with the caller's name, for receiving offline. */
+export const identity = authedRoute(
+  () => ({}),
+  ({ uid, services }) => services.offline.identity(uid),
 );

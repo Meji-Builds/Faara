@@ -1,27 +1,25 @@
 import { useRouter } from 'expo-router';
-import { ArrowDownLeft, ArrowUpRight, WifiOff } from 'lucide-react-native';
+import { QrCode, WifiOff } from 'lucide-react-native';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-
-import { OFFLINE_LIMITS } from '@shared/offline';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { Approve } from '@/components/security/Approve';
-import { AppText, Button, Card, Header, ListRow, Screen, TextField } from '@/components/ui';
+import { AppText, Button, Card, Header, ListRow, Screen, TextTabs } from '@/components/ui';
 import { useAuth } from '@/features/auth';
 import {
-  devicePublicKey,
   maxPayment,
-  openPocket,
   releasePocket,
   spendable,
   syncOffline,
-  updateLedger,
   useLedger,
   type ReceivedPayment,
+  type SentPayment,
 } from '@/features/offline';
+import { usePreferences } from '@/features/preferences';
+import { useWallet } from '@/features/wallet';
 import { useOnline } from '@/lib/connectivity';
 import { friendlyError } from '@/lib/errors';
-import { formatMoney, groupDigits } from '@/lib/money';
+import { formatMoney } from '@/lib/money';
 import { haptics } from '@/lib/haptics';
 import { useTheme } from '@/theme';
 
@@ -29,14 +27,37 @@ const naira = (kobo: number) => formatMoney(kobo / 100, 'NGN');
 const day = (ms: number) =>
   new Date(ms).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
 
+/** What someone can choose to keep ready, in kobo. */
+const RESERVES = ['0', '500000', '1000000', '2000000'] as const;
+type Reserve = (typeof RESERVES)[number];
+const RESERVE_LABELS: Record<Reserve, string> = {
+  '0': 'Off',
+  '500000': '₦5,000',
+  '1000000': '₦10,000',
+  '2000000': '₦20,000',
+};
+
 const RECEIVED_LABEL: Record<ReceivedPayment['status'], string> = {
-  waiting: 'Waits for signal',
+  waiting: 'Settles when online',
   settled: 'In your balance',
   'already-settled': 'In your balance',
   rejected: 'Couldn’t settle',
 };
 
-/** The offline pocket: naira set aside to pay and be paid with no network. */
+function sentLabel(s: SentPayment): string {
+  if (s.delivery === 'refused') return 'Not accepted';
+  if (s.delivery === 'confirmed') {
+    return s.status === 'settled' || s.status === 'already-settled'
+      ? 'Paid'
+      : 'Settles when online';
+  }
+  return day(s.note.note.createdAt);
+}
+
+/**
+ * Offline payments: how much to keep ready, what's in the pocket, and history. Paying and
+ * receiving happen through the normal hum; QR codes are the backup for phones without it.
+ */
 export default function OfflineScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -44,85 +65,68 @@ export default function OfflineScreen() {
   const uid = user?.uid ?? '';
   const ledger = useLedger(uid);
   const online = useOnline();
-  const [filling, setFilling] = useState(false);
-  const [amountText, setAmountText] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const { preferences, setPreference } = usePreferences();
+  const walletAddress = useWallet().deviceAddress;
+  const [choosing, setChoosing] = useState<Reserve | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [now] = useState(() => Date.now());
 
-  const pocket = ledger.pocket;
-  const remote = ledger.remote;
+  const { pocket, remote } = ledger;
   const left = spendable(pocket, now);
-  const amountKobo = Math.round(Number(amountText.replace(/,/g, '') || '0') * 100);
-  const validFill = amountKobo >= 100_00 && amountKobo <= OFFLINE_LIMITS.maxPocketKobo;
   const canRelease = remote !== null && now >= remote.releasableAt;
+  const reserve = String(preferences.offlineReserveKobo) as Reserve;
+  const bluetoothHum = Platform.OS === 'android';
+
+  const keepReady = async (kobo: number) => {
+    setPreference('offlineReserveKobo', kobo);
+    await syncOffline(uid, { reserveKobo: kobo, walletAddress });
+  };
 
   const release = async () => {
     setBusy(true);
-    setError(null);
+    setMessage(null);
     try {
       const { releasedKobo } = await releasePocket();
       await syncOffline(uid);
       haptics.success();
-      setError(`${naira(releasedKobo)} is back in your balance.`);
+      setMessage(`${naira(releasedKobo)} is back in your balance.`);
     } catch (cause) {
-      setError(friendlyError(cause, 'Couldn’t release the pocket. Try again.'));
+      setMessage(friendlyError(cause, 'Couldn’t release the pocket. Try again.'));
     } finally {
       setBusy(false);
     }
   };
 
-  if (filling) {
+  // Setting money aside needs the person's approval once; turning it off doesn't.
+  if (choosing && choosing !== '0') {
+    const kobo = Number(choosing);
     return (
       <Screen
         footer={
-          validFill ? (
-            <Approve
-              reason={`Set aside ${naira(amountKobo)} for offline payments.`}
-              onApproved={async (secretKey) => {
-                const signed = await openPocket(amountKobo, devicePublicKey(secretKey));
-                await updateLedger(uid, (current) => ({
-                  ledger: {
-                    ...current,
-                    pocket: { signed, spentKobo: 0, nextSequence: 0, openedAt: Date.now() },
-                  },
-                  result: null,
-                }));
-                haptics.success();
-                setFilling(false);
-                setAmountText('');
-                void syncOffline(uid).catch(() => undefined);
-              }}
-            />
-          ) : (
-            <Button label="Continue" disabled />
-          )
+          <Approve
+            reason={`Keep ${naira(kobo)} ready for offline payments.`}
+            onApproved={async () => {
+              await keepReady(kobo);
+              haptics.success();
+              setChoosing(null);
+            }}
+          />
         }
       >
         <Header
-          onBack={() => setFilling(false)}
-          center={<AppText variant="subheading">Fill your pocket</AppText>}
+          onBack={() => setChoosing(null)}
+          center={<AppText variant="subheading">Keep {naira(kobo)} ready</AppText>}
         />
         <View style={styles.body}>
           <AppText color="textMuted">
-            This moves naira from your balance into a pocket on this phone. You can spend it with no
-            network for 7 days; whatever’s left comes back after that.
+            Faara moves up to {naira(kobo)} from your balance into a pocket on this phone, and tops
+            it back up whenever you’re online. With no network, a normal hum pays from it.
           </AppText>
-          <TextField
-            label="Amount in naira"
-            value={amountText}
-            onChangeText={(text) =>
-              setAmountText(groupDigits(text.replace(/[^0-9]/g, '').slice(0, 7)))
-            }
-            placeholder="10,000"
-            keyboardType="number-pad"
-            autoFocus
-            hint={
-              <AppText variant="label" color="textMuted">
-                Between ₦100 and {naira(OFFLINE_LIMITS.maxPocketKobo)}
-              </AppText>
-            }
-          />
+          <AppText color="textMuted">
+            It’s still your money. Turn this off and whatever is left comes back to your balance
+            once the pocket ends, up to 9 days later.
+          </AppText>
         </View>
       </Screen>
     );
@@ -136,7 +140,7 @@ export default function OfflineScreen() {
           <View style={styles.pocketTop}>
             <WifiOff size={18} color={colors.onBrandMuted} strokeWidth={1.75} />
             <AppText variant="overline" color="onBrandMuted">
-              OFFLINE POCKET
+              READY OFFLINE
             </AppText>
           </View>
           {pocket ? (
@@ -145,8 +149,8 @@ export default function OfflineScreen() {
                 {naira(left)}
               </AppText>
               <AppText color="onBrandMuted">
-                Up to {naira(maxPayment(pocket, now))} per payment · until{' '}
-                {day(pocket.signed.certificate.expiresAt)}
+                Up to {naira(maxPayment(pocket, now))} per payment. With no network, just hum as
+                usual.
               </AppText>
             </>
           ) : remote ? (
@@ -162,57 +166,63 @@ export default function OfflineScreen() {
             </>
           ) : (
             <AppText color="onBrand">
-              Set some naira aside while you’re online. Then you can pay and be paid with no network
-              at all, phone to phone.
+              Choose an amount to keep ready. Then when there’s no network, you pay with a normal
+              hum and it settles once either phone is back online.
             </AppText>
           )}
         </Card>
 
-        {error ? (
+        <View style={styles.choose}>
+          <AppText variant="subheading">Keep ready on this phone</AppText>
+          <TextTabs
+            options={RESERVES}
+            labels={RESERVE_LABELS}
+            value={RESERVES.includes(reserve) ? reserve : '0'}
+            onChange={(value) => {
+              setMessage(null);
+              if (value === '0') {
+                void keepReady(0).catch(() => undefined);
+              } else if (!online) {
+                setMessage('Go online to set money aside.');
+              } else {
+                setChoosing(value);
+              }
+            }}
+          />
+          {!bluetoothHum ? (
+            <AppText variant="label" color="textMuted">
+              Paying by hum with no network needs the Faara app on Android. On this device, use a QR
+              code below.
+            </AppText>
+          ) : null}
+        </View>
+
+        {message ? (
           <AppText variant="label" color="gold" align="center">
-            {error}
+            {message}
           </AppText>
         ) : null}
 
-        {pocket ? (
-          <View style={styles.actions}>
-            <Button
-              label="Pay offline"
-              icon={<ArrowUpRight size={18} color={colors.onAccent} strokeWidth={1.75} />}
-              disabled={left === 0}
-              onPress={() => router.push('/offline/pay')}
-            />
-            <Button
-              label="Receive offline"
-              variant="outline"
-              icon={<ArrowDownLeft size={18} color={colors.accentText} strokeWidth={1.75} />}
-              onPress={() => router.push('/offline/receive')}
-            />
-          </View>
-        ) : (
-          <View style={styles.actions}>
-            {canRelease ? (
-              <Button
-                label="Return to balance"
-                loading={busy}
-                disabled={!online}
-                onPress={release}
-              />
-            ) : !remote ? (
-              <Button
-                label={online ? 'Fill your pocket' : 'Go online to fill your pocket'}
-                disabled={!online}
-                onPress={() => setFilling(true)}
-              />
-            ) : null}
-            <Button
-              label="Receive offline"
-              variant="outline"
-              icon={<ArrowDownLeft size={18} color={colors.accentText} strokeWidth={1.75} />}
-              onPress={() => router.push('/offline/receive')}
-            />
-          </View>
-        )}
+        {canRelease ? (
+          <Button label="Return to balance" loading={busy} disabled={!online} onPress={release} />
+        ) : null}
+
+        <View style={styles.qr}>
+          <AppText variant="overline" color="textMuted">
+            NO BLUETOOTH? USE A QR CODE
+          </AppText>
+          <ListRow
+            label="Pay with a QR code"
+            icon={<QrCode size={20} color={colors.text} strokeWidth={1.75} />}
+            onPress={left > 0 ? () => router.push('/offline/pay') : undefined}
+            value={left > 0 ? undefined : 'Nothing ready'}
+          />
+          <ListRow
+            label="Receive with a QR code"
+            icon={<QrCode size={20} color={colors.text} strokeWidth={1.75} />}
+            onPress={() => router.push('/offline/receive')}
+          />
+        </View>
 
         {ledger.received.length > 0 ? (
           <View>
@@ -239,7 +249,7 @@ export default function OfflineScreen() {
               <ListRow
                 key={s.note.note.noteId}
                 label={`${naira(s.note.note.amountKobo)} to ${s.toName}`}
-                value={day(s.note.note.createdAt)}
+                value={sentLabel(s)}
                 compact
               />
             ))}
@@ -254,6 +264,7 @@ const styles = StyleSheet.create({
   body: { gap: 16, marginTop: 20, paddingBottom: 24 },
   pocket: { gap: 8 },
   pocketTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  actions: { gap: 10 },
+  choose: { gap: 10 },
+  qr: { gap: 4 },
   section: { marginBottom: 4 },
 });

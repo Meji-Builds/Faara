@@ -6,3 +6,4 @@ export { FallbackCode } from './FallbackCode';
 export { WaveScanner } from './WaveScanner';
 export { BluetoothReminder } from './BluetoothReminder';
 export { ListeningLine } from './ListeningLine';
+export { OfflineHum } from './OfflineHum';

@@ -20,8 +20,12 @@ import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import java.util.concurrent.Executors
 
 private const val TOKEN_EVENT = "onPayload"
+private const val NEARBY_EVENT = "onOfflineNearby"
+private const val OFFER_READ_EVENT = "onOfflineOfferRead"
+private const val PAYMENT_EVENT = "onOfflinePayment"
 
 /** 16-bit service UUID used to tag Faara hum advertisements. */
 private val SERVICE_UUID: ParcelUuid = ParcelUuid.fromString("0000FAA7-0000-1000-8000-00805F9B34FB")
@@ -29,7 +33,8 @@ private val SERVICE_UUID: ParcelUuid = ParcelUuid.fromString("0000FAA7-0000-1000
 class BluetoothUnavailableException(message: String) : CodedException(message)
 
 /**
- * Broadcasts and scans hum codes over Bluetooth LE.
+ * Broadcasts and scans hum codes over Bluetooth LE, and (through [OfflineLink]) connects two
+ * phones directly so a payment can pass between them with no network.
  *
  * The sender advertises the service UUID plus 8 bytes of service data (version + packed
  * code) at ultra-low transmit power, which keeps the useful range short. The receiver scans
@@ -49,10 +54,95 @@ class FaaraBleModule : Module() {
   private var scanner: BluetoothLeScanner? = null
   private var scanCallback: ScanCallback? = null
 
+  /** Offline payments run their Bluetooth steps here, one at a time, off the UI thread. */
+  private val offlineQueue = Executors.newSingleThreadExecutor()
+  private val offline by lazy {
+    OfflineLink(
+      context,
+      { adapter },
+      object : OfflineLinkEvents {
+        override fun nearby(deviceId: String, rssi: Int) =
+          sendEvent(NEARBY_EVENT, mapOf("deviceId" to deviceId, "rssi" to rssi))
+
+        override fun offerRead(deviceId: String) =
+          sendEvent(OFFER_READ_EVENT, mapOf("deviceId" to deviceId))
+
+        override fun paymentReceived(deviceId: String, payload: ByteArray) =
+          sendEvent(
+            PAYMENT_EVENT,
+            mapOf("deviceId" to deviceId, "payload" to Base64.encodeToString(payload, Base64.NO_WRAP)),
+          )
+      },
+    )
+  }
+
+  /** Runs a Bluetooth step on the offline queue and settles the promise with its result. */
+  private fun offlineStep(promise: Promise, work: () -> Any?) {
+    offlineQueue.execute {
+      try {
+        val value = work()
+        promise.resolve(if (value is Unit) null else value)
+      } catch (error: Exception) {
+        promise.reject(BluetoothUnavailableException(error.message ?: "Bluetooth failed"))
+      }
+    }
+  }
+
   override fun definition() = ModuleDefinition {
     Name("FaaraBle")
 
-    Events(TOKEN_EVENT)
+    Events(TOKEN_EVENT, NEARBY_EVENT, OFFER_READ_EVENT, PAYMENT_EVENT)
+
+    /** Receiver: serve this offer (base64) to nearby payers and advertise. */
+    AsyncFunction("startOfflineReceiving") { offerBase64: String, promise: Promise ->
+      offlineQueue.execute {
+        try {
+          offline.startReceiving(Base64.decode(offerBase64, Base64.DEFAULT)) { error ->
+            if (error == null) promise.resolve(null)
+            else promise.reject(BluetoothUnavailableException(error.message ?: "Bluetooth failed"))
+          }
+        } catch (error: Exception) {
+          promise.reject(BluetoothUnavailableException(error.message ?: "Bluetooth failed"))
+        }
+      }
+    }
+
+    /** Receiver: tell a payer what happened to their payment (base64). */
+    AsyncFunction("answerOffline") { deviceId: String, resultBase64: String ->
+      offline.answer(deviceId, Base64.decode(resultBase64, Base64.DEFAULT))
+    }
+
+    AsyncFunction("stopOfflineReceiving") { promise: Promise ->
+      offlineStep(promise) { offline.stopReceiving() }
+    }
+
+    /** Payer: look for phones ready to receive; sightings arrive as onOfflineNearby. */
+    AsyncFunction("startOfflineLooking") { promise: Promise ->
+      offlineStep(promise) { offline.startLooking() }
+    }
+
+    AsyncFunction("stopOfflineLooking") { promise: Promise ->
+      offlineStep(promise) { offline.stopLooking() }
+    }
+
+    /** Payer: connect to a phone and return its offer (base64). */
+    AsyncFunction("connectOffline") { deviceId: String, promise: Promise ->
+      offlineStep(promise) {
+        Base64.encodeToString(offline.connectAndReadOffer(deviceId), Base64.NO_WRAP)
+      }
+    }
+
+    /** Payer: send the payment (base64) and return the receiver's answer (base64). */
+    AsyncFunction("sendOfflinePayment") { paymentBase64: String, promise: Promise ->
+      offlineStep(promise) {
+        val answer = offline.sendPayment(Base64.decode(paymentBase64, Base64.DEFAULT))
+        Base64.encodeToString(answer, Base64.NO_WRAP)
+      }
+    }
+
+    AsyncFunction("disconnectOffline") { promise: Promise ->
+      offlineStep(promise) { offline.disconnect() }
+    }
 
     /** "unsupported", "off" or "on". */
     Function("getState") {
@@ -89,6 +179,8 @@ class FaaraBleModule : Module() {
         stopAdvertisingLocked()
         stopScanningLocked()
       }
+      offline.stopAll()
+      offlineQueue.shutdown()
     }
   }
 

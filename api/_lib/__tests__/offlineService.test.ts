@@ -5,8 +5,15 @@ import {
   OFFLINE_LIMITS,
   certificateMessage,
   checkNote,
+  checkIdentity,
+  decodeHumOffer,
+  decodeHumPayment,
+  encodeHumOffer,
+  encodeHumPayment,
   noteMessage,
   parseOpenPocket,
+  parseTopUpPocket,
+  shapesForNonce,
   type SignedCertificate,
   type SignedNote,
   type SpendNote,
@@ -283,5 +290,141 @@ describe('checking a note on the receiving phone', () => {
     });
     const key = await s.service.publicKey();
     expect(verifySignature(key, certificateMessage(cert.certificate), cert.signature)).toBe(true);
+  });
+});
+
+describe('topping up a pocket', () => {
+  it('opens a pocket when there is none, then adds to it on the same phone', async () => {
+    const s = setup();
+    const device = makeDevice();
+    const first = await s.service.topUpPocket('ada', {
+      addKobo: 1_000_000,
+      devicePublicKey: device.publicKey,
+    });
+    expect(first.certificate.limitKobo).toBe(1_000_000);
+
+    s.advance(3_600_000);
+    const second = await s.service.topUpPocket('ada', {
+      addKobo: 400_000,
+      devicePublicKey: device.publicKey,
+    });
+    // Same pocket, a higher total limit, and a fresh 7 days.
+    expect(second.certificate.pocketId).toBe(first.certificate.pocketId);
+    expect(second.certificate.limitKobo).toBe(1_400_000);
+    expect(second.certificate.expiresAt).toBe(s.now() + OFFLINE_LIMITS.pocketTtlMs);
+    expect(
+      verifySignature(s.signer.publicKey, certificateMessage(second.certificate), second.signature),
+    ).toBe(true);
+    expect(s.store.docs.get('ledgerAccounts/ada')).toMatchObject({
+      balanceKobo: MOCK_STARTING_BALANCE_KOBO - 1_400_000,
+    });
+    expect(s.store.docs.get(`pockets/${first.certificate.pocketId}`)).toMatchObject({
+      remainingKobo: 1_400_000,
+    });
+  });
+
+  it('pays notes from older and newer certificates out of the same locked money', async () => {
+    const s = setup();
+    const device = makeDevice();
+    const old = await s.service.topUpPocket('ada', {
+      addKobo: 500_000,
+      devicePublicKey: device.publicKey,
+    });
+    const fresh = await s.service.topUpPocket('ada', {
+      addKobo: 300_000,
+      devicePublicKey: device.publicKey,
+    });
+    expect((await s.service.settleNotes('tolu', [makeNote(device, old)]))[0]?.status).toBe(
+      'settled',
+    );
+    expect(
+      (await s.service.settleNotes('tolu', [makeNote(device, fresh, { amountKobo: 500_000 })]))[0]
+        ?.status,
+    ).toBe('settled');
+    // 800,000 locked; 300,000 + 500,000 paid; nothing more can come out.
+    expect(
+      (await s.service.settleNotes('tolu', [makeNote(device, fresh, { amountKobo: 100 })]))[0]
+        ?.status,
+    ).toBe('rejected');
+  });
+
+  it('keeps what is locked within the limit and the pocket tied to one phone', async () => {
+    const s = setup();
+    const device = makeDevice();
+    await s.service.topUpPocket('ada', { addKobo: 1_500_000, devicePublicKey: device.publicKey });
+    await expectApiError(
+      s.service.topUpPocket('ada', { addKobo: 600_000, devicePublicKey: device.publicKey }),
+      'failed-precondition',
+    );
+    await expectApiError(
+      s.service.topUpPocket('ada', { addKobo: 100_000, devicePublicKey: makeDevice().publicKey }),
+      'failed-precondition',
+    );
+    await expectApiError(
+      setup().service.topUpPocket('ada', { addKobo: 0, devicePublicKey: device.publicKey }),
+      'failed-precondition',
+    );
+    expect(() => parseTopUpPocket({ addKobo: -1, devicePublicKey: device.publicKey })).toThrow();
+    expect(parseTopUpPocket({ addKobo: 0, devicePublicKey: device.publicKey }).addKobo).toBe(0);
+  });
+});
+
+describe('settling from the paying phone', () => {
+  it('lets the sender bring a payment in, and still pays the receiver', async () => {
+    const s = setup();
+    const device = makeDevice();
+    const certificate = await s.service.openPocket('ada', {
+      amountKobo: 600_000,
+      devicePublicKey: device.publicKey,
+    });
+    const signed = makeNote(device, certificate);
+    expect((await s.service.settleNotes('ada', [signed]))[0]?.status).toBe('settled');
+    expect(s.store.docs.get('ledgerAccounts/tolu')).toMatchObject({
+      balanceKobo: MOCK_STARTING_BALANCE_KOBO + 300_000,
+    });
+    // The receiver's phone bringing the same payment later changes nothing.
+    expect((await s.service.settleNotes('tolu', [signed]))[0]?.status).toBe('already-settled');
+  });
+});
+
+describe('offline hum over Bluetooth', () => {
+  it('signs identity cards a phone can check with no network', async () => {
+    const s = setup();
+    const signed = await s.service.identity('tolu');
+    expect(signed.card).toMatchObject({ uid: 'tolu', name: 'Tolu Adebayo' });
+    const options = { serverPublicKey: s.signer.publicKey, verify: verifySignature, now: s.now() };
+    expect(checkIdentity(signed, options)).toBe(true);
+    // A nearby phone can't swap the name or reuse an old card.
+    expect(checkIdentity({ ...signed, card: { ...signed.card, name: 'Mama Tolu' } }, options)).toBe(
+      false,
+    );
+    expect(checkIdentity(signed, { ...options, now: signed.card.expiresAt + 1 })).toBe(false);
+    await expectApiError(s.service.identity('nobody'), 'failed-precondition');
+  });
+
+  it('reads back only well-formed offers and payments', async () => {
+    const s = setup();
+    const identity = await s.service.identity('tolu');
+    const offer = { identity, nonce: 'nonce123456' };
+    expect(decodeHumOffer(encodeHumOffer(offer))).toEqual(offer);
+    expect(decodeHumOffer('{"nonce":"x"}')).toBeNull();
+    expect(decodeHumOffer('not json')).toBeNull();
+
+    const device = makeDevice();
+    const certificate = await s.service.openPocket('ada', {
+      amountKobo: 600_000,
+      devicePublicKey: device.publicKey,
+    });
+    const payment = { note: makeNote(device, certificate), fromName: 'Ada Okafor' };
+    expect(decodeHumPayment(encodeHumPayment(payment))).toEqual(payment);
+    expect(decodeHumPayment('{"note":{}}')).toBeNull();
+  });
+
+  it('shows the same three different shapes on both phones for a nonce', () => {
+    const shapes = shapesForNonce('nonce123456');
+    expect(shapesForNonce('nonce123456')).toEqual(shapes);
+    expect(new Set(shapes).size).toBe(3);
+    const seen = new Set(Array.from({ length: 300 }, (_, i) => shapesForNonce(`n${i}`).join(',')));
+    expect(seen.size).toBeGreaterThan(60);
   });
 });

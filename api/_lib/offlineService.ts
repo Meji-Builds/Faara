@@ -3,9 +3,11 @@ import {
   OFFLINE_LIMITS,
   certificateMessage,
   checkNote,
+  identityMessage,
   type NoteResult,
   type PocketCertificate,
   type SignedCertificate,
+  type SignedIdentity,
   type SignedNote,
 } from '../../shared/offline';
 
@@ -151,7 +153,98 @@ export class OfflineService {
   }
 
   /**
-   * Settles notes this person received. Each note is applied once, from the sender's locked
+   * Keeps a pocket topped up: adds `addKobo` to the open pocket on this phone (0 just renews
+   * it for another 7 days) and returns a fresh certificate, or opens a pocket if there is none.
+   * The certificate's limit is the total ever locked into the pocket, matching how the phone
+   * counts what it has spent. What is locked at any moment stays within the pocket limit.
+   */
+  async topUpPocket(
+    uid: string,
+    request: { addKobo: number; devicePublicKey: string },
+  ): Promise<SignedCertificate> {
+    const { store, now } = this.deps;
+    const signer = await this.requireSigner();
+    const current = await store.transaction(async (tx) => {
+      const active = await tx.get<{ pocketId: string }>(activePocketPath(uid));
+      return active ? tx.get<PocketDoc>(pocketPath(active.pocketId)) : undefined;
+    });
+    if (!current || current.status !== 'open') {
+      if (request.addKobo < 100_00) {
+        throw new ApiError('failed-precondition', 'Choose at least ₦100 for your offline pocket.');
+      }
+      return this.openPocket(uid, {
+        amountKobo: request.addKobo,
+        devicePublicKey: request.devicePublicKey,
+      });
+    }
+    await consumeRate(store, now, uid, 'offline');
+    const certificate = await store.transaction(async (tx): Promise<PocketCertificate> => {
+      const pocket = await tx.get<PocketDoc>(pocketPath(current.pocketId));
+      if (!pocket || pocket.status !== 'open') {
+        throw new ApiError('failed-precondition', 'Your offline pocket changed. Try again.');
+      }
+      if (pocket.devicePublicKey !== request.devicePublicKey) {
+        throw new ApiError(
+          'failed-precondition',
+          'Your offline pocket is on another phone. It comes back to your balance when it expires.',
+        );
+      }
+      if (pocket.remainingKobo + request.addKobo > OFFLINE_LIMITS.maxPocketKobo) {
+        throw new ApiError('failed-precondition', 'That’s more than an offline pocket can hold.');
+      }
+      const account = await tx.get<AccountDoc>(accountPath(uid));
+      const balance = account?.balanceKobo ?? MOCK_STARTING_BALANCE_KOBO;
+      if (balance < request.addKobo) {
+        throw new ApiError('failed-precondition', 'You don’t have enough naira for this.');
+      }
+      const issuedAt = now();
+      const limitKobo = pocket.limitKobo + request.addKobo;
+      const next: PocketCertificate = {
+        pocketId: pocket.pocketId,
+        uid,
+        devicePublicKey: pocket.devicePublicKey,
+        limitKobo,
+        maxNoteKobo: Math.min(OFFLINE_LIMITS.maxNoteKobo, limitKobo),
+        issuedAt,
+        expiresAt: issuedAt + OFFLINE_LIMITS.pocketTtlMs,
+      };
+      if (request.addKobo > 0) {
+        tx.set(accountPath(uid), {
+          ...account,
+          balanceKobo: balance - request.addKobo,
+          updatedAt: issuedAt,
+        } satisfies AccountDoc);
+      }
+      tx.set(pocketPath(pocket.pocketId), {
+        ...next,
+        remainingKobo: pocket.remainingKobo + request.addKobo,
+        status: 'open',
+      } satisfies PocketDoc);
+      return next;
+    });
+    return { certificate, signature: signer.sign(certificateMessage(certificate)) };
+  }
+
+  /** A Faara-signed card with the person's name, for receiving offline. */
+  async identity(uid: string): Promise<SignedIdentity> {
+    const { store, now } = this.deps;
+    const signer = await this.requireSigner();
+    const profile = await store.transaction((tx) => tx.get<ProfileDoc>(`users/${uid}`));
+    if (!profile?.fullName) {
+      throw new ApiError('failed-precondition', 'Finish setting up your profile first.');
+    }
+    const issuedAt = now();
+    const card = {
+      uid,
+      name: profile.fullName.slice(0, 80),
+      issuedAt,
+      expiresAt: issuedAt + OFFLINE_LIMITS.identityTtlMs,
+    };
+    return { card, signature: signer.sign(identityMessage(card)) };
+  }
+
+  /**
+   * Settles notes this person received or sent. Each note is applied once, from the sender's locked
    * pocket, and credited to the receiver. Notes that can't be honoured are rejected with a
    * reason; the rest still go through.
    */
@@ -185,9 +278,11 @@ export class OfflineService {
       expect: undefined,
     });
     if (!check.ok) throw new ApiError('invalid-argument', check.reason);
-    if (note.toUid !== uid) {
+    // Either phone can bring a payment in; the money always goes to the person it names.
+    if (note.toUid !== uid && note.fromUid !== uid) {
       throw new ApiError('permission-denied', 'This payment is for someone else.');
     }
+    const receiverUid = note.toUid;
     const settled = await store.transaction(async (tx): Promise<NoteResult> => {
       if (await tx.get<NoteDoc>(notePath(note.noteId))) {
         return { noteId: note.noteId, status: 'already-settled' };
@@ -206,14 +301,14 @@ export class OfflineService {
           'The sender’s pocket has already been spent. Ask them to pay you again.',
         );
       }
-      const receiver = await tx.get<AccountDoc>(accountPath(uid));
+      const receiver = await tx.get<AccountDoc>(accountPath(receiverUid));
       const senderProfile = await tx.get<ProfileDoc>(`users/${note.fromUid}`);
-      const receiverProfile = await tx.get<ProfileDoc>(`users/${uid}`);
+      const receiverProfile = await tx.get<ProfileDoc>(`users/${receiverUid}`);
       const time = now();
       tx.update(pocketPath(note.pocketId), {
         remainingKobo: pocket.remainingKobo - note.amountKobo,
       });
-      tx.set(accountPath(uid), {
+      tx.set(accountPath(receiverUid), {
         ...receiver,
         balanceKobo: (receiver?.balanceKobo ?? MOCK_STARTING_BALANCE_KOBO) + note.amountKobo,
         updatedAt: time,
@@ -221,7 +316,7 @@ export class OfflineService {
       tx.set(notePath(note.noteId), {
         pocketId: note.pocketId,
         fromUid: note.fromUid,
-        toUid: uid,
+        toUid: receiverUid,
         amountKobo: note.amountKobo,
         settledAt: time,
       } satisfies NoteDoc);
@@ -238,7 +333,7 @@ export class OfflineService {
         signature: null,
         channel: 'offline',
       });
-      tx.set(activityPath(uid, note.noteId), entry('in', senderProfile));
+      tx.set(activityPath(receiverUid, note.noteId), entry('in', senderProfile));
       tx.set(activityPath(note.fromUid, note.noteId), entry('out', receiverProfile));
       return { noteId: note.noteId, status: 'settled' };
     });

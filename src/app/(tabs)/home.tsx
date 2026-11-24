@@ -1,10 +1,11 @@
 import { useIsFocused, useRouter } from 'expo-router';
-import { ArrowDownUp, ArrowLeft, ArrowRight, Bell, Mic, Plus } from 'lucide-react-native';
+import { ArrowDownUp, ArrowLeft, ArrowRight, Bell, Mic, Plus, WifiOff } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { HumMark } from '@/components/brand';
 import { ListeningLine } from '@/components/hum';
+import { OfflineReceiveSheet } from '@/components/offline';
 import { AppText, Avatar, IconButton, Screen } from '@/components/ui';
 import { ActivityList } from '@/components/wallet/ActivityList';
 import { BalanceCard } from '@/components/wallet/BalanceCard';
@@ -16,13 +17,24 @@ import { useWalletUsdc } from '@/features/usdc/useWalletUsdc';
 import { useAmbientReceive } from '@/features/hum';
 import { takePendingRecipient } from '@/features/referral';
 import { useNotifications } from '@/features/notifications';
+import { useOfflineReceive, type OfflineReceiveBlocker } from '@/features/offline';
 import { usePreferences } from '@/features/preferences';
 import { audioEngine } from '@/features/sound';
+import { useOnline } from '@/lib/connectivity';
 import { greeting } from '@/lib/greeting';
 import { useAppActive } from '@/lib/useAppActive';
 import { initials } from '@/lib/money';
 import { faaraNumber } from '@/lib/phone';
 import { palette, radii, useTheme } from '@/theme';
+
+const OFFLINE_LINE: Record<NonNullable<OfflineReceiveBlocker> | 'ready', string> = {
+  ready: 'No network · ready to receive offline',
+  'not-set-up': 'No network · go online once to receive offline',
+  'bluetooth-off': 'No network · turn on Bluetooth to receive',
+  'no-permission': 'No network · allow Bluetooth to receive',
+  'android-only': 'No network right now',
+  error: 'No network · Bluetooth isn’t available',
+};
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -46,7 +58,10 @@ export default function HomeScreen() {
   // Listen for a hum while Home is on screen and the app is open (app only: browsers
   // need a tap before they allow the microphone). The Receive screen takes over from here.
   const ambient = Platform.OS !== 'web' && preferences.readyToReceive && focused && appActive;
-  const { sound } = useAmbientReceive(ambient, (hum) =>
+  // With no network a hum can't reach the server, so Home receives over Bluetooth instead.
+  const online = useOnline();
+  const offline = useOfflineReceive(ambient && !online);
+  const { sound } = useAmbientReceive(ambient && online, (hum) =>
     router.push({
       pathname: '/receive',
       params: {
@@ -89,7 +104,19 @@ export default function HomeScreen() {
       />
 
       <View style={styles.ready}>
-        {ambient ? (
+        {ambient && !online ? (
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={() => router.push('/offline')}
+            style={styles.receiveLink}
+          >
+            <WifiOff size={16} color={colors.accentText} strokeWidth={1.75} />
+            <AppText variant="label" color="accentText">
+              {OFFLINE_LINE[offline.blocker ?? 'ready']}
+            </AppText>
+          </Pressable>
+        ) : ambient ? (
           <ListeningLine state={sound} onPress={() => router.push('/receive')} />
         ) : (
           <Pressable
@@ -175,6 +202,7 @@ export default function HomeScreen() {
       <View style={styles.list}>
         <ActivityList entries={activity} limit={4} />
       </View>
+      <OfflineReceiveSheet state={offline.state} onClose={offline.dismiss} />
     </Screen>
   );
 }

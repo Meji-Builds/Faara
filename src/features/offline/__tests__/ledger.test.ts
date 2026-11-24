@@ -5,6 +5,9 @@ import { certificateMessage, type PocketCertificate } from '@shared/offline';
 import {
   EMPTY_LEDGER,
   applySettlement,
+  applyTopUp,
+  markDelivery,
+  topUpNeeded,
   maxPayment,
   payOffline,
   receiveOffline,
@@ -127,5 +130,84 @@ describe('offline ledger', () => {
         noteId: 'NT9',
       }),
     ).toThrow();
+  });
+});
+
+describe('paying by Bluetooth', () => {
+  it('settles a payment from the paying phone only once the receiver confirmed it', () => {
+    const { ledger, note } = pay(pocketLedger(), 150_000);
+    // Handed over but not confirmed: left for the receiver to settle.
+    expect(waitingNotes(ledger)).toEqual([]);
+    expect(waitingNotes(markDelivery(ledger, 'NT1', 'refused'))).toEqual([]);
+    expect(waitingNotes(markDelivery(ledger, 'NT1', 'unknown'))).toEqual([]);
+    const confirmed = markDelivery(ledger, 'NT1', 'confirmed');
+    expect(waitingNotes(confirmed)).toEqual([note]);
+    const settled = applySettlement(confirmed, [{ noteId: 'NT1', status: 'settled' }]);
+    expect(settled.sent[0]?.status).toBe('settled');
+    expect(waitingNotes(settled)).toEqual([]);
+  });
+});
+
+describe('keeping money ready', () => {
+  const DAY = 24 * 3_600_000;
+  /** A pocket that runs for 7 days, like a real one. */
+  const lasting = (ledger: OfflineLedger): OfflineLedger => {
+    const pocket = ledger.pocket;
+    if (!pocket) return ledger;
+    const certificate = { ...pocket.signed.certificate, expiresAt: 7 * DAY };
+    return { ...ledger, pocket: { ...pocket, signed: { ...pocket.signed, certificate } } };
+  };
+  const remote = (remainingKobo: number) => ({
+    pocketId: 'PK1',
+    limitKobo: 500_000,
+    remainingKobo,
+    expiresAt: 101_000,
+    releasableAt: 200_000,
+  });
+
+  it('opens a pocket when there is none, and does nothing when it is off', () => {
+    expect(topUpNeeded(EMPTY_LEDGER, 1_000_000, 0)).toBe(1_000_000);
+    expect(topUpNeeded(EMPTY_LEDGER, 0, 0)).toBeNull();
+    // A pocket held on another phone is left alone.
+    expect(topUpNeeded({ ...EMPTY_LEDGER, remote: remote(100) }, 1_000_000, 0)).toBeNull();
+  });
+
+  it('refills what was spent, within what a pocket may hold', () => {
+    const spent = pay(pocketLedger(500_000), 300_000).ledger;
+    const ledger = { ...spent, remote: remote(500_000) };
+    // ₦2,000 left of ₦5,000 wanted: add ₦3,000.
+    expect(topUpNeeded(ledger, 500_000, 2_000)).toBe(300_000);
+    // Already full enough: nothing to do.
+    expect(
+      topUpNeeded({ ...lasting(pocketLedger(500_000)), remote: remote(500_000) }, 500_000, 2_000),
+    ).toBeNull();
+    // Locked money not yet settled counts against the pocket limit.
+    expect(topUpNeeded({ ...spent, remote: remote(1_900_000) }, 2_000_000, 2_000)).toBe(100_000);
+  });
+
+  it('renews a pocket shortly before it expires', () => {
+    const ledger = { ...lasting(pocketLedger(500_000)), remote: remote(500_000) };
+    expect(topUpNeeded(ledger, 500_000, 2_000)).toBeNull();
+    expect(topUpNeeded(ledger, 500_000, 6 * DAY)).toBe(0);
+  });
+
+  it('keeps what this phone has spent when the same pocket is topped up', () => {
+    const spent = pay(pocketLedger(500_000), 300_000).ledger;
+    const signed = spent.pocket?.signed;
+    if (!signed) throw new Error('no pocket');
+    const bigger = {
+      ...signed,
+      certificate: { ...signed.certificate, limitKobo: 800_000 },
+    };
+    const next = applyTopUp(spent, bigger, 5_000);
+    expect(next.pocket?.spentKobo).toBe(300_000);
+    expect(next.pocket?.nextSequence).toBe(1);
+    expect(next.pocket?.signed.certificate.limitKobo).toBe(800_000);
+    const fresh = applyTopUp(
+      spent,
+      { ...bigger, certificate: { ...bigger.certificate, pocketId: 'PK2' } },
+      5_000,
+    );
+    expect(fresh.pocket?.spentKobo).toBe(0);
   });
 });

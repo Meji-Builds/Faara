@@ -1,17 +1,42 @@
+import { PublicKey } from '@solana/web3.js';
+import { Buffer } from 'buffer';
 import { useEffect, useState } from 'react';
 
 import { useAuth } from '@/features/auth';
+import { usePreferences } from '@/features/preferences';
+import { useWallet } from '@/features/wallet';
 import { useAppActive } from '@/lib/useAppActive';
 import { useOnline } from '@/lib/connectivity';
 
-import { applySettlement, waitingNotes } from './ledger';
-import { pocketStatus, settleNotes } from './offlineApi';
+import { applySettlement, applyTopUp, topUpNeeded, waitingNotes } from './ledger';
+import { fetchIdentity, pocketStatus, settleNotes, topUpPocket } from './offlineApi';
 import { loadLedger, updateLedger } from './store';
 
 const RETRY_MS = 30_000;
+/** Fetch a fresh name card this long before the old one runs out. */
+const IDENTITY_REFRESH_MS = 7 * 24 * 3_600_000;
+/** After a refill fails (say, not enough balance), wait this long before trying again. */
+const REFILL_BACKOFF_MS = 10 * 60_000;
+let refillFailedAt = 0;
 
-/** Brings the phone's offline ledger up to date with the server. Safe to call often. */
-export async function syncOffline(uid: string): Promise<void> {
+export interface SyncOptions {
+  /** Naira (kobo) to keep ready for offline payments; 0 turns refills off. */
+  reserveKobo?: number;
+  /** This phone's wallet address; its key is the pocket's key. */
+  walletAddress?: string | null;
+}
+
+/** The pocket key for a wallet address: the same Ed25519 key, as base64. */
+export function keyFromAddress(address: string): string {
+  return Buffer.from(new PublicKey(address).toBytes()).toString('base64');
+}
+
+/**
+ * Brings the phone's offline ledger up to date with the server: settles payments, refreshes
+ * the pocket, Faara's key and this person's name card, and keeps the pocket topped up to the
+ * amount they chose. Safe to call often.
+ */
+export async function syncOffline(uid: string, options: SyncOptions = {}): Promise<void> {
   const ledger = await loadLedger(uid);
   const waiting = waitingNotes(ledger);
   for (let i = 0; i < waiting.length; i += 20) {
@@ -20,36 +45,53 @@ export async function syncOffline(uid: string): Promise<void> {
   }
   const askedAt = Date.now();
   const { pocket, serverPublicKey } = await pocketStatus();
-  await updateLedger(uid, (l) => {
+  const synced = await updateLedger(uid, (l) => {
     const local = l.pocket;
     const matches = local !== null && local.signed.certificate.pocketId === pocket?.pocketId;
     // A pocket stored after this check started is newer than the answer: keep it.
     const keep = matches || (local !== null && local.openedAt >= askedAt);
-    return {
-      ledger: { ...l, serverPublicKey, remote: pocket, pocket: keep ? local : null },
-      result: null,
-    };
+    const next = { ...l, serverPublicKey, remote: pocket, pocket: keep ? local : null };
+    return { ledger: next, result: next };
   });
+
+  if (!synced.identity || synced.identity.card.expiresAt - Date.now() < IDENTITY_REFRESH_MS) {
+    const identity = await fetchIdentity().catch(() => null);
+    if (identity) await updateLedger(uid, (l) => ({ ledger: { ...l, identity }, result: null }));
+  }
+
+  const { reserveKobo = 0, walletAddress } = options;
+  const add = topUpNeeded(synced, reserveKobo, Date.now());
+  if (add === null || !walletAddress || Date.now() - refillFailedAt < REFILL_BACKOFF_MS) return;
+  try {
+    const signed = await topUpPocket(add, keyFromAddress(walletAddress));
+    await updateLedger(uid, (l) => ({ ledger: applyTopUp(l, signed, Date.now()), result: null }));
+    const fresh = await pocketStatus();
+    await updateLedger(uid, (l) => ({ ledger: { ...l, remote: fresh.pocket }, result: null }));
+  } catch {
+    refillFailedAt = Date.now();
+  }
 }
 
 /**
- * Keeps offline payments moving: whenever the app is open and online, payments received
- * offline are settled and the pocket and Faara's key are refreshed.
+ * Keeps offline payments moving: whenever the app is open and online, payments are settled,
+ * and the pocket, Faara's key and the name card are refreshed and topped up.
  */
 export function useOfflineSync(): void {
   const { user } = useAuth();
   const uid = user?.uid;
   const online = useOnline();
   const active = useAppActive();
+  const reserveKobo = usePreferences().preferences.offlineReserveKobo;
+  const walletAddress = useWallet().deviceAddress;
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!uid) return;
     void loadLedger(uid);
     if (!active) return;
-    syncOffline(uid).catch(() => {
+    syncOffline(uid, { reserveKobo, walletAddress }).catch(() => {
       // Offline or the server is unavailable: try again shortly (below).
     });
-  }, [uid, online, active, attempt]);
+  }, [uid, online, active, attempt, reserveKobo, walletAddress]);
   // While offline, check back now and then; a successful sync also marks the app online.
   useEffect(() => {
     if (online || !active) return;
