@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Faara · Pay anyone in Nigeria by sound, even offline</title>
+    <meta
+      name="description"
+      content="Faara lets you pay the person in front of you by holding phones close. No account numbers, no fake alerts, and it works even when the network is down. In pilot in Nigeria."
+    />
+    <meta name="theme-color" content="#0A1412" />
+    <link rel="icon" href="/assets/favicon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Faara · Pay anyone by sound. Even offline." />
+    <meta
+      property="og:description"
+      content="Hold phones close and the money moves. No account numbers, no fake alerts, no waiting for network."
+    />
+    <meta property="og:image" content="https://faara.mejibuilds.com/assets/og.png" />
+    <meta property="og:url" content="https://faara.mejibuilds.com/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@getfaara" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700;800&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/assets/site.css" />
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></symbol>
+      <symbol id="i-hum" viewBox="0 0 24 24">
+        <path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" />
+      </symbol>
+      <symbol id="i-offline" viewBox="0 0 24 24">
+        <path
+          d="M3 3l18 18M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.7M19 12.9a10 10 0 0 0-2.3-1.6M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.7 5M12 20h.01"
+        />
+      </symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24">
+        <rect x="9" y="3" width="6" height="11" rx="3" />
+        <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+      </symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24">
+        <path d="M12 3l7 3v6c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V6z" />
+        <path d="M9 12l2 2 4-4" />
+      </symbol>
+      <symbol id="i-invoice" viewBox="0 0 24 24">
+        <path d="M6 3h9l3 3v15H6z" />
+        <path d="M9 9h6M9 13h6M9 17h3" />
+      </symbol>
+      <symbol id="i-dollar" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path
+          d="M15 9.2c-.6-.9-1.7-1.4-3-1.4-1.7 0-3 .9-3 2.2 0 3 6 1.6 6 4.4 0 1.3-1.3 2.2-3 2.2-1.4 0-2.5-.6-3.1-1.5M12 6v1.8M12 16.6V18"
+        />
+      </symbol>
+      <symbol id="i-print" viewBox="0 0 24 24">
+        <path
+          d="M7 8.5a6 6 0 0 1 10 2.5c.3 2 .2 4.4-.4 6.5M5 11.5c0-1 .2-1.9.6-2.7M8.5 20c.8-1.6 1.2-3.5 1.2-5.5a2.3 2.3 0 0 1 4.6 0c0 1.2-.1 2.5-.4 3.7M12 14.5c0 2.3-.6 4.5-1.7 6.3"
+        />
+      </symbol>
+      <symbol id="i-shapes" viewBox="0 0 24 24">
+        <path d="M6 3l3 3-3 3-3-3zM16.5 3.5l3.5 6h-7zM12 15.5a3 3 0 1 0 0 .01z" />
+      </symbol>
+    </svg>
+
+    <nav class="nav">
+      <div class="wrap">
+        <a class="brand" href="/">fàárà</a>
+        <div class="nav-links" id="nav-links">
+          <a href="#demo">Demo</a>
+          <a href="#how">How it works</a>
+          <a href="#features">Features</a>
+          <a href="/about">About</a>
+          <a class="btn btn-primary nav-cta" href="/welcome">Try Faara</a>
+        </div>
+        <a class="btn btn-primary nav-try" href="/welcome">Try Faara</a>
+        <button
+          class="menu"
+          type="button"
+          aria-label="Open menu"
+          aria-expanded="false"
+          aria-controls="nav-links"
+        >
+          <svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true">
+            <line class="bar b1" x1="4" y1="8" x2="18" y2="8" />
+            <line class="bar b2" x1="4" y1="14" x2="24" y2="14" />
+            <line class="bar b3" x1="4" y1="20" x2="13" y2="20" />
+            <circle class="dot" cx="23" cy="20" r="1.8" />
+          </svg>
+        </button>
+      </div>
+    </nav>
+
+    <header class="hero on-ink">
+      <div class="wrap">
+        <div>
+          <span class="label">In pilot in Nigeria</span>
+          <h1>Pay anyone by sound. <span class="accent">Even offline.</span></h1>
+          <p class="lead">
+            Faara is how you pay the person in front of you. Hold your phones close and the money
+            moves. No account numbers to read out, no fake alerts, no waiting for the network.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="/welcome">Try Faara</a>
+            <a class="btn btn-outline" href="#story">See how it works</a>
+          </div>
+          <p class="fine">
+            Faara is in pilot. Balances are test money until we launch with a licensed payment
+            partner.
+          </p>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <span class="ring"></span><span class="ring"></span><span class="ring"></span
+          ><span class="ring"></span>
+          <div class="mini-phone left">₦5,000<small>to Mama Tolu</small></div>
+          <div class="mini-phone right">
+            <span class="tick"
+              ><svg><use href="#i-check" /></svg></span
+            ><small>Received</small>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="story on-deep" id="story" aria-label="How a Faara payment happens">
+      <div class="story-track">
+        <div class="story-stage" data-stage="0">
+          <div class="wrap story-inner">
+            <div class="story-copy">
+              <span class="label">Scroll to pay</span>
+              <div class="captions">
+                <p class="caption" data-at="0"><b>Ada owes Mama Tolu ₦5,000</b> for jollof rice.</p>
+                <p class="caption" data-at="1">
+                  <b>They hold their phones close.</b> No account number, no bank name.
+                </p>
+                <p class="caption" data-at="2">
+                  <b>Ada’s phone hums.</b> A short sound and Bluetooth that only nearby phones pick
+                  up.
+                </p>
+                <p class="caption" data-at="3">
+                  <b>Both phones show the same shapes,</b> so Ada knows she’s paying the right
+                  person. She approves with her fingerprint.
+                </p>
+                <p class="caption" data-at="4">
+                  <b>Done.</b> The money lands instantly, with a receipt on both phones.
+                </p>
+              </div>
+              <div class="story-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="story-scene" aria-hidden="true">
+              <div class="s-rings"><span></span><span></span><span></span></div>
+              <div class="s-phone s-left">
+                <span class="s-who">Ada</span>
+                <div class="s-screen s0 s1">
+                  <span class="s-amt">₦5,000</span><span class="s-sub">to Mama Tolu</span
+                  ><span class="s-btn">Pay</span>
+                </div>
+                <div class="s-screen s2">
+                  <span class="s-amt">₦5,000</span><span class="s-sub">Humming</span
+                  ><span class="s-wave"><i></i><i></i><i></i><i></i><i></i></span>
+                </div>
+                <div class="s-screen s3">
+                  <span class="shapes"
+                    ><svg viewBox="0 0 24 24"><path d="M12 2l10 10-10 10L2 12z" /></svg
+                    ><svg viewBox="0 0 24 24"><path d="M12 3l10 18H2z" /></svg
+                    ><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg
+                  ></span>
+                  <span class="s-sub">Paying Mama Tolu</span>
+                  <span class="s-print"
+                    ><svg viewBox="0 0 24 24"><use href="#i-print" /></svg
+                  ></span>
+                </div>
+                <div class="s-screen s4">
+                  <span class="tick teal"
+                    ><svg viewBox="0 0 24 24"><use href="#i-check" /></svg></span
+                  ><span class="s-amt">₦5,000</span><span class="s-sub">Paid</span>
+                </div>
+              </div>
+              <div class="s-phone s-right">
+                <span class="s-who">Mama Tolu</span>
+                <div class="s-screen s0 s1">
+                  <span class="s-amt">₦0</span><span class="s-sub">Ready to receive</span>
+                </div>
+                <div class="s-screen s2">
+                  <span class="s-amt">₦0</span><span class="s-sub">Listening</span>
+                </div>
+                <div class="s-screen s3">
+                  <span class="shapes"
+                    ><svg viewBox="0 0 24 24"><path d="M12 2l10 10-10 10L2 12z" /></svg
+                    ><svg viewBox="0 0 24 24"><path d="M12 3l10 18H2z" /></svg
+                    ><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg
+                  ></span>
+                  <span class="s-sub">Ada is paying you</span>
+                </div>
+                <div class="s-screen s4">
+                  <span class="tick"
+                    ><svg viewBox="0 0 24 24"><use href="#i-check" /></svg></span
+                  ><span class="s-amt">₦5,000</span><span class="s-sub">received from Ada</span>
+                </div>
+              </div>
+              <div class="s-receipt">Payment complete · receipt on both phones</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="on-paper">
+      <div class="wrap">
+        <div class="head">
+          <span class="label">The problem</span>
+          <h2>Paying in person still goes wrong at the counter.</h2>
+        </div>
+        <div class="cols-3">
+          <div class="card">
+            <p class="quote">“Abeg, read the account number again.”</p>
+            <p>
+              Ten digits read aloud in a noisy market. One wrong digit and the money goes to a
+              stranger.
+            </p>
+          </div>
+          <div class="card">
+            <p class="quote">“Has the alert dropped?”</p>
+            <p>
+              Sellers wait, refresh, and still can’t tell a real credit alert from a fake
+              screenshot.
+            </p>
+          </div>
+          <div class="card">
+            <p class="quote">“Network is bad today.”</p>
+            <p>
+              When the network drops, the sale stalls, or goes back to cash and change nobody has.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="on-ink" id="demo">
+      <div class="wrap">
+        <div class="head">
+          <span class="label">Try it here</span>
+          <h2>Make a payment.</h2>
+          <p>Tap pay and watch the hum. Then turn the network off and try again.</p>
+        </div>
+        <div class="demo">
+          <div class="stage" id="stage">
+            <span class="wave"></span><span class="wave"></span><span class="wave"></span>
+            <div class="phone">
+              <span class="who">Ada · paying</span>
+              <span class="amount">₦5,000</span>
+              <span class="status" id="sender-status">for jollof rice</span>
+              <button class="btn btn-primary" id="pay" type="button">Pay by hum</button>
+            </div>
+            <div class="phone">
+              <span class="who">Mama Tolu · selling</span>
+              <span class="amount" id="receiver-amount">₦0</span>
+              <span class="status" id="receiver-status">Ready to receive</span>
+            </div>
+          </div>
+          <div class="controls">
+            <label class="toggle">
+              <input type="checkbox" id="offline" />
+              <span>No network on either phone</span>
+            </label>
+            <ol class="steps" id="steps">
+              <li data-step="1"><b>1</b><span>Ada enters the amount and taps pay.</span></li>
+              <li data-step="2">
+                <b>2</b
+                ><span
+                  >Her phone hums: a short sound plus Bluetooth that only nearby phones pick
+                  up.</span
+                >
+              </li>
+              <li data-step="3">
+                <b>3</b
+                ><span
+                  >Mama Tolu’s phone hears it. Both screens show the same three shapes, so Ada knows
+                  she’s paying the right person.</span
+                >
+              </li>
+              <li data-step="4">
+                <b>4</b
+                ><span id="step-four"
+                  >Ada approves with her fingerprint or PIN and the money arrives instantly.</span
+                >
+              </li>
+            </ol>
+            <p class="small">A simulation in your browser. The real thing runs on two phones.</p>
+          </div>
+        </div>
+
+        <div class="ask">
+          <span class="label">Ask Faara</span>
+          <h3>Say it in English, Pidgin, Yorùbá, Hausa or Igbo.</h3>
+          <div class="chips" id="chips"></div>
+          <div class="answer" aria-live="polite">
+            <p class="said" id="said">Tap a language.</p>
+            <p class="filled" id="filled"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="on-paper" id="how">
+      <div class="wrap">
+        <div class="head">
+          <span class="label">How it works</span>
+          <h2>Three steps.</h2>
+        </div>
+        <div class="cols-3">
+          <div class="card">
+            <span class="step-no">1</span>
+            <h3>Enter the amount</h3>
+            <p>
+              Type what you’re paying and add a note if you like. No account number, no bank name.
+            </p>
+          </div>
+          <div class="card">
+            <span class="step-no">2</span>
+            <h3>Hold phones close</h3>
+            <p>
+              Faara hums. The other phone hears it, and you both see the same three shapes before
+              anything moves.
+            </p>
+          </div>
+          <div class="card">
+            <span class="step-no">3</span>
+            <h3>Approve</h3>
+            <p>
+              Your fingerprint or PIN confirms it. The money lands instantly, with a receipt on both
+              phones.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="on-white" id="features">
+      <div class="wrap">
+        <div class="head">
+          <span class="label">Features</span>
+          <h2>What Faara does.</h2>
+        </div>
+        <div class="cols-3">
+          <div class="card">
+            <span class="icon"
+              ><svg><use href="#i-hum" /></svg
+            ></span>
+            <h3>Pay by holding phones close</h3>
+            <p>
+              Sound and Bluetooth find the person in front of you. A QR or 6-digit code works when
+              it’s too loud.
+            </p>
+          </div>
+          <div class="card">
+            <span class="icon"
+              ><svg><use href="#i-offline" /></svg
+            ></span>
+            <h3>Pay with no network</h3>
+            <p>
+              Set aside up to ₦20,000 while online, then pay phone to phone anywhere. It settles
+              when either phone is back online.
+            </p>
+          </div>
+          <div class="card">
+            <span class="icon"
+              ><svg><use href="#i-mic" /></svg
+            ></span>
+            <h3>Speak to pay</h3>
+            <p>
+              Say “Send Tolu 5k for garri” in your language and the payment fills itself in. You
+              still approve it.
+            </p>
+          </div>
+          <div class="card">
+            <span class="icon"
+              ><svg><use href="#i-shield" /></svg
+            ></span>
+            <h3>A second look before you pay</h3>
+            <p>
+              Faara warns you about risky payments, and checks suspicious messages or fake alerts
+              for you.
+            </p>
+          </div>
+          <div class="card">
+            <span class="icon"
+              ><svg><use href="#i-invoice" /></svg
+            ></span>
+            <h3>Request money with a link</h3>
+            <p>Ask one person, or anyone with the link, and see the moment it’s paid.</p>
+          </div>
+          <div class="card">
+            <span class="icon"
+              ><svg><use href="#i-dollar" /></svg
+            ></span>
+            <h3>Save in dollars</h3>
+            <p>
+              Move naira into USDC, or let Faara save a share of what you receive automatically.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="on-deep">
+      <div class="wrap">
+        <div class="head">
+          <span class="label">Safety</span>
+          <h2>Nothing moves without your approval.</h2>
+        </div>
+        <div class="cols-3">
+          <div class="card">
+            <span class="icon"
+              ><svg><use href="#i-print" /></svg
+            ></span>
+            <h3>Your fingerprint or PIN, every time</h3>
+            <p>Faara can fill a payment in for you. Only you can send it.</p>
+          </div>
+          <div class="card">
+            <span class="icon"
+              ><svg><use href="#i-shapes" /></svg
+            ></span>
+            <h3>Same shapes on both phones</h3>
+            <p>
+              Before money moves, both screens show the same three shapes, so you never pay the
+              wrong phone.
+            </p>
+          </div>
+          <div class="card">
+            <span class="icon"
+              ><svg><use href="#i-shield" /></svg
+            ></span>
+            <h3>We never ask for your OTP</h3>
+            <p>
+              Faara will never ask for your PIN, OTP or recovery phrase. Anyone who does isn’t
+              Faara.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="on-paper">
+      <div class="wrap">
+        <div class="head">
+          <span class="label">Where we are</span>
+          <h2>Built, working, and in pilot.</h2>
+        </div>
+        <div class="status-list">
+          <div>
+            <span class="now">Now</span>
+            <p>Every feature works end to end on the web and Android, with test money.</p>
+          </div>
+          <div>
+            <span class="next">Next</span>
+            <p>A pilot with students and vendors at Olabisi Onabanjo University.</p>
+          </div>
+          <div>
+            <span class="later">Then</span>
+            <p>Real naira with a licensed payment partner, then more campuses and markets.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="on-white">
+      <div class="wrap">
+        <div class="head">
+          <span class="label">The team</span>
+          <h2>Two founders, four products in.</h2>
+          <p>
+            We met studying Data Science at OOU and build everything together under Meji Builds.
+          </p>
+        </div>
+        <div class="cols-2">
+          <div class="card person">
+            <div class="avatar">N</div>
+            <div>
+              <h3>Nifemi</h3>
+              <p>Co-founder and CTO. Builds the app and the payment system underneath it.</p>
+              <a href="https://x.com/builtbyVA">@builtbyVA</a>
+            </div>
+          </div>
+          <div class="card person">
+            <div class="avatar">R</div>
+            <div>
+              <h3>Richard</h3>
+              <p>Co-founder. Partners, vendors, and getting Faara into people’s hands.</p>
+              <a href="https://x.com/to_rich_no_hard">@to_rich_no_hard</a>
+            </div>
+          </div>
+        </div>
+        <p style="margin-top: 28px"><a class="text-link" href="/about">Read our story</a></p>
+      </div>
+    </section>
+
+    <section class="on-teal cta">
+      <div class="wrap">
+        <h2>See it for yourself.</h2>
+        <p style="margin-top: 14px">
+          Create an account in a minute and try every feature with test money.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="/welcome">Try Faara</a>
+          <a class="btn btn-outline" href="https://x.com/getfaara">Follow @getfaara</a>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        <span>© 2026 Faara · A Meji Builds product</span>
+        <span
+          ><a href="/about">About</a> · <a href="https://x.com/getfaara">X</a> ·
+          <a href="/welcome">Open the app</a></span
+        >
+        <span style="flex-basis: 100%"
+          >Faara is in pilot. Balances and payments use test money until we launch with a licensed
+          payment partner.</span
+        >
+      </div>
+    </footer>
+
+    <script src="/assets/site.js" defer></script>
+  </body>
+</html>

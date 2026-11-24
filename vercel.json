@@ -2,12 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "npm ci",
-  "buildCommand": "npx expo export --platform web",
+  "buildCommand": "npx expo export --platform web && node scripts/build-site.mjs",
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/about",
+      "destination": "/about/index.html"
+    },
+    {
       "source": "/((?!api/).*)",
-      "destination": "/index.html"
+      "destination": "/app.html"
     }
   ],
   "crons": [
