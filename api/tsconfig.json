@@ -9,7 +9,11 @@
     "noEmit": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "types": ["node", "jest"]
+    "types": ["node", "jest"],
+    "paths": {
+      "@shared/*": ["../shared/*"],
+      "@/*": ["../src/*"]
+    }
   },
   "include": ["./**/*.ts", "../shared/**/*.ts"]
 }

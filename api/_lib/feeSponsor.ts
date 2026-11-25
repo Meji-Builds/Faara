@@ -1,4 +1,4 @@
-import { Keypair, PublicKey, Transaction } from '@solana/web3.js';
+import type { Keypair, PublicKey, Transaction } from '@solana/web3.js';
 import { Buffer } from 'buffer';
 
 import {
@@ -15,20 +15,41 @@ import { ApiError } from './errors';
 import { consumeRate } from './rateLimit';
 import type { DocumentStore } from './store';
 
-const tokenProgram = new PublicKey(TOKEN_PROGRAM_ID);
-const ataProgram = new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID);
-const systemProgram = new PublicKey(SYSTEM_PROGRAM_ID);
-const usdcMint = new PublicKey(USDC_MINT);
+type Web3 = typeof import('@solana/web3.js');
+
+/**
+ * The Solana library, loaded only when a fee is sponsored. Every server function shares this
+ * code, so loading it up front would let a problem in the library take down every route.
+ */
+let web3: Web3 | null = null;
+function solana(): Web3 {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  web3 ??= require('@solana/web3.js') as Web3;
+  return web3;
+}
+
+/** Program and mint addresses, made once the library is loaded. */
+function addresses() {
+  const { PublicKey } = solana();
+  return {
+    tokenProgram: new PublicKey(TOKEN_PROGRAM_ID),
+    ataProgram: new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID),
+    systemProgram: new PublicKey(SYSTEM_PROGRAM_ID),
+    usdcMint: new PublicKey(USDC_MINT),
+  };
+}
 
 /** Keep at least this much SOL for fees; on the test network it tops itself up. */
 const LOW_BALANCE_LAMPORTS = 50_000_000; // 0.05 SOL
 const AIRDROP_LAMPORTS = 1_000_000_000; // 1 SOL
 
-const ata = (owner: PublicKey) =>
-  PublicKey.findProgramAddressSync(
+function ata(owner: PublicKey): PublicKey {
+  const { tokenProgram, usdcMint, ataProgram } = addresses();
+  return solana().PublicKey.findProgramAddressSync(
     [owner.toBuffer(), tokenProgram.toBuffer(), usdcMint.toBuffer()],
     ataProgram,
   )[0];
+}
 
 /** What a sponsored transaction does, once checked. */
 export interface SponsoredTransfer {
@@ -51,6 +72,7 @@ export function checkSponsoredTransfer(
   sponsor: PublicKey,
   owner: PublicKey,
 ): SponsoredTransfer {
+  const { tokenProgram, ataProgram, systemProgram, usdcMint } = addresses();
   if (!tx.feePayer?.equals(sponsor)) refuse('The fee payer is wrong.');
   if (owner.equals(sponsor)) refuse('The sender is wrong.');
   const instructions = tx.instructions;
@@ -133,8 +155,10 @@ export class FeeSponsor {
 
   private loadKeypair(): Promise<Keypair> {
     if (this.deps.secretKey) {
+      const { Keypair } = solana();
       return Promise.resolve(Keypair.fromSecretKey(Buffer.from(this.deps.secretKey, 'base64')));
     }
+    const { Keypair } = solana();
     this.keypair ??= this.deps.store.transaction(async (tx) => {
       const saved = await tx.get<{ secretKey: string }>('serverKeys/feePayer');
       if (saved) return Keypair.fromSecretKey(Buffer.from(saved.secretKey, 'base64'));
@@ -203,11 +227,11 @@ export class FeeSponsor {
     const keypair = await this.loadKeypair();
     let tx: Transaction;
     try {
-      tx = Transaction.from(Buffer.from(encoded, 'base64'));
+      tx = solana().Transaction.from(Buffer.from(encoded, 'base64'));
     } catch {
       throw new ApiError('invalid-argument', 'The payment couldn’t be read.');
     }
-    checkSponsoredTransfer(tx, keypair.publicKey, new PublicKey(walletAddress));
+    checkSponsoredTransfer(tx, keypair.publicKey, new (solana().PublicKey)(walletAddress));
     tx.partialSign(keypair);
     await this.keepFunded(keypair.publicKey.toBase58()).catch(() => undefined);
     return this.rpc<string>('sendTransaction', [

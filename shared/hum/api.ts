@@ -106,6 +106,7 @@ export type ApiErrorCode =
   | 'permission-denied'
   | 'resource-exhausted'
   | 'failed-precondition'
+  | 'unavailable'
   | 'internal';
 
 /** Add money (naira) through the payment partner's hosted checkout. */

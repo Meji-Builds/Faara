@@ -9,6 +9,8 @@ const HTTP_STATUS: Record<ApiErrorCode, number> = {
   'permission-denied': 403,
   'resource-exhausted': 429,
   'failed-precondition': 412,
+  /** A service Faara depends on (Solana, a partner) is down for now. */
+  unavailable: 503,
   internal: 500,
 };
 
