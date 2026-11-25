@@ -1,0 +1,40 @@
+# Every push to main sends the new app code to installed preview builds (the APKs used for
+# testing), so JavaScript fixes arrive without a new build. Builds only accept an update made
+# from the same native code (runtimeVersion uses the fingerprint policy); anything that changes
+# native code still needs a new EAS build.
+#
+# Runs on GitHub rather than EAS Workflows: publishing an update this way doesn't use Expo's
+# monthly CI minutes. Needs one repository secret, EXPO_TOKEN (an Expo access token).
+name: Publish update to preview builds
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-update
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Publish the update
+        # The commit message goes through an environment variable, never into the command.
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message || 'Manual update' }}
+        run: |
+          eas update --channel preview --environment preview --non-interactive \
+            --message "${COMMIT_MESSAGE%%$'\n'*}"
