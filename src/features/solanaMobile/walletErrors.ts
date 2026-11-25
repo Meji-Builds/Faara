@@ -2,8 +2,9 @@
 export function walletErrorMessage(error: unknown): string {
   const code = (error as { code?: unknown } | null)?.code;
   const text = `${String(code ?? '')} ${error instanceof Error ? error.message : String(error)}`;
-  if (/WALLET_NOT_FOUND|no installed wallet|not found/i.test(text)) {
-    return 'No Solana wallet app was found. Install Phantom or Solflare, then connect.';
+  // No wallet app answered Faara's request: none installed, or never opened once.
+  if (/WALLET_NOT_FOUND|no installed wallet|not found|websocket/i.test(text)) {
+    return 'No Solana wallet app answered. Install Phantom or Solflare, open it once and set it up, then connect.';
   }
   if (/declin|reject|cancel|NOT_SIGNED|AUTHORIZATION_FAILED/i.test(text)) {
     return 'The wallet app said no. Try again and approve it there.';

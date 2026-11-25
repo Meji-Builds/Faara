@@ -23,7 +23,12 @@ import { MockNairaLedger } from './naira';
 import { paystackCheckout } from './paystack';
 import { createNotifier } from './push';
 import { fetchParsedTransaction } from './solanaRpc';
-import { USDC_MINT, centsToUsdcBaseUnits, verifyTransfer } from '../../shared/solana';
+import {
+  SOLANA_CLUSTER,
+  USDC_MINT,
+  centsToUsdcBaseUnits,
+  verifyTransfer,
+} from '../../shared/solana';
 import { fetchWalletRisk } from './webacy';
 
 // A stray background rejection (e.g. a credential refresh) must not take the whole
@@ -218,8 +223,17 @@ function errorResponse(error: unknown): Response {
     } satisfies ApiErrorBody);
   }
   console.error(error);
+  // On the test network, say what broke so a screenshot is enough to fix it. On the real
+  // network people only see the plain message; the detail stays in the server logs.
+  const detail =
+    SOLANA_CLUSTER === 'devnet'
+      ? ` (${error instanceof Error ? `${error.name}: ${error.message}` : String(error)})`.slice(
+          0,
+          200,
+        )
+      : '';
   return json(500, {
-    error: { code: 'internal', message: 'Something went wrong.' },
+    error: { code: 'internal', message: `Something went wrong.${detail}` },
   } satisfies ApiErrorBody);
 }
 
