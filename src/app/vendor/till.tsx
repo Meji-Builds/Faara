@@ -21,6 +21,10 @@ import { formatMoney } from '@/lib/money';
 import { useTheme } from '@/theme';
 
 const naira = (kobo: number) => formatMoney(kobo / 100, 'NGN');
+const money = (amountMinor: number, currency: 'NGN' | 'USDC') =>
+  currency === 'USDC'
+    ? `${formatMoney(amountMinor / 100, 'USDC', { decimals: 2 })} USDC`
+    : naira(amountMinor);
 const time = (ms: number) =>
   new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 const tillKey = (uid: string) => `faara.till.v1.${uid}`;
@@ -85,8 +89,18 @@ export default function TillScreen() {
     };
   }, [code, preferences.tillSound, preferences.humVolume, start, stop]);
 
-  const payments = useTillFeed(uid, since, preferences.tillVoice);
-  const total = useMemo(() => payments.reduce((sum, p) => sum + p.amountKobo, 0), [payments]);
+  const payments = useTillFeed(uid, since, preferences.tillVoice, till?.walletAddress ?? null);
+  const totals = useMemo(
+    () => ({
+      naira: payments
+        .filter((p) => p.currency === 'NGN')
+        .reduce((sum, p) => sum + p.amountMinor, 0),
+      usdc: payments
+        .filter((p) => p.currency === 'USDC')
+        .reduce((sum, p) => sum + p.amountMinor, 0),
+    }),
+    [payments],
+  );
 
   if (!till) {
     return (
@@ -131,8 +145,13 @@ export default function TillScreen() {
         <Card tone="brand" padded style={styles.hero}>
           <HumPulse size={64} active={listening} />
           <AppText variant="title" color="onBrand" align="center">
-            {naira(total)}
+            {naira(totals.naira)}
           </AppText>
+          {totals.usdc > 0 ? (
+            <AppText variant="bodyStrong" color="goldOnBrand" align="center">
+              + {money(totals.usdc, 'USDC')}
+            </AppText>
+          ) : null}
           <AppText color="onBrandMuted" align="center">
             {payments.length} {payments.length === 1 ? 'payment' : 'payments'} since you opened the
             till
@@ -185,7 +204,7 @@ export default function TillScreen() {
                   </AppText>
                 </View>
                 <AppText variant="bodyStrong" color="accentText">
-                  +{naira(payment.amountKobo)}
+                  +{money(payment.amountMinor, payment.currency)}
                 </AppText>
               </View>
             ))}

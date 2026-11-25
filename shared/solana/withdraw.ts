@@ -39,3 +39,17 @@ export function parseRequestId(value: unknown): string {
   }
   return value;
 }
+
+/** A signed USDC payment for Faara to co-sign as fee payer (base64; well under 1,232 bytes). */
+export function parseSponsorRequest(body: unknown): { transaction: string } {
+  const data = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+  const { transaction } = data;
+  if (
+    typeof transaction !== 'string' ||
+    transaction.length > 2000 ||
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(transaction)
+  ) {
+    throw new WithdrawValidationError('The payment couldn’t be read.');
+  }
+  return { transaction };
+}

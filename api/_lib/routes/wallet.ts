@@ -1,4 +1,4 @@
-import { parseRequestId, parseWithdrawRequest } from '../../../shared/solana';
+import { parseRequestId, parseSponsorRequest, parseWithdrawRequest } from '../../../shared/solana';
 import { authedRoute, errorResponse, getServices, json } from '../http';
 
 /** POST /api/wallet/status: the caller's USDC wallet on the test network (made on first use). */
@@ -58,4 +58,19 @@ export const withdrawal = authedRoute(
   async ({ uid, services }, request) => ({
     state: await services.circle.withdrawalState(uid, request.requestId),
   }),
+);
+
+/** POST /api/wallet/feepayer: the address phones set as fee payer, so Faara pays the fee. */
+export const feepayer = authedRoute(
+  () => ({}),
+  async ({ services }) => ({ address: await services.feeSponsor.address() }),
+);
+
+/** POST /api/wallet/sponsor: co-sign and send a USDC payment, with Faara paying the fee. */
+export const sponsor = authedRoute(
+  parseSponsorRequest,
+  async ({ uid, services }, request) => ({
+    signature: await services.feeSponsor.sponsor(uid, request.transaction),
+  }),
+  { movesMoney: true },
 );

@@ -1,6 +1,6 @@
 import type { ShopInfo } from '@shared/vendors';
 
-import { announcement } from '../announce';
+import { announcement, OUTSIDE_WALLET } from '../announce';
 import { rankShops } from '../useNearbyShops';
 
 jest.mock('expo-speech', () => ({ speak: jest.fn() }));
@@ -21,6 +21,10 @@ describe('till alerts', () => {
     expect(announcement(500_000, 'Ada Okafor', 'english')).toBe('5,000 naira from Ada');
     expect(announcement(150_050, 'Tunde', 'pidgin')).toBe('Tunde don pay you 1,501 naira');
     expect(announcement(20_000, '  ', 'english')).toBe('200 naira from a customer');
+    expect(announcement(250, 'Ada', 'english', 'USDC')).toBe('2.50 US dollars from Ada');
+    expect(announcement(500, OUTSIDE_WALLET, 'pidgin', 'USDC')).toBe(
+      'a Solana wallet don pay you 5 US dollars',
+    );
   });
 });
 

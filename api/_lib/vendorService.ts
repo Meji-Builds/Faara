@@ -25,6 +25,7 @@ interface ProfileDoc {
   fullName: string;
   username: string;
   phone?: string;
+  walletAddress?: string;
 }
 
 export interface VendorDeps {
@@ -165,7 +166,12 @@ export class VendorService {
         tx.set(tillPath(code), { uid });
         tx.update(vendorPath(uid), { tillCode: code });
       }
-      return { code, username: profile.username, businessName: vendor.businessName };
+      return {
+        code,
+        username: profile.username,
+        businessName: vendor.businessName,
+        walletAddress: profile.walletAddress ?? null,
+      };
     });
   }
 

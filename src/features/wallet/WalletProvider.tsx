@@ -94,6 +94,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Wallets made while dollars were paused stayed on the phone. Publish this phone's address
+  // so others can pay it, but only when the account has none: an address already on the
+  // account (say, from another phone) is never replaced without restoring that wallet.
+  const uid = user?.uid;
+  const publishedAddress = profile?.walletAddress;
+  useEffect(() => {
+    if (!DOLLARS_ENABLED || !uid || !deviceAddress || publishedAddress) return;
+    setWalletAddress(uid, deviceAddress).catch(() => undefined);
+  }, [uid, deviceAddress, publishedAddress]);
+
   const persist = useCallback(
     async (phrase: string, pin: string) => {
       if (!user) throw new Error('Sign in first');

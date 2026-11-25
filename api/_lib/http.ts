@@ -14,6 +14,7 @@ import { ConvertService, MockExchange } from './convertService';
 import { signerFromPkcs8 } from './ed25519';
 import { FundingService } from './fundingService';
 import { HumService } from './humService';
+import { FeeSponsor } from './feeSponsor';
 import { OfflineService } from './offlineService';
 import { RequestService } from './requestService';
 import { SupportService } from './supportService';
@@ -42,6 +43,7 @@ interface Services {
   convert: ConvertService;
   offline: OfflineService;
   circle: CircleWallets;
+  feeSponsor: FeeSponsor;
   assistant: AssistantService;
   agent: AgentService;
   aiData: AiData;
@@ -150,6 +152,11 @@ export function getServices(): Services {
         notify,
       }),
       circle,
+      feeSponsor: new FeeSponsor({
+        store,
+        now,
+        secretKey: process.env.FEE_PAYER_KEY ?? null,
+      }),
       funding: new FundingService({
         store,
         now,

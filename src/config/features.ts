@@ -1,8 +1,8 @@
 /**
- * Dollar (USDC) features are paused while naira payments are being tested.
- * Flip this on to bring back the dollar wallet, currency switches and Invoices.
+ * Dollar (USDC) features: the dollar wallet, currency switches and USDC payments on Solana.
+ * Runs on Solana's test network until launch; Faara pays the network fees.
  */
-export const DOLLARS_ENABLED = false;
+export const DOLLARS_ENABLED = true;
 
 /** Converting between naira, dollars and USDC inside Faara (test rates until a partner is live). */
 export const CONVERT_ENABLED = true;

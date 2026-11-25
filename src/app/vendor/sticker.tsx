@@ -5,10 +5,12 @@ import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
 
+import { SOLANA_CLUSTER, solanaPayUrl } from '@shared/solana';
 import type { TillResponse } from '@shared/vendors';
 
 import { HumMark, Wordmark } from '@/components/brand';
 import { AppText, Button, Header, Screen } from '@/components/ui';
+import { DOLLARS_ENABLED } from '@/config/features';
 import { useAuth } from '@/features/auth';
 import { getTill } from '@/features/vendors';
 import { apiErrorMessage } from '@/lib/api/client';
@@ -102,6 +104,28 @@ export default function StickerScreen() {
             <AppText variant="label" style={styles.muted}>
               @{till.username} · Verified Faara vendor
             </AppText>
+            {DOLLARS_ENABLED && till.walletAddress ? (
+              <View style={[styles.solana, { borderColor: palette.softTeal }]}>
+                <View style={styles.smallQr}>
+                  <QRCode
+                    value={solanaPayUrl(till.walletAddress, till.businessName)}
+                    size={92}
+                    ecl="M"
+                    color={palette.deepGreen}
+                    backgroundColor="#FFFFFF"
+                  />
+                </View>
+                <View style={styles.solanaText}>
+                  <AppText variant="bodyStrong" style={styles.onDark}>
+                    Paying in USDC?
+                  </AppText>
+                  <AppText variant="label" style={styles.muted}>
+                    Scan with any Solana wallet (Solana Pay)
+                    {SOLANA_CLUSTER === 'devnet' ? ' · test network' : ''}
+                  </AppText>
+                </View>
+              </View>
+            ) : null}
           </View>
           <AppText color="textMuted" align="center">
             Print it and put it where customers pay. Scanning it opens a payment to your shop, even
@@ -141,4 +165,15 @@ const styles = StyleSheet.create({
   how: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   onDark: { color: palette.text },
   muted: { color: palette.softTeal },
+  solana: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    alignSelf: 'stretch',
+    marginTop: 6,
+    paddingTop: 14,
+    borderTopWidth: 1,
+  },
+  smallQr: { padding: 6, borderRadius: radii.md, backgroundColor: '#FFFFFF' },
+  solanaText: { flex: 1, gap: 2 },
 });

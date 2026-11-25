@@ -20,3 +20,13 @@ export const SOLANA_ADDRESS_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 export function explorerTxUrl(signature: string): string {
   return `https://explorer.solana.com/tx/${signature}?cluster=${SOLANA_CLUSTER}`;
 }
+
+/**
+ * A Solana Pay link (the standard Solana wallets understand) asking for USDC to `recipient`.
+ * With no amount the payer's wallet asks how much. See docs.solanapay.com.
+ */
+export function solanaPayUrl(recipient: string, label: string, message?: string): string {
+  const params = new URLSearchParams({ 'spl-token': USDC_MINT, label: label.slice(0, 60) });
+  if (message) params.set('message', message.slice(0, 100));
+  return `solana:${recipient}?${params.toString().replace(/\+/g, '%20')}`;
+}

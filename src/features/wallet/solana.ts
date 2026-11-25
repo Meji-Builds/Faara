@@ -111,6 +111,27 @@ export function buildUsdcTransfer(
   return tx;
 }
 
+/**
+ * Builds a USDC transfer that Faara pays the network fee for: `feePayer` is Faara's address
+ * and also covers the recipient's token account if it's new. Only the sender signs here;
+ * Faara checks it and adds its signature before sending.
+ */
+export function buildSponsoredUsdcTransfer(
+  sender: Keypair,
+  recipient: PublicKey,
+  amount: bigint,
+  recentBlockhash: string,
+  feePayer: PublicKey,
+): Transaction {
+  const tx = new Transaction({ feePayer, recentBlockhash });
+  tx.add(
+    createAtaIdempotentInstruction(feePayer, recipient),
+    transferCheckedInstruction(sender.publicKey, recipient, amount),
+  );
+  tx.partialSign(sender);
+  return tx;
+}
+
 /** Sends a signed transaction and waits for confirmation. Returns the signature. */
 export async function sendAndConfirm(tx: Transaction, timeoutMs = 45_000): Promise<string> {
   const encoded = tx.serialize().toString('base64');
@@ -118,6 +139,11 @@ export async function sendAndConfirm(tx: Transaction, timeoutMs = 45_000): Promi
     encoded,
     { encoding: 'base64', preflightCommitment: 'confirmed' },
   ]);
+  return waitForConfirmation(signature, timeoutMs);
+}
+
+/** Waits until a sent transaction is confirmed. Returns the signature. */
+export async function waitForConfirmation(signature: string, timeoutMs = 45_000): Promise<string> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const { value } = await rpc<{
@@ -175,3 +201,77 @@ export const TEST_FUNDS_LINKS = {
   sol: 'https://faucet.solana.com',
   usdc: 'https://faucet.circle.com',
 } as const;
+
+/** USDC that arrived in a wallet: from Faara or from any Solana wallet (Solana Pay). */
+export interface UsdcCredit {
+  signature: string;
+  /** In cents. */
+  cents: number;
+  /** The paying wallet, when it can be told from the transaction. */
+  from: string | null;
+  at: number;
+}
+
+interface TokenBalance {
+  accountIndex: number;
+  mint: string;
+  owner?: string;
+  uiTokenAmount: { amount: string };
+}
+
+/** What `owner` received in USDC in one transaction, from its pre and post balances. */
+export function usdcCreditFrom(
+  owner: string,
+  meta: { preTokenBalances?: TokenBalance[]; postTokenBalances?: TokenBalance[] },
+): { cents: number; from: string | null } | null {
+  const amountOf = (list: TokenBalance[] | undefined, who: string) =>
+    (list ?? [])
+      .filter((b) => b.mint === USDC_MINT && b.owner === who)
+      .reduce((sum, b) => sum + BigInt(b.uiTokenAmount.amount), 0n);
+  const received = amountOf(meta.postTokenBalances, owner) - amountOf(meta.preTokenBalances, owner);
+  if (received <= 0n) return null;
+  // The payer is whoever's USDC went down.
+  const owners = new Set(
+    (meta.preTokenBalances ?? []).filter((b) => b.mint === USDC_MINT).map((b) => b.owner),
+  );
+  let from: string | null = null;
+  for (const who of owners) {
+    if (!who || who === owner) continue;
+    if (amountOf(meta.postTokenBalances, who) < amountOf(meta.preTokenBalances, who)) from = who;
+  }
+  return { cents: Number(received / 10_000n), from };
+}
+
+/**
+ * USDC payments into `owner`'s wallet since `since` (ms). Signatures in `seen` are skipped
+ * and added, so polling only fetches what's new.
+ */
+export async function recentUsdcCredits(
+  owner: string,
+  since: number,
+  seen: Set<string>,
+): Promise<UsdcCredit[]> {
+  const account = associatedTokenAddress(new PublicKey(owner)).toBase58();
+  const signatures = await rpc<{ signature: string; blockTime: number | null; err: unknown }[]>(
+    'getSignaturesForAddress',
+    [account, { limit: 15, commitment: 'confirmed' }],
+  );
+  const fresh = signatures.filter(
+    (s) => !s.err && !seen.has(s.signature) && (s.blockTime ?? 0) * 1000 >= since,
+  );
+  const credits: UsdcCredit[] = [];
+  for (const entry of fresh) {
+    const tx = await rpc<{
+      meta: { preTokenBalances?: TokenBalance[]; postTokenBalances?: TokenBalance[] } | null;
+    } | null>('getTransaction', [
+      entry.signature,
+      { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 },
+    ]);
+    if (!tx?.meta) continue; // not visible yet: try again next time
+    seen.add(entry.signature);
+    const credit = usdcCreditFrom(owner, tx.meta);
+    if (credit)
+      credits.push({ signature: entry.signature, at: (entry.blockTime ?? 0) * 1000, ...credit });
+  }
+  return credits;
+}

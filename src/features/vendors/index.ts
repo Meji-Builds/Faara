@@ -1,4 +1,4 @@
-export { announce, announcement, type TillVoice } from './announce';
+export { announce, announcement, type TillCurrency, type TillVoice } from './announce';
 export { useTillFeed, type TillPayment } from './useTillFeed';
 export { useVendorStatus } from './useVendorStatus';
 export {

@@ -46,6 +46,8 @@ export const RATE_LIMITS = {
   assistant: 20,
   agent: 20,
   support: 10,
+  /** USDC payments whose network fee Faara pays. */
+  sponsor: 10,
 } as const;
 export type RateLimitedAction = keyof typeof RATE_LIMITS;
 

@@ -141,7 +141,7 @@ export default function WalletScreen() {
         TEST FUNDS (DEVNET)
       </AppText>
       <Card divided>
-        <ListRow label="Get test SOL" value="For fees" onPress={getTestSol} />
+        <ListRow label="Get test SOL" value="Optional: Faara pays fees" onPress={getTestSol} />
         <ListRow label="SOL faucet website" onPress={() => Linking.openURL(TEST_FUNDS_LINKS.sol)} />
         <ListRow
           label="Get test USDC"

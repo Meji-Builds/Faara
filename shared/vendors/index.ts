@@ -150,6 +150,8 @@ export interface TillResponse {
   code: string;
   username: string;
   businessName: string;
+  /** The vendor's own Solana wallet, for USDC from any Solana wallet (Solana Pay). */
+  walletAddress: string | null;
 }
 
 export function parseTillLookup(body: unknown): { code: string } {

@@ -1,4 +1,4 @@
-import { USDC_MINT, centsToUsdcBaseUnits } from '../constants';
+import { USDC_MINT, centsToUsdcBaseUnits, solanaPayUrl } from '../constants';
 import { verifyTransfer, type ParsedTransaction } from '../verifyTransfer';
 
 const SENDER = 'Sender1111111111111111111111111111111111111';
@@ -74,6 +74,15 @@ describe('verifyTransfer', () => {
   it('rejects funds that came from someone other than the sender', () => {
     expect(verifyTransfer(tx(100_000_000n, 100_000_000n, 0n, 40_500_000n), expected).ok).toBe(
       false,
+    );
+  });
+});
+
+describe('Solana Pay links', () => {
+  it('asks any Solana wallet for USDC to the shop, with its name', () => {
+    const url = solanaPayUrl('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU', 'Mama Tolu Foods');
+    expect(url).toBe(
+      `solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?spl-token=${USDC_MINT}&label=Mama%20Tolu%20Foods`,
     );
   });
 });
