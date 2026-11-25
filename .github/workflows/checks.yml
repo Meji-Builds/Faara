@@ -18,6 +18,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Server libraries load the way Vercel loads them
+        run: node scripts/check-server-libs.mjs
       - name: Typecheck (app and server)
         run: npm run typecheck
       - name: Lint

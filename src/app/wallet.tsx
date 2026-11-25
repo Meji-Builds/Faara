@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { Copy, ExternalLink, RefreshCw } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, Header, ListRow, OtpField, Screen } from '@/components/ui';
 import { ExternalWallet, LeftoverUsdc } from '@/components/usdc';
@@ -95,9 +95,15 @@ export default function WalletScreen() {
             accessibilityRole="button"
             accessibilityLabel="Refresh balances"
             onPress={balances.reload}
+            disabled={balances.loading}
             hitSlop={12}
           >
-            <RefreshCw size={20} color={colors.onBrandMuted} strokeWidth={1.75} />
+            {/* A spinner while it reloads, so a tap visibly does something. */}
+            {balances.loading ? (
+              <ActivityIndicator size="small" color={colors.onBrandMuted} />
+            ) : (
+              <RefreshCw size={20} color={colors.onBrandMuted} strokeWidth={1.75} />
+            )}
           </Pressable>
         </View>
         <AppText style={[styles.balance, { color: colors.goldOnBrand }]}>
@@ -108,7 +114,9 @@ export default function WalletScreen() {
               : '—'}
         </AppText>
         <AppText variant="label" color="onBrandMuted">
-          {balances.value ? 'Yours alone. Faara pays the network fees.' : (balances.error ?? ' ')}
+          {balances.value
+            ? `${balances.value.sol.toFixed(4)} SOL · Yours alone. Faara pays the network fees.`
+            : (balances.error ?? ' ')}
         </AppText>
       </Card>
 
