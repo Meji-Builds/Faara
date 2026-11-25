@@ -42,6 +42,15 @@ export const log = authedRoute(
   async ({ uid, services }) => ({ log: await services.admin.log(uid) }),
 );
 
+/** POST /api/admin/feewallet: the wallet Faara pays network fees from, and its SOL. */
+export const feewallet = authedRoute(
+  () => ({}),
+  async ({ uid, services }) => {
+    await services.admin.requireAdmin(uid);
+    return services.feeSponsor.status();
+  },
+);
+
 /** POST /api/admin/tickets: the support queue, open tickets first. */
 export const tickets = authedRoute(
   () => ({}),

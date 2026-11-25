@@ -1,4 +1,5 @@
 export {
+  getFeeWallet,
   adminLog,
   amIAdmin,
   getOverview,

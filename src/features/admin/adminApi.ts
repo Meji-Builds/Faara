@@ -40,3 +40,8 @@ export function adminLog() {
 export function supportQueue() {
   return postJson<{ tickets: SupportTicket[] }>('/api/admin/tickets', {}, { retry: true });
 }
+
+/** The wallet Faara pays Solana network fees from, and its SOL balance in lamports. */
+export function getFeeWallet() {
+  return postJson<{ address: string; lamports: number }>('/api/admin/feewallet', {});
+}

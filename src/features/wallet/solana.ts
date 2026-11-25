@@ -2,7 +2,13 @@
  * Minimal devnet client: balances, airdrops and USDC transfers. Transactions are built and
  * signed on the device; only the signed bytes are sent to the RPC node.
  */
-import { PublicKey, Transaction, TransactionInstruction, type Keypair } from '@solana/web3.js';
+import {
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  TransactionInstruction,
+  type Keypair,
+} from '@solana/web3.js';
 import { Buffer } from 'buffer';
 
 import {
@@ -274,4 +280,25 @@ export async function recentUsdcCredits(
       credits.push({ signature: entry.signature, at: (entry.blockTime ?? 0) * 1000, ...credit });
   }
   return credits;
+}
+
+/** Sends SOL from the person's wallet (they pay the tiny fee themselves). Returns the signature. */
+export async function sendSol(
+  sender: Keypair,
+  recipient: string,
+  lamports: number,
+): Promise<string> {
+  const tx = new Transaction({
+    feePayer: sender.publicKey,
+    recentBlockhash: await latestBlockhash(),
+  });
+  tx.add(
+    SystemProgram.transfer({
+      fromPubkey: sender.publicKey,
+      toPubkey: new PublicKey(recipient),
+      lamports,
+    }),
+  );
+  tx.sign(sender);
+  return sendAndConfirm(tx);
 }

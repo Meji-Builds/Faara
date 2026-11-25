@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import type { AdminOverview } from '@shared/admin';
 
+import { FeeWalletCard } from '@/components/admin/FeeWalletCard';
 import { AppText, Card, Header, ListRow, Screen } from '@/components/ui';
 import { getOverview } from '@/features/admin';
 import { friendlyError } from '@/lib/errors';
@@ -102,6 +103,8 @@ export default function AdminScreen() {
             )}
             {tile('Open offline pockets', String(overview.openPockets))}
           </View>
+
+          <FeeWalletCard />
 
           <Card divided>
             <ListRow label="Support tickets" onPress={() => router.push('/admin/support')} />

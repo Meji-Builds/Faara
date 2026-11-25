@@ -192,6 +192,18 @@ export class FeeSponsor {
       result?: T;
       error?: { message?: string };
     } | null;
+    const message = body?.error?.message ?? '';
+    // The fee wallet has no SOL: say so, and where to fix it.
+    if (
+      /may not be used to pay transaction fees|no record of a prior credit|insufficient (funds for fee|lamports)/i.test(
+        message,
+      )
+    ) {
+      throw new ApiError(
+        'unavailable',
+        'Faara’s fee wallet is out of test SOL. An admin can top it up in Admin → Fee wallet.',
+      );
+    }
     if (!body || body.error || body.result === undefined) {
       throw new ApiError(
         'unavailable',
@@ -208,6 +220,16 @@ export class FeeSponsor {
     if (value < LOW_BALANCE_LAMPORTS) {
       await this.rpc('requestAirdrop', [address, AIRDROP_LAMPORTS]).catch(() => undefined);
     }
+  }
+
+  /** The fee wallet's address and SOL balance (in lamports), for Faara's team. */
+  async status(): Promise<{ address: string; lamports: number }> {
+    const address = (await this.loadKeypair()).publicKey.toBase58();
+    const { value } = await this.rpc<{ value: number }>('getBalance', [
+      address,
+      { commitment: 'confirmed' },
+    ]);
+    return { address, lamports: value };
   }
 
   /**
