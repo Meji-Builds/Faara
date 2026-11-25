@@ -14,6 +14,7 @@ import { ConvertService, MockExchange } from './convertService';
 import { signerFromPkcs8 } from './ed25519';
 import { FundingService } from './fundingService';
 import { HumService } from './humService';
+import { DisputeService } from './disputeService';
 import { FeeSponsor } from './feeSponsor';
 import { OfflineService } from './offlineService';
 import { RequestService } from './requestService';
@@ -50,6 +51,7 @@ interface Services {
   offline: OfflineService;
   circle: CircleWallets;
   feeSponsor: FeeSponsor;
+  disputes: DisputeService;
   assistant: AssistantService;
   agent: AgentService;
   aiData: AiData;
@@ -98,6 +100,7 @@ export function getServices(): Services {
       .filter(Boolean);
     const admin = new AdminService({ store, now, newId, admins });
     const aiData = new AiData({ store, now, newId });
+    const support = new SupportService({ store, now, newId, admin, notify });
     const feeSponsor = new FeeSponsor({
       store,
       now,
@@ -145,7 +148,8 @@ export function getServices(): Services {
           admin.record(adminUid, action, targetUid, detail),
       }),
       admin,
-      support: new SupportService({ store, now, newId, admin, notify }),
+      support,
+      disputes: new DisputeService({ store, now, admin, support, notify }),
       assistant: new AssistantService({ store, now, ai, examples: aiData }),
       agent: new AgentService({
         store,

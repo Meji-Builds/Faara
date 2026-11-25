@@ -107,6 +107,7 @@ export default function AdminScreen() {
           <FeeWalletCard />
 
           <Card divided>
+            <ListRow label="Payment disputes" onPress={() => router.push('/admin/disputes')} />
             <ListRow label="Support tickets" onPress={() => router.push('/admin/support')} />
             <ListRow label="Vendor applications" onPress={() => router.push('/vendor/review')} />
             <ListRow label="Find a user" onPress={() => router.push('/admin/users')} />

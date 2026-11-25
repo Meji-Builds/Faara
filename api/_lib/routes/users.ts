@@ -1,3 +1,4 @@
+import { parseDisputeRef, parseOpenDispute } from '../../../shared/disputes';
 import { parseLookupUser } from '../../../shared/hum';
 import { parseNewTicket, parseTicketRef, parseTicketReply } from '../../../shared/support';
 import {
@@ -68,3 +69,13 @@ export const thread = authedRoute(parseTicketRef, ({ uid, services }, request) =
 export const reply = authedRoute(parseTicketReply, ({ uid, services }, request) =>
   services.support.reply(uid, request.ticketId, request.text),
 );
+
+/** POST /api/users/dispute: open a dispute about a payment the caller made. */
+export const dispute = authedRoute(parseOpenDispute, ({ uid, services }, request) =>
+  services.disputes.open(uid, request),
+);
+
+/** POST /api/users/disputestatus: the dispute about a payment, if there is one. */
+export const disputestatus = authedRoute(parseDisputeRef, async ({ uid, services }, request) => ({
+  dispute: await services.disputes.get(uid, request.paymentId),
+}));

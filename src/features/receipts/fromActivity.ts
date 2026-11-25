@@ -21,7 +21,9 @@ export function receiptFromActivity(entry: ActivityEntry): ReceiptData {
     channelLabel:
       entry.kind === 'deposit'
         ? 'Card or bank transfer'
-        : CHANNEL_LABEL[entry.channel ?? (entry.kind === 'transfer' ? 'username' : 'sound')],
+        : entry.kind === 'refund'
+          ? 'Refund by Faara after a dispute'
+          : CHANNEL_LABEL[entry.channel ?? (entry.kind === 'transfer' ? 'username' : 'sound')],
     currency: entry.currency,
     explorerUrl: entry.signature ? explorerTxUrl(entry.signature) : null,
   };

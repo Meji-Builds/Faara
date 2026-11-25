@@ -20,13 +20,15 @@ export function toTransactionView(entry: ActivityEntry, index: number): Transact
     description:
       entry.kind === 'deposit'
         ? 'Added money'
-        : [
-            entry.kind === 'transfer' ? 'Sent by username' : 'Hum',
-            entry.currency === 'USDC' ? 'USDC' : null,
-            entry.note || null,
-          ]
-            .filter(Boolean)
-            .join(' · '),
+        : entry.kind === 'refund'
+          ? 'Refund after a dispute'
+          : [
+              entry.kind === 'transfer' ? 'Sent by username' : 'Hum',
+              entry.currency === 'USDC' ? 'USDC' : null,
+              entry.note || null,
+            ]
+              .filter(Boolean)
+              .join(' · '),
     amount: entry.direction === 'in' ? major : -major,
     currency: entry.currency,
     when: relativeDay(entry.createdAt),

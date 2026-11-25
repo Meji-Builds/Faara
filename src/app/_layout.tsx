@@ -203,6 +203,8 @@ function RootStack({ onReady }: { onReady: () => void }) {
           <Stack.Screen name="admin/user/[uid]" />
           <Stack.Screen name="admin/payments" />
           <Stack.Screen name="admin/log" />
+          <Stack.Screen name="admin/disputes" />
+          <Stack.Screen name="dispute/[paymentId]" />
         </Stack.Protected>
         <Stack.Screen name="pay/[username]" options={{ animation: 'none' }} />
         <Stack.Screen name="r/[id]" />

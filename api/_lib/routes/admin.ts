@@ -1,4 +1,5 @@
 import { parsePause, parseUserRef, parseUserSearch } from '../../../shared/admin';
+import { parseDecision } from '../../../shared/disputes';
 import { parseTicketStatus } from '../../../shared/support';
 import { authedRoute } from '../http';
 
@@ -49,6 +50,19 @@ export const feewallet = authedRoute(
     await services.admin.requireAdmin(uid);
     return services.feeSponsor.status();
   },
+);
+
+/** POST /api/admin/disputes: payment disputes, newest first. */
+export const disputes = authedRoute(
+  () => ({}),
+  async ({ uid, services }) => ({ disputes: await services.disputes.list(uid) }),
+);
+
+/** POST /api/admin/decide: refund or reject a dispute (large refunds need two admins). */
+export const decide = authedRoute(
+  parseDecision,
+  ({ uid, services }, request) => services.disputes.decide(uid, request),
+  { movesMoney: true },
 );
 
 /** POST /api/admin/tickets: the support queue, open tickets first. */

@@ -7,8 +7,11 @@ export const MOCK_STARTING_BALANCE_KOBO = 20_000_000;
 
 export interface ActivityEntry {
   direction: 'in' | 'out';
-  /** `hum`: paid nearby; `transfer`: sent to a username; `deposit`: money added. */
-  kind: 'hum' | 'transfer' | 'deposit';
+  /**
+   * `hum`: paid nearby; `transfer`: sent to a username; `deposit`: money added; `refund`:
+   * money returned after a dispute.
+   */
+  kind: 'hum' | 'transfer' | 'deposit' | 'refund';
   paymentId: string;
   counterpartyName: string;
   counterpartyUsername: string;

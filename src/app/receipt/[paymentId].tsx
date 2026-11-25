@@ -3,12 +3,14 @@ import { ReceiptText } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet } from 'react-native';
 
+import type { Dispute } from '@shared/disputes';
 import type { ActivityEntry } from '@shared/hum';
 
 import { ReceiptActions, ReceiptView } from '@/components/payments';
 import { AppText, Button, EmptyState, Header, Screen } from '@/components/ui';
 import { watchActivityEntry } from '@/features/account';
 import { useAuth } from '@/features/auth';
+import { getDispute } from '@/features/disputes';
 import { receiptFromActivity } from '@/features/receipts';
 import type { ViewRef } from '@/lib/viewRef';
 import { useTheme } from '@/theme';
@@ -21,6 +23,19 @@ export default function ReceiptScreen() {
   const { paymentId } = useLocalSearchParams<{ paymentId: string }>();
   const [entry, setEntry] = useState<ActivityEntry | null | undefined>(undefined);
   const captureRef: ViewRef = useRef(null);
+  const [dispute, setDispute] = useState<Dispute | null>(null);
+
+  // A payment someone disputed shows that on the receipt, for both people.
+  useEffect(() => {
+    if (!paymentId) return;
+    let active = true;
+    getDispute(paymentId)
+      .then((result) => active && setDispute(result.dispute))
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [paymentId]);
 
   useEffect(() => {
     if (!user || !paymentId) return;
@@ -55,11 +70,35 @@ export default function ReceiptScreen() {
     <Screen footer={<ReceiptActions receipt={receipt} captureRef={captureRef} />}>
       {header}
       <ReceiptView receipt={receipt} captureRef={captureRef} />
-      <Button
-        label="Report a problem with this payment"
-        variant="text"
-        onPress={() => router.push({ pathname: '/support/new', params: { paymentId } })}
-      />
+      {dispute ? (
+        <Button
+          label={
+            dispute.status === 'open'
+              ? 'This payment is being looked into'
+              : dispute.status === 'refunded'
+                ? 'This payment was refunded'
+                : 'This payment’s dispute was closed'
+          }
+          variant="outline"
+          onPress={() => router.push({ pathname: '/dispute/[paymentId]', params: { paymentId } })}
+        />
+      ) : null}
+      {/* Payments you made can be disputed; for anything else, ask support. */}
+      {dispute ? null : (
+        <Button
+          label={
+            entry.direction === 'out' && entry.kind !== 'deposit' && entry.kind !== 'refund'
+              ? 'Report a problem with this payment'
+              : 'Get help with this payment'
+          }
+          variant="text"
+          onPress={() =>
+            entry.direction === 'out' && entry.kind !== 'deposit' && entry.kind !== 'refund'
+              ? router.push({ pathname: '/dispute/[paymentId]', params: { paymentId } })
+              : router.push({ pathname: '/support/new', params: { paymentId } })
+          }
+        />
+      )}
     </Screen>
   );
 }
