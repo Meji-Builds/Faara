@@ -146,11 +146,13 @@ describe('the fee sponsor service', () => {
       const { method } = JSON.parse(String(init?.body)) as { method: string };
       calls.push(method);
       const result =
-        method === 'getBalance'
-          ? { value: 1_000_000_000 }
-          : method === 'sendTransaction'
-            ? 'SIGNATURE'
-            : null;
+        method === 'getAccountInfo'
+          ? { value: { data: ['', 'base64'] } }
+          : method === 'getBalance'
+            ? { value: 1_000_000_000 }
+            : method === 'sendTransaction'
+              ? 'SIGNATURE'
+              : null;
       return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result }));
     }) as typeof fetch;
     const service = new FeeSponsor({
@@ -181,6 +183,16 @@ describe('the fee sponsor service', () => {
       code: 'failed-precondition',
     });
     expect(calls).not.toContain('sendTransaction');
+  });
+
+  it('sets up USDC accounts only for the caller’s own wallet', async () => {
+    const own = sender.publicKey.toBase58();
+    const { service, calls } = setup(own);
+    await service.prepareOwnWallet('ada', Keypair.generate().publicKey.toBase58());
+    expect(calls).toEqual([]);
+    // Their own wallet already has an account here, so nothing is sent.
+    await service.prepareOwnWallet('ada', own);
+    expect(calls).toEqual(['getAccountInfo']);
   });
 
   it('keeps a key of its own when none is configured', async () => {

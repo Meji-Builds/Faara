@@ -49,7 +49,13 @@ export default function StickerScreen() {
     setSharing(true);
     setError(null);
     try {
-      const uri = await captureRef(sticker, { format: 'png', quality: 1, result: 'tmpfile' });
+      // Named so it saves as "Faara-shop-sticker-…png", not the library's default name.
+      const uri = await captureRef(sticker, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+        fileName: `Faara-shop-sticker-${till.username}-`,
+      });
       await Sharing.shareAsync(uri, {
         mimeType: 'image/png',
         UTI: 'public.png',

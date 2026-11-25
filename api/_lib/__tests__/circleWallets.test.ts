@@ -7,6 +7,7 @@ function fakeClient() {
     sets: 0,
     wallets: 0,
     state: 'COMPLETE',
+    errorReason: undefined as string | undefined,
     transfers: [] as { from: string; to: string; amount: string; key?: string }[],
   };
   const client: WalletClient = {
@@ -30,7 +31,9 @@ function fakeClient() {
       });
       return { data: { id: 'tx1' } };
     },
-    getTransaction: async () => ({ data: { transaction: { state: calls.state } } }),
+    getTransaction: async () => ({
+      data: { transaction: { state: calls.state, errorReason: calls.errorReason } },
+    }),
   };
   return { client, calls };
 }
@@ -195,7 +198,14 @@ describe('withdrawals', () => {
       to: address,
       amount: '5.00',
     });
-    expect(await wallets.withdrawalState('ada', 'WDabcdefgh1')).toBe('done');
+    expect(await wallets.withdrawalState('ada', 'WDabcdefgh1')).toEqual({ state: 'done' });
+
+    // A failure says why, in words, keeping Circle's code for support.
+    calls.state = 'FAILED';
+    calls.errorReason = 'INSUFFICIENT_NATIVE_TOKEN';
+    const failed = await wallets.withdrawalState('ada', 'WDabcdefgh1');
+    expect(failed.state).toBe('failed');
+    expect(failed.reason).toMatch(/SOL for the network fee.*INSUFFICIENT_NATIVE_TOKEN/);
   });
 
   it('needs the balance, and keeps each person’s withdrawals private', async () => {

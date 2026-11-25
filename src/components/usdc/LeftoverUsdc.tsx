@@ -5,7 +5,7 @@ import { AppText, Button, Card } from '@/components/ui';
 import { randomId } from '@/features/offline';
 import { withdrawalState, withdrawUsdc } from '@/features/solanaMobile';
 import { getLeftoverUsdc } from '@/features/usdc/usdcApi';
-import { friendlyError } from '@/lib/errors';
+import { friendlyError, ShowableError } from '@/lib/errors';
 import { haptics } from '@/lib/haptics';
 
 const POLL_MS = 2_000;
@@ -35,11 +35,14 @@ export function LeftoverUsdc({ to, onMoved }: { to: string; onMoved: () => void 
       const requestId = randomId('WD');
       await withdrawUsdc(to, cents, requestId);
       let state: 'pending' | 'done' | 'failed' = 'pending';
+      let reason: string | undefined;
       for (let i = 0; state === 'pending' && i < POLL_LIMIT; i++) {
         await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-        state = (await withdrawalState(requestId)).state;
+        ({ state, reason } = await withdrawalState(requestId));
       }
-      if (state === 'failed') throw new Error('The move didn’t go through. Nothing was taken.');
+      if (state === 'failed') {
+        throw new ShowableError(reason ?? 'The move didn’t go through. Nothing was taken.');
+      }
       haptics.success();
       setMessage(
         state === 'done'

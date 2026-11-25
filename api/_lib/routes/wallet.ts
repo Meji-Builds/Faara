@@ -56,16 +56,18 @@ export const leftover = authedRoute(
 /** POST /api/wallet/withdraw: send the caller's USDC to a Solana address they choose. */
 export const withdraw = authedRoute(
   parseWithdrawRequest,
-  ({ uid, services }, request) => services.circle.withdraw(uid, request),
+  async ({ uid, services }, request) => {
+    // Moving to the person's own wallet: make sure it can hold USDC first.
+    await services.feeSponsor.prepareOwnWallet(uid, request.address);
+    return services.circle.withdraw(uid, request);
+  },
   { movesMoney: true },
 );
 
 /** POST /api/wallet/withdrawal: how one of the caller's withdrawals is going. */
 export const withdrawal = authedRoute(
   (body) => ({ requestId: parseRequestId((body as { requestId?: unknown } | null)?.requestId) }),
-  async ({ uid, services }, request) => ({
-    state: await services.circle.withdrawalState(uid, request.requestId),
-  }),
+  ({ uid, services }, request) => services.circle.withdrawalState(uid, request.requestId),
 );
 
 /** POST /api/wallet/feepayer: the address phones set as fee payer, so Faara pays the fee. */

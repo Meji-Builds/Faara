@@ -2,6 +2,9 @@ import { UsernameTakenError } from '@/features/auth/errors';
 import { PinLockedError, WrongPinError } from '@/features/wallet/vault.types';
 import { ApiRequestError } from '@/lib/api/client';
 
+/** An error whose message was written for people, so it's shown as it is. */
+export class ShowableError extends Error {}
+
 /**
  * The message to show for an error. Only errors written for people (wrong PIN, server
  * messages, taken username) pass through; anything else, such as a library or system
@@ -12,7 +15,8 @@ export function friendlyError(error: unknown, fallback: string): string {
     error instanceof ApiRequestError ||
     error instanceof UsernameTakenError ||
     error instanceof WrongPinError ||
-    error instanceof PinLockedError
+    error instanceof PinLockedError ||
+    error instanceof ShowableError
   ) {
     return error.message;
   }

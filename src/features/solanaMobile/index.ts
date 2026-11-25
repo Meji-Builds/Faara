@@ -2,3 +2,4 @@ export { MOBILE_WALLETS_SUPPORTED, connectMobileWallet, depositFromMobileWallet 
 export { loadConnectedWallet, saveConnectedWallet } from './storage';
 export type { ConnectedWallet } from './types';
 export { withdrawalState, withdrawUsdc } from './withdrawApi';
+export { walletErrorMessage } from './walletErrors';

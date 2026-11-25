@@ -93,6 +93,11 @@ export function getServices(): Services {
       .filter(Boolean);
     const admin = new AdminService({ store, now, newId, admins });
     const aiData = new AiData({ store, now, newId });
+    const feeSponsor = new FeeSponsor({
+      store,
+      now,
+      secretKey: process.env.FEE_PAYER_KEY ?? null,
+    });
     const convert = new ConvertService({
       store,
       now,
@@ -100,6 +105,7 @@ export function getServices(): Services {
       // Mock rate until an exchange partner is connected.
       exchange: new MockExchange(Number(process.env.MOCK_NGN_PER_USD ?? 1550), now),
       usdc: circle.configured ? circle : undefined,
+      prepareWallet: (address) => feeSponsor.ensureUsdcAccount(address),
       walletOf: async (uid) =>
         (await store.transaction((tx) => tx.get<{ walletAddress?: string }>(`users/${uid}`)))
           ?.walletAddress ?? null,
@@ -163,11 +169,7 @@ export function getServices(): Services {
         notify,
       }),
       circle,
-      feeSponsor: new FeeSponsor({
-        store,
-        now,
-        secretKey: process.env.FEE_PAYER_KEY ?? null,
-      }),
+      feeSponsor,
       funding: new FundingService({
         store,
         now,

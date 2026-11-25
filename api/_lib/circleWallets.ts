@@ -32,7 +32,20 @@ export interface WalletClient {
     refId?: string;
     idempotencyKey?: string;
   }): Promise<{ data?: { id?: string } }>;
-  getTransaction(input: { id: string }): Promise<{ data?: { transaction?: { state?: string } } }>;
+  getTransaction(input: {
+    id: string;
+  }): Promise<{ data?: { transaction?: { state?: string; errorReason?: string } } }>;
+}
+
+/** Turns Circle's failure codes into something people can act on, keeping the code. */
+function failureReason(code: string): string {
+  if (/INSUFFICIENT_NATIVE|GAS|FEE/i.test(code)) {
+    return `Faara’s wallet needed a little SOL for the network fee. Try again in a minute. (${code})`;
+  }
+  if (/INSUFFICIENT_TOKEN|INSUFFICIENT_FUNDS|BALANCE/i.test(code)) {
+    return `There wasn’t enough USDC for this. (${code})`;
+  }
+  return `The network turned it down. Nothing was taken. (${code})`;
 }
 
 /** Progress of a USDC transfer. */
@@ -275,15 +288,18 @@ export class CircleWallets {
     return { transferId };
   }
 
-  /** Progress of one of the person's withdrawals. */
-  async withdrawalState(uid: string, requestId: string): Promise<TransferState> {
+  /** Progress of one of the person's withdrawals, and why it failed if it did. */
+  async withdrawalState(
+    uid: string,
+    requestId: string,
+  ): Promise<{ state: TransferState; reason?: string }> {
     const saved = await this.deps.store.transaction((tx) =>
       tx.get<WithdrawalDoc>(withdrawalPath(requestId)),
     );
     if (!saved || saved.uid !== uid) {
       throw new ApiError('not-found', 'That withdrawal wasn’t found.');
     }
-    return this.transferState(saved.transferId);
+    return this.transferDetail(saved.transferId);
   }
 
   /** One USDC transfer through Circle, with Circle's errors kept out of what people see. */
@@ -321,10 +337,19 @@ export class CircleWallets {
   }
 
   async transferState(id: string): Promise<TransferState> {
+    return (await this.transferDetail(id)).state;
+  }
+
+  /** A transfer's state and, if it failed, why, in words people can act on. */
+  async transferDetail(id: string): Promise<{ state: TransferState; reason?: string }> {
     const client = await this.getClient();
-    const state = (await client.getTransaction({ id })).data?.transaction?.state ?? '';
-    if (state === 'COMPLETE') return 'done';
-    return FAILED_STATES.has(state) ? 'failed' : 'pending';
+    const transaction = (await client.getTransaction({ id })).data?.transaction;
+    const state = transaction?.state ?? '';
+    if (state === 'COMPLETE') return { state: 'done' };
+    if (!FAILED_STATES.has(state)) return { state: 'pending' };
+    const code = transaction?.errorReason ?? state;
+    console.error('USDC transfer failed', id, code);
+    return { state: 'failed', reason: failureReason(code) };
   }
 
   /**

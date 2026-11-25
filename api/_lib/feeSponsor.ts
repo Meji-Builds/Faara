@@ -211,6 +211,70 @@ export class FeeSponsor {
   }
 
   /**
+   * Gets the caller's own dollar wallet ready to receive USDC, when `address` is that wallet.
+   * Other addresses are left alone, so Faara never pays set-up costs for strangers.
+   */
+  async prepareOwnWallet(uid: string, address: string): Promise<void> {
+    const profile = await this.deps.store.transaction((tx) =>
+      tx.get<{ walletAddress?: string }>(`users/${uid}`),
+    );
+    if (profile?.walletAddress === address) await this.ensureUsdcAccount(address);
+  }
+
+  /**
+   * Makes sure `owner` has a USDC account, creating it with Faara paying the small rent.
+   * Circle can't pay that rent when it sends USDC to a wallet that never held any, so this
+   * runs first for the person's own wallet. Waits until the account exists.
+   */
+  async ensureUsdcAccount(owner: string): Promise<void> {
+    const { PublicKey, Transaction, TransactionInstruction } = solana();
+    const { ataProgram, systemProgram, tokenProgram, usdcMint } = addresses();
+    const ownerKey = new PublicKey(owner);
+    const account = ata(ownerKey).toBase58();
+    const existing = await this.rpc<{ value: unknown }>('getAccountInfo', [
+      account,
+      { encoding: 'base64', commitment: 'confirmed' },
+    ]);
+    if (existing.value) return;
+    const keypair = await this.loadKeypair();
+    await this.keepFunded(keypair.publicKey.toBase58()).catch(() => undefined);
+    const { value } = await this.rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [
+      { commitment: 'confirmed' },
+    ]);
+    const tx = new Transaction({ feePayer: keypair.publicKey, recentBlockhash: value.blockhash });
+    tx.add(
+      new TransactionInstruction({
+        programId: ataProgram,
+        keys: [
+          { pubkey: keypair.publicKey, isSigner: true, isWritable: true },
+          { pubkey: ata(ownerKey), isSigner: false, isWritable: true },
+          { pubkey: ownerKey, isSigner: false, isWritable: false },
+          { pubkey: usdcMint, isSigner: false, isWritable: false },
+          { pubkey: systemProgram, isSigner: false, isWritable: false },
+          { pubkey: tokenProgram, isSigner: false, isWritable: false },
+        ],
+        data: Buffer.from([1]), // create, or do nothing if it already exists
+      }),
+    );
+    tx.sign(keypair);
+    const signature = await this.rpc<string>('sendTransaction', [
+      tx.serialize().toString('base64'),
+      { encoding: 'base64', preflightCommitment: 'confirmed' },
+    ]);
+    for (let i = 0; i < 20; i++) {
+      const { value: statuses } = await this.rpc<{
+        value: ({ err: unknown; confirmationStatus?: string } | null)[];
+      }>('getSignatureStatuses', [[signature]]);
+      const status = statuses[0];
+      if (status?.err) throw new ApiError('unavailable', 'Couldn’t set up your USDC account.');
+      if (status?.confirmationStatus === 'confirmed' || status?.confirmationStatus === 'finalized')
+        return;
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    }
+    throw new ApiError('unavailable', 'Solana is slow right now. Try again in a minute.');
+  }
+
+  /**
    * Checks, co-signs and sends a USDC payment from the caller's own wallet (the address on
    * their profile, never one sent in the request). Returns the signature.
    */

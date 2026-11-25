@@ -86,6 +86,8 @@ export interface ConvertDeps {
   usdc?: UsdcRail | undefined;
   /** The person's own dollar wallet address (on their profile), if they have one. */
   walletOf: (uid: string) => Promise<string | null>;
+  /** Gets a wallet ready to receive USDC (creates its USDC account if it's new). */
+  prepareWallet?: (address: string) => Promise<void>;
   /** Whether a confirmed transaction paid exactly `cents` USDC from `from` to `to`. */
   paidOnChain: (signature: string, from: string, to: string, cents: number) => Promise<boolean>;
 }
@@ -202,6 +204,7 @@ export class ConvertService {
       tx.set(conversionPath(uid, quoteId), this.record(quote, 'pending'));
     });
     try {
+      await this.deps.prepareWallet?.(wallet);
       const transferId = await usdc.payout(wallet, quote.toMinor, quoteId);
       await store.transaction(async (tx) => {
         tx.update(conversionPath(uid, quoteId), { transferId });

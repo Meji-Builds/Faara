@@ -14,11 +14,11 @@ import {
   depositFromMobileWallet,
   loadConnectedWallet,
   saveConnectedWallet,
+  walletErrorMessage,
   type ConnectedWallet,
 } from '@/features/solanaMobile';
 import { sendUsdc, solanaErrorMessage } from '@/features/wallet';
 import { getUsdcBalance } from '@/features/wallet/solana';
-import { friendlyError } from '@/lib/errors';
 import { haptics } from '@/lib/haptics';
 import { useTheme } from '@/theme';
 
@@ -84,7 +84,7 @@ export function ExternalWallet({ faaraAddress, faaraCents, onChanged }: External
       setWallet(connected);
       haptics.success();
     } catch (cause) {
-      setMessage({ text: friendlyError(cause, 'The wallet didn’t connect. Try again.') });
+      setMessage({ text: walletErrorMessage(cause) });
     } finally {
       setBusy(false);
     }
@@ -111,7 +111,7 @@ export function ExternalWallet({ faaraAddress, faaraCents, onChanged }: External
       reset();
       setTimeout(onChanged, 4_000);
     } catch (cause) {
-      setMessage({ text: friendlyError(cause, 'The wallet didn’t send it. Nothing moved.') });
+      setMessage({ text: `Nothing moved. ${walletErrorMessage(cause)}` });
     } finally {
       setBusy(false);
     }

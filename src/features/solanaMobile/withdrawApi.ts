@@ -9,7 +9,7 @@ export function withdrawUsdc(address: string, amountCents: number, requestId: st
 }
 
 export function withdrawalState(requestId: string) {
-  return postJson<{ state: 'pending' | 'done' | 'failed' }>(
+  return postJson<{ state: 'pending' | 'done' | 'failed'; reason?: string }>(
     '/api/wallet/withdrawal',
     { requestId },
     { retry: true },
