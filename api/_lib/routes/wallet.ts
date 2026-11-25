@@ -45,6 +45,14 @@ export async function treasury(request: Request): Promise<Response> {
   }
 }
 
+/** POST /api/wallet/leftover: USDC left in the wallet Faara used to hold, to move it over. */
+export const leftover = authedRoute(
+  () => ({}),
+  async ({ uid, services }) => ({
+    cents: services.circle.configured ? await services.circle.leftoverCents(uid) : 0,
+  }),
+);
+
 /** POST /api/wallet/withdraw: send the caller's USDC to a Solana address they choose. */
 export const withdraw = authedRoute(
   parseWithdrawRequest,

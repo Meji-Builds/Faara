@@ -23,6 +23,7 @@ import { MockNairaLedger } from './naira';
 import { paystackCheckout } from './paystack';
 import { createNotifier } from './push';
 import { fetchParsedTransaction } from './solanaRpc';
+import { USDC_MINT, centsToUsdcBaseUnits, verifyTransfer } from '../../shared/solana';
 import { fetchWalletRisk } from './webacy';
 
 // A stray background rejection (e.g. a credential refresh) must not take the whole
@@ -99,6 +100,16 @@ export function getServices(): Services {
       // Mock rate until an exchange partner is connected.
       exchange: new MockExchange(Number(process.env.MOCK_NGN_PER_USD ?? 1550), now),
       usdc: circle.configured ? circle : undefined,
+      walletOf: async (uid) =>
+        (await store.transaction((tx) => tx.get<{ walletAddress?: string }>(`users/${uid}`)))
+          ?.walletAddress ?? null,
+      paidOnChain: async (signature, from, to, cents) =>
+        verifyTransfer(await fetchParsedTransaction(signature), {
+          mint: USDC_MINT,
+          senderOwner: from,
+          recipientOwner: to,
+          amount: centsToUsdcBaseUnits(cents),
+        }).ok,
     });
     services = {
       hum: new HumService({

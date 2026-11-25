@@ -1,3 +1,4 @@
+import { Keypair } from '@solana/web3.js';
 import { ArrowDownLeft, ArrowUpRight, Wallet } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
@@ -7,17 +8,15 @@ import { SOLANA_ADDRESS_PATTERN, explorerTxUrl } from '@shared/solana';
 import { Approve } from '@/components/security/Approve';
 import { AppText, Button, Card, TextField } from '@/components/ui';
 import { useAuth } from '@/features/auth';
-import { randomId } from '@/features/offline';
 import {
   MOBILE_WALLETS_SUPPORTED,
   connectMobileWallet,
   depositFromMobileWallet,
   loadConnectedWallet,
   saveConnectedWallet,
-  withdrawUsdc,
-  withdrawalState,
   type ConnectedWallet,
 } from '@/features/solanaMobile';
+import { sendUsdc, solanaErrorMessage } from '@/features/wallet';
 import { getUsdcBalance } from '@/features/wallet/solana';
 import { friendlyError } from '@/lib/errors';
 import { haptics } from '@/lib/haptics';
@@ -26,17 +25,15 @@ import { useTheme } from '@/theme';
 type Mode = 'deposit' | 'withdraw' | null;
 
 interface ExternalWalletProps {
-  /** The person's Faara USDC address (where deposits go). */
+  /** The person's own dollar wallet address (where deposits go). */
   faaraAddress: string;
-  /** USDC in the Faara wallet, in cents. */
+  /** USDC in that wallet, in cents. */
   faaraCents: number;
   /** Called after money moves, so the Faara balance can be reloaded. */
   onChanged: () => void;
 }
 
 const short = (address: string) => `${address.slice(0, 4)}…${address.slice(-4)}`;
-const POLL_MS = 2_000;
-const POLL_LIMIT = 30;
 
 /**
  * The person's own Solana wallet (Phantom, Solflare, Seed Vault…): connect it with Mobile
@@ -120,21 +117,18 @@ export function ExternalWallet({ faaraAddress, faaraCents, onChanged }: External
     }
   };
 
-  const withdraw = async () => {
-    const requestId = randomId('WD');
-    await withdrawUsdc(destination, cents, requestId);
-    let state: 'pending' | 'done' | 'failed' = 'pending';
-    for (let i = 0; state === 'pending' && i < POLL_LIMIT; i++) {
-      await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-      state = (await withdrawalState(requestId)).state;
+  /** Sends USDC from the person's dollar wallet, with Faara paying the network fee. */
+  const withdraw = async (secretKey: Uint8Array) => {
+    let signature: string;
+    try {
+      signature = await sendUsdc(Keypair.fromSecretKey(secretKey), destination, cents);
+    } catch (cause) {
+      throw new Error(solanaErrorMessage(cause));
     }
-    if (state === 'failed') throw new Error('The transfer didn’t go through. Nothing was taken.');
     haptics.success();
     setMessage({
-      text:
-        state === 'done'
-          ? `${(cents / 100).toFixed(2)} USDC sent to ${short(destination)}.`
-          : 'Sent. It’s still confirming on the network.',
+      text: `${(cents / 100).toFixed(2)} USDC sent to ${short(destination)}.`,
+      link: explorerTxUrl(signature),
     });
     reset();
     onChanged();
@@ -164,8 +158,8 @@ export function ExternalWallet({ faaraAddress, faaraCents, onChanged }: External
       ) : (
         <AppText color="textMuted">
           {MOBILE_WALLETS_SUPPORTED
-            ? 'Connect Phantom, Solflare or Seed Vault to move USDC in and out of Faara.'
-            : 'Send USDC from Faara to any Solana address. Connecting a wallet works in the Android app.'}
+            ? 'Connect Phantom, Solflare or Seed Vault to move USDC between it and your dollar wallet.'
+            : 'Send USDC to any Solana address. Connecting a wallet works in the Android app.'}
         </AppText>
       )}
 
@@ -226,7 +220,7 @@ export function ExternalWallet({ faaraAddress, faaraCents, onChanged }: External
           ) : validAmount && validDestination ? (
             <Approve
               reason={`Send ${(cents / 100).toFixed(2)} USDC to ${short(destination)}.`}
-              onApproved={async () => withdraw()}
+              onApproved={withdraw}
             />
           ) : (
             <Button label="Send USDC" disabled />

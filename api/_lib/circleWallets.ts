@@ -173,6 +173,15 @@ export class CircleWallets {
     });
   }
 
+  /**
+   * USDC still in the wallet Faara used to hold for the person, in cents, so it can be moved
+   * to their own dollar wallet. Never creates a wallet: people who never had one get 0.
+   */
+  async leftoverCents(uid: string): Promise<number> {
+    const saved = await this.deps.store.transaction((tx) => tx.get(walletPath(uid)));
+    return saved ? this.usdcCents(uid) : 0;
+  }
+
   /** The person's wallet address and USDC balance. */
   async info(uid: string): Promise<WalletInfo> {
     const client = await this.getClient();
@@ -197,6 +206,17 @@ export class CircleWallets {
   /** Faara's own USDC float: the wallet conversions are paid from and into. */
   treasury(): Promise<WalletInfo> {
     return this.info(TREASURY);
+  }
+
+  /** The float's Solana address. */
+  async floatAddress(): Promise<string> {
+    return (await this.ensureWallet(TREASURY)).address;
+  }
+
+  /** Pays USDC from Faara's float to any address, such as someone's own dollar wallet. */
+  async payout(address: string, cents: number, key: string): Promise<string> {
+    const float = await this.ensureWallet(TREASURY);
+    return this.transfer(float.walletId, address, cents, key, `payout:${key}`);
   }
 
   /**

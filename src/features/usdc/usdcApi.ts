@@ -9,3 +9,8 @@ export interface UsdcWalletStatus {
 export function getUsdcWallet() {
   return postJson<UsdcWalletStatus>('/api/wallet/status', {}, { retry: true });
 }
+
+/** USDC left in the wallet Faara used to hold for the person, in cents (0 if none). */
+export function getLeftoverUsdc() {
+  return postJson<{ cents: number }>('/api/wallet/leftover', {});
+}

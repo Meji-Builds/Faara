@@ -47,10 +47,14 @@ export interface Quote {
   /** Units of `to` per unit of `from`, before the fee. */
   rate: number;
   expiresAt: number;
+  /** Selling USDC: the address the phone sends it to (Faara's float). */
+  payTo?: string;
 }
 
 export interface ExecuteRequest {
   quoteId: string;
+  /** Selling USDC: the phone's payment into Faara's float. */
+  signature?: string;
 }
 
 /** Balances in minor units (kobo for naira, cents for dollars and USDC). */
@@ -116,5 +120,10 @@ export function parseExecuteRequest(body: unknown): ExecuteRequest {
   const id = data.quoteId;
   if (typeof id !== 'string' || !/^QT[A-Za-z0-9_-]{8,40}$/.test(id))
     throw new ConvertValidationError('That quote isn’t valid.');
-  return { quoteId: id };
+  const signature = data.signature;
+  if (signature === undefined) return { quoteId: id };
+  if (typeof signature !== 'string' || !/^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(signature)) {
+    throw new ConvertValidationError('That payment isn’t valid.');
+  }
+  return { quoteId: id, signature };
 }

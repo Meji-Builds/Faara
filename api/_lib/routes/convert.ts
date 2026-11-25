@@ -9,7 +9,7 @@ export const quote = authedRoute(parseQuoteRequest, ({ uid, services }, request)
 /** POST /api/convert/execute: start a quote. Returns `pending` until the transfer confirms. */
 export const execute = authedRoute(
   parseExecuteRequest,
-  ({ uid, services }, request) => services.convert.execute(uid, request.quoteId),
+  ({ uid, services }, request) => services.convert.execute(uid, request.quoteId, request.signature),
   { movesMoney: true },
 );
 

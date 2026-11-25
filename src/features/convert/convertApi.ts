@@ -16,8 +16,13 @@ export interface ConversionResult {
   balances: Balances;
 }
 
-export function executeQuote(quoteId: string) {
-  return postJson<ConversionResult>('/api/convert/execute', { quoteId }, { retry: true });
+/** Runs a quote. Selling USDC passes `signature`: the phone's payment into Faara's float. */
+export function executeQuote(quoteId: string, signature?: string) {
+  return postJson<ConversionResult>(
+    '/api/convert/execute',
+    signature ? { quoteId, signature } : { quoteId },
+    { retry: true },
+  );
 }
 
 /** Checks a started conversion; finishes it once the USDC transfer has confirmed. */

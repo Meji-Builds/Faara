@@ -1,3 +1,4 @@
+import { Keypair } from '@solana/web3.js';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowDownUp } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
@@ -7,6 +8,7 @@ import { MAX_CONVERT, MIN_CONVERT, type ConvertCurrency, type Quote } from '@sha
 
 import { SuccessBurst } from '@/components/brand';
 import { CountUp, Reveal } from '@/components/motion';
+import { Approve } from '@/components/security/Approve';
 import { AppText, Button, Card, Header, Screen, TextField } from '@/components/ui';
 import {
   CURRENCY_NAME,
@@ -18,6 +20,7 @@ import {
   useBalances,
 } from '@/features/convert';
 import { useWalletUsdc } from '@/features/usdc/useWalletUsdc';
+import { sendUsdc, solanaErrorMessage } from '@/features/wallet';
 import { friendlyError } from '@/lib/errors';
 import { groupDigits } from '@/lib/money';
 import { haptics } from '@/lib/haptics';
@@ -51,6 +54,8 @@ export default function ConvertScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>({ kind: 'form' });
+  // USDC already sent for a sale that hasn't been credited yet (say the network dropped).
+  const [unfinished, setUnfinished] = useState<{ quote: Quote; signature: string } | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const amount = Number(amountText.replace(/,/g, ''));
@@ -106,16 +111,36 @@ export default function ConvertScreen() {
     setTo(from);
   };
 
-  const convert = async () => {
-    if (!currentQuote) return;
+  /**
+   * Selling USDC: the phone pays it from the person's own wallet into Faara's float (Faara
+   * covers the network fee), then Faara checks that payment and credits the naira.
+   */
+  const sell = async (secretKey: Uint8Array) => {
+    if (!currentQuote?.payTo) return;
+    let signature: string;
+    try {
+      signature = await sendUsdc(
+        Keypair.fromSecretKey(secretKey),
+        currentQuote.payTo,
+        currentQuote.fromMinor,
+      );
+    } catch (cause) {
+      throw new Error(solanaErrorMessage(cause));
+    }
+    await convert(signature);
+  };
+
+  const convert = async (signature?: string, quoteToRun: Quote | null = currentQuote) => {
+    if (!quoteToRun) return;
     setBusy(true);
     setError(null);
     try {
-      let result = await executeQuote(currentQuote.id);
+      let result = await executeQuote(quoteToRun.id, signature);
+      setUnfinished(null);
       // The USDC moves on the network, so wait for it to confirm.
       for (let i = 0; result.status === 'pending' && i < POLL_LIMIT; i++) {
         await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-        result = await conversionStatus(currentQuote.id);
+        result = await conversionStatus(quoteToRun.id);
       }
       void wallet.refresh();
       if (result.status === 'failed') {
@@ -129,10 +154,18 @@ export default function ConvertScreen() {
         return;
       }
       haptics.success();
-      setStep({ kind: 'done', quote: currentQuote });
+      setStep({ kind: 'done', quote: quoteToRun });
     } catch (cause) {
       setQuote(null);
-      setError(friendlyError(cause, 'The conversion didn’t go through. Try again.'));
+      if (signature) {
+        // The USDC has left the wallet: keep what's needed to finish the sale.
+        setUnfinished({ quote: quoteToRun, signature });
+        setError(
+          `Your USDC was sent, but the sale isn’t finished. ${friendlyError(cause, 'Check your connection.')}`,
+        );
+      } else {
+        setError(friendlyError(cause, 'The conversion didn’t go through. Try again.'));
+      }
     } finally {
       setBusy(false);
     }
@@ -193,18 +226,31 @@ export default function ConvertScreen() {
               {error}
             </AppText>
           ) : null}
-          <Button
-            label={
-              live && currentQuote
-                ? `Convert to ${formatMinor(currentQuote.toMinor, currentQuote.to)}`
-                : quote && secondsLeft === 0
-                  ? 'Rate expired. Get a new one'
-                  : 'Convert'
-            }
-            disabled={!live && !(quote && secondsLeft === 0)}
-            loading={busy}
-            onPress={live ? convert : () => setQuote(null)}
-          />
+          {unfinished ? (
+            <Button
+              label="Finish the sale"
+              loading={busy}
+              onPress={() => void convert(unfinished.signature, unfinished.quote)}
+            />
+          ) : live && currentQuote?.payTo ? (
+            <Approve
+              reason={`Sell ${formatMinor(currentQuote.fromMinor, 'USDC')} for ${formatMinor(currentQuote.toMinor, currentQuote.to)}.`}
+              onApproved={sell}
+            />
+          ) : (
+            <Button
+              label={
+                live && currentQuote
+                  ? `Convert to ${formatMinor(currentQuote.toMinor, currentQuote.to)}`
+                  : quote && secondsLeft === 0
+                    ? 'Rate expired. Get a new one'
+                    : 'Convert'
+              }
+              disabled={!live && !(quote && secondsLeft === 0)}
+              loading={busy}
+              onPress={live ? () => void convert() : () => setQuote(null)}
+            />
+          )}
           <AppText variant="caption" color="textMuted" align="center">
             Test rates and test USDC. No real money moves yet.
           </AppText>

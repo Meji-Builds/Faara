@@ -6,42 +6,53 @@ import { MemoryStore } from '../store';
 
 const RATE = 1_500;
 
-/** A stand-in for Circle: holds wallet balances and confirms transfers when told to. */
-function fakeRail(initialCents = 0) {
+const FLOAT = 'FloatAddress1111111111111111111111111111111';
+const ADA_WALLET = 'AdaWa11et111111111111111111111111111111111';
+
+/** A stand-in for Circle's float: pays out, and confirms transfers when told to. */
+function fakeRail() {
   const state = {
     float: 1_000_000,
-    wallet: initialCents,
-    sends: [] as string[],
+    payouts: [] as string[],
     next: 'done' as 'done' | 'pending' | 'failed',
     failSend: false,
   };
   const rail: UsdcRail = {
-    usdcCents: async () => state.wallet,
     floatCents: async () => state.float,
-    send: async (kind, _uid, cents, key) => {
+    floatAddress: async () => FLOAT,
+    payout: async (address, cents, key) => {
       if (state.failSend) throw new Error('circle down');
-      state.sends.push(`${kind}:${cents}:${key}`);
-      if (state.next === 'done') state.wallet += kind === 'payout' ? cents : -cents;
-      return `tx${state.sends.length}`;
+      state.payouts.push(`${address}:${cents}:${key}`);
+      return `tx${state.payouts.length}`;
     },
     transferState: async () => state.next,
   };
   return { rail, state };
 }
 
-function setup(walletCents = 0) {
+function setup() {
   const store = new MemoryStore();
-  const { rail, state: wallet } = fakeRail(walletCents);
+  const { rail, state: wallet } = fakeRail();
   let clock = 1_000_000;
   let ids = 0;
+  /** USDC payments "on the blockchain": signature -> who paid whom how much. */
+  const chain = new Map<string, { from: string; to: string; cents: number }>();
+  const wallets = new Map<string, string>([['ada', ADA_WALLET]]);
   const service = new ConvertService({
     store,
     now: () => clock,
     newId: () => `id${++ids}x${ids}abcdef`,
     exchange: new MockExchange(RATE, () => clock),
     usdc: rail,
+    walletOf: async (uid) => wallets.get(uid) ?? null,
+    paidOnChain: async (signature, from, to, cents) => {
+      const paid = chain.get(signature);
+      return paid?.from === from && paid.to === to && paid.cents === cents;
+    },
   });
-  return { store, service, wallet, advance: (ms: number) => (clock += ms) };
+  const pay = (signature: string, cents: number, from = ADA_WALLET, to = FLOAT) =>
+    chain.set(signature, { from, to, cents });
+  return { store, service, wallet, wallets, pay, advance: (ms: number) => (clock += ms) };
 }
 
 async function expectApiError(promise: Promise<unknown>, code: string) {
@@ -97,38 +108,82 @@ describe('validation', () => {
 });
 
 describe('ConvertService', () => {
-  it('buys USDC: takes the naira and sends the USDC to the wallet', async () => {
+  it('buys USDC: takes the naira and pays the USDC to the person’s own wallet', async () => {
     const { service, wallet } = setup();
     const quote = await service.quote('ada', { from: 'NGN', to: 'USDC', amount: 15_000 });
     expect(quote.toMinor).toBe(990);
+    expect(quote.payTo).toBeUndefined();
     const result = await service.execute('ada', quote.id);
     expect(result.status).toBe('done');
     expect(result.balances.NGN).toBe(MOCK_STARTING_BALANCE_KOBO - 1_500_000);
-    expect(wallet.sends).toEqual([`payout:990:${quote.id}`]);
-    expect(wallet.wallet).toBe(990);
+    expect(wallet.payouts).toEqual([`${ADA_WALLET}:990:${quote.id}`]);
   });
 
-  it('sells USDC: collects it from the wallet and credits the naira', async () => {
-    const { service, wallet } = setup(5_000);
+  it('sells USDC: credits the naira once the person’s payment to the float is confirmed', async () => {
+    const { service, pay } = setup();
     const quote = await service.quote('ada', { from: 'USDC', to: 'NGN', amount: 20 });
-    const result = await service.execute('ada', quote.id);
+    expect(quote.payTo).toBe(FLOAT);
+    pay('SIG1', 2_000);
+    const result = await service.execute('ada', quote.id, 'SIG1');
     expect(result.status).toBe('done');
-    expect(wallet.wallet).toBe(3_000);
     expect(result.balances.NGN).toBe(MOCK_STARTING_BALANCE_KOBO + quote.toMinor);
+    // Asking again changes nothing.
+    expect((await service.execute('ada', quote.id, 'SIG1')).balances.NGN).toBe(
+      MOCK_STARTING_BALANCE_KOBO + quote.toMinor,
+    );
   });
 
-  it('stays pending until the transfer confirms, then finishes once', async () => {
-    const { service, wallet } = setup(5_000);
-    wallet.next = 'pending';
+  it('won’t credit a sale that wasn’t paid, was paid wrong, or reuses a payment', async () => {
+    const { service, pay } = setup();
     const quote = await service.quote('ada', { from: 'USDC', to: 'NGN', amount: 20 });
-    const started = await service.execute('ada', quote.id);
-    expect(started.status).toBe('pending');
-    expect(started.balances.NGN).toBe(MOCK_STARTING_BALANCE_KOBO);
+    await expectApiError(service.execute('ada', quote.id), 'invalid-argument');
+    await expectApiError(service.execute('ada', quote.id, 'NOPE'), 'failed-precondition');
+    pay('SHORT', 1_999);
+    await expectApiError(service.execute('ada', quote.id, 'SHORT'), 'failed-precondition');
+    pay('ELSEWHERE', 2_000, ADA_WALLET, 'SomeoneElse');
+    await expectApiError(service.execute('ada', quote.id, 'ELSEWHERE'), 'failed-precondition');
+    pay('NOTADA', 2_000, 'Stranger');
+    await expectApiError(service.execute('ada', quote.id, 'NOTADA'), 'failed-precondition');
+    expect((await service.balances('ada')).NGN).toBe(MOCK_STARTING_BALANCE_KOBO);
+
+    pay('SIG1', 2_000);
+    await service.execute('ada', quote.id, 'SIG1');
+    const second = await service.quote('ada', { from: 'USDC', to: 'NGN', amount: 20 });
+    await expectApiError(service.execute('ada', second.id, 'SIG1'), 'failed-precondition');
+  });
+
+  it('honours a sale paid just after the rate ran out, but not long after', async () => {
+    const late = setup();
+    const quote = await late.service.quote('ada', { from: 'USDC', to: 'NGN', amount: 20 });
+    late.advance(QUOTE_TTL_MS + 60_000);
+    late.pay('SIG1', 2_000);
+    expect((await late.service.execute('ada', quote.id, 'SIG1')).status).toBe('done');
+
+    const tooLate = setup();
+    const old = await tooLate.service.quote('ada', { from: 'USDC', to: 'NGN', amount: 20 });
+    tooLate.advance(QUOTE_TTL_MS + 11 * 60_000);
+    tooLate.pay('SIG2', 2_000);
+    await expectApiError(tooLate.service.execute('ada', old.id, 'SIG2'), 'expired');
+  });
+
+  it('needs a dollar wallet to convert', async () => {
+    const { service } = setup();
+    await expectApiError(
+      service.quote('tolu', { from: 'NGN', to: 'USDC', amount: 15_000 }),
+      'failed-precondition',
+    );
+  });
+
+  it('stays pending until the payout confirms, then finishes once', async () => {
+    const { service, wallet } = setup();
+    wallet.next = 'pending';
+    const quote = await service.quote('ada', { from: 'NGN', to: 'USDC', amount: 15_000 });
+    expect((await service.execute('ada', quote.id)).status).toBe('pending');
     wallet.next = 'done';
-    const done = await service.settle('ada', quote.id);
-    const again = await service.settle('ada', quote.id);
-    expect(done.status).toBe('done');
-    expect(again.balances.NGN).toBe(MOCK_STARTING_BALANCE_KOBO + quote.toMinor);
+    expect((await service.settle('ada', quote.id)).status).toBe('done');
+    expect((await service.settle('ada', quote.id)).balances.NGN).toBe(
+      MOCK_STARTING_BALANCE_KOBO - 1_500_000,
+    );
   });
 
   it('runs a quote once even when asked twice', async () => {
@@ -137,10 +192,10 @@ describe('ConvertService', () => {
     const first = await service.execute('ada', quote.id);
     const second = await service.execute('ada', quote.id);
     expect(second).toEqual(first);
-    expect(wallet.sends).toHaveLength(1);
+    expect(wallet.payouts).toHaveLength(1);
   });
 
-  it('gives the naira back if the transfer fails to start', async () => {
+  it('gives the naira back if the payout fails to start', async () => {
     const { service, wallet } = setup();
     wallet.failSend = true;
     const quote = await service.quote('ada', { from: 'NGN', to: 'USDC', amount: 15_000 });
@@ -148,7 +203,7 @@ describe('ConvertService', () => {
     expect((await service.balances('ada')).NGN).toBe(MOCK_STARTING_BALANCE_KOBO);
   });
 
-  it('refunds the naira if the transfer fails afterwards', async () => {
+  it('refunds the naira if the payout fails afterwards', async () => {
     const { service, wallet } = setup();
     wallet.next = 'pending';
     const quote = await service.quote('ada', { from: 'NGN', to: 'USDC', amount: 15_000 });
@@ -165,10 +220,10 @@ describe('ConvertService', () => {
     const quote = await service.quote('ada', { from: 'NGN', to: 'USDC', amount: 15_000 });
     await expectApiError(service.execute('ada', quote.id), 'failed-precondition');
     expect((await service.balances('ada')).NGN).toBe(MOCK_STARTING_BALANCE_KOBO);
-    expect(wallet.sends).toHaveLength(0);
+    expect(wallet.payouts).toHaveLength(0);
   });
 
-  it('refuses an expired quote', async () => {
+  it('refuses an expired quote to buy', async () => {
     const { service, advance } = setup();
     const quote = await service.quote('ada', { from: 'NGN', to: 'USDC', amount: 15_000 });
     advance(QUOTE_TTL_MS + 1);
@@ -176,15 +231,10 @@ describe('ConvertService', () => {
   });
 
   it("won't run someone else's quote", async () => {
-    const { service } = setup();
+    const { service, wallets } = setup();
+    wallets.set('tolu', 'ToluWa11et11111111111111111111111111111111');
     const quote = await service.quote('ada', { from: 'NGN', to: 'USDC', amount: 15_000 });
     await expectApiError(service.execute('tolu', quote.id), 'not-found');
-  });
-
-  it('needs the wallet to hold the USDC being sold', async () => {
-    const { service } = setup(500);
-    const quote = await service.quote('ada', { from: 'USDC', to: 'NGN', amount: 50 });
-    await expectApiError(service.execute('ada', quote.id), 'failed-precondition');
   });
 
   it('needs enough naira to buy', async () => {
@@ -208,6 +258,8 @@ describe('ConvertService', () => {
       now: () => 1,
       newId: () => 'idabcdefgh',
       exchange: new MockExchange(RATE, () => 1),
+      walletOf: async () => ADA_WALLET,
+      paidOnChain: async () => false,
     });
     await expectApiError(
       service.quote('ada', { from: 'NGN', to: 'USDC', amount: 15_000 }),

@@ -31,14 +31,19 @@ export class MockExchange implements ExchangeProvider {
   }
 }
 
-/** Moves real (test-network) USDC. Implemented by Circle wallets. */
+/** Faara's own USDC float (implemented by Circle), which conversions are paid from and into. */
 export interface UsdcRail {
-  usdcCents(uid: string): Promise<number>;
-  /** USDC Faara holds to pay conversions out of, in cents. */
+  /** USDC in the float, in cents. */
   floatCents(): Promise<number>;
-  send(kind: 'payout' | 'collect', uid: string, cents: number, key: string): Promise<string>;
+  /** The float's Solana address, where people send USDC they're selling. */
+  floatAddress(): Promise<string>;
+  /** Pays USDC from the float to an address. The key makes retries safe. Returns an id. */
+  payout(address: string, cents: number, key: string): Promise<string>;
   transferState(id: string): Promise<'pending' | 'done' | 'failed'>;
 }
+
+/** How long after a quote expires a USDC payment made for it is still honoured. */
+const LATE_PAYMENT_MS = 10 * 60_000;
 
 export type ConversionStatus = 'pending' | 'done' | 'failed';
 
@@ -55,6 +60,8 @@ interface ConversionDoc {
   toMinor: number;
   status: ConversionStatus;
   transferId?: string;
+  /** The person's own USDC payment into the float, when selling. */
+  signature?: string;
 }
 
 interface AccountDoc {
@@ -77,11 +84,17 @@ export interface ConvertDeps {
   exchange: ExchangeProvider;
   /** Present once USDC wallets are set up; naira-USDC conversions need it. */
   usdc?: UsdcRail | undefined;
+  /** The person's own dollar wallet address (on their profile), if they have one. */
+  walletOf: (uid: string) => Promise<string | null>;
+  /** Whether a confirmed transaction paid exactly `cents` USDC from `from` to `to`. */
+  paidOnChain: (signature: string, from: string, to: string, cents: number) => Promise<boolean>;
 }
 
 const accountPath = (uid: string) => `ledgerAccounts/${uid}`;
 const quotePath = (id: string) => `quotes/${id}`;
 const conversionPath = (uid: string, id: string) => `users/${uid}/conversions/${id}`;
+/** Each USDC payment can pay for one sale only. */
+const signaturePath = (signature: string) => `convertPayments/${signature}`;
 
 function balancesOf(account: AccountDoc | undefined): Balances {
   return {
@@ -92,8 +105,10 @@ function balancesOf(account: AccountDoc | undefined): Balances {
 }
 
 /**
- * Conversions between naira, dollars and USDC. A quote is priced and stored first; executing
- * it moves exactly the quoted amounts in one transaction, once.
+ * Conversions between naira and USDC, straight to and from the person's own dollar wallet.
+ * Buying: Faara takes the naira and pays USDC from its float to their wallet. Selling: their
+ * phone sends the USDC to the float, and once that payment is confirmed on the blockchain
+ * Faara credits the naira. A quote is priced and stored first and runs once.
  */
 export class ConvertService {
   constructor(private readonly deps: ConvertDeps) {}
@@ -104,8 +119,9 @@ export class ConvertService {
     if (request.from === 'USD' || request.to === 'USD') {
       throw new ApiError('failed-precondition', 'Dollars aren’t available yet. Convert to USDC.');
     }
-    if (!this.deps.usdc) {
-      throw new ApiError('failed-precondition', 'USDC conversions aren’t switched on yet.');
+    const usdc = this.rail();
+    if (!(await this.deps.walletOf(uid))) {
+      throw new ApiError('failed-precondition', 'Set up your dollar wallet first.');
     }
     const fromMinor = Math.round(request.amount * 100);
     const rates = await exchange.rates();
@@ -123,6 +139,8 @@ export class ConvertService {
       feeMinor: priced.feeMinor,
       rate: priced.rate,
       expiresAt: createdAt + QUOTE_TTL_MS,
+      // Selling: where the phone sends the USDC.
+      ...(request.from === 'USDC' ? { payTo: await usdc.floatAddress() } : {}),
     };
     const { id: _id, ...rest } = quote;
     await store.transaction(async (tx) => {
@@ -132,64 +150,59 @@ export class ConvertService {
   }
 
   /**
-   * Runs a quote. Naira is moved on Faara's ledger and USDC on the test network, so a
-   * conversion starts `pending` and finishes once the transfer confirms (`settle`). Running
-   * the same quote again never moves money twice.
+   * Runs a quote, once. Buying starts a USDC payout to the person's wallet and is `pending`
+   * until it confirms (`settle`). Selling needs `signature`, the person's own USDC payment
+   * into the float; it's checked on the blockchain and the naira is credited at once.
    */
-  async execute(uid: string, quoteId: string): Promise<ConversionResult> {
+  async execute(uid: string, quoteId: string, signature?: string): Promise<ConversionResult> {
     const { store, now } = this.deps;
     const usdc = this.rail();
     await consumeRate(store, now, uid, 'convert');
     const quote = await store.transaction((tx) => tx.get<QuoteDoc>(quotePath(quoteId)));
     if (!quote || quote.uid !== uid) throw new ApiError('not-found', 'That quote wasn’t found.');
     if (quote.status === 'used') return this.settle(uid, quoteId);
+    const wallet = await this.deps.walletOf(uid);
+    if (!wallet) throw new ApiError('failed-precondition', 'Set up your dollar wallet first.');
+    if (quote.to === 'USDC') return this.buy(uid, quoteId, quote, wallet, usdc);
+    return this.sell(uid, quoteId, quote, wallet, usdc, signature);
+  }
+
+  private async buy(
+    uid: string,
+    quoteId: string,
+    quote: QuoteDoc,
+    wallet: string,
+    usdc: UsdcRail,
+  ): Promise<ConversionResult> {
+    const { store, now } = this.deps;
     if (now() > quote.expiresAt) {
       throw new ApiError('expired' satisfies ApiErrorCode, 'That rate has expired. Get a new one.');
     }
-    const buying = quote.to === 'USDC';
-    if (!buying && (await usdc.usdcCents(uid)) < quote.fromMinor) {
-      throw new ApiError('failed-precondition', 'You don’t have enough USDC for this.');
-    }
-
-    if (buying && (await usdc.floatCents()) < quote.toMinor) {
+    if ((await usdc.floatCents()) < quote.toMinor) {
       throw new ApiError(
         'failed-precondition',
         'Faara’s test USDC is running low. Try a smaller amount.',
       );
     }
-
     // Claim the quote and take the naira in one step, so it can only start once.
     await store.transaction(async (tx) => {
       const fresh = await tx.get<QuoteDoc>(quotePath(quoteId));
       if (fresh?.status !== 'open') return;
       const account = await tx.get<AccountDoc>(accountPath(uid));
       const balances = balancesOf(account);
-      if (buying) {
-        if (balances.NGN < quote.fromMinor) {
-          throw new ApiError('failed-precondition', 'You don’t have enough naira for this.');
-        }
-        tx.set(accountPath(uid), {
-          ...account,
-          balanceKobo: balances.NGN - quote.fromMinor,
-          updatedAt: now(),
-        } satisfies AccountDoc);
+      if (balances.NGN < quote.fromMinor) {
+        throw new ApiError('failed-precondition', 'You don’t have enough naira for this.');
       }
+      tx.set(accountPath(uid), {
+        ...account,
+        balanceKobo: balances.NGN - quote.fromMinor,
+        updatedAt: now(),
+      } satisfies AccountDoc);
       tx.update(quotePath(quoteId), { status: 'used' });
-      tx.set(conversionPath(uid, quoteId), {
-        from: quote.from,
-        to: quote.to,
-        fromMinor: quote.fromMinor,
-        toMinor: quote.toMinor,
-        feeMinor: quote.feeMinor,
-        rate: quote.rate,
-        status: 'pending',
-        createdAt: now(),
-      });
+      tx.set(conversionPath(uid, quoteId), this.record(quote, 'pending'));
     });
-
     try {
-      const usdcCents = buying ? quote.toMinor : quote.fromMinor;
-      const transferId = await usdc.send(buying ? 'payout' : 'collect', uid, usdcCents, quoteId);
+      const transferId = await usdc.payout(wallet, quote.toMinor, quoteId);
       await store.transaction(async (tx) => {
         tx.update(conversionPath(uid, quoteId), { transferId });
       });
@@ -198,6 +211,69 @@ export class ConvertService {
       throw error;
     }
     return this.settle(uid, quoteId);
+  }
+
+  private async sell(
+    uid: string,
+    quoteId: string,
+    quote: QuoteDoc,
+    wallet: string,
+    usdc: UsdcRail,
+    signature: string | undefined,
+  ): Promise<ConversionResult> {
+    const { store, now } = this.deps;
+    if (!signature) {
+      throw new ApiError('invalid-argument', 'Send the USDC from your dollar wallet first.');
+    }
+    // The USDC may already have moved, so a quote that ran out moments ago is still honoured.
+    if (now() > quote.expiresAt + LATE_PAYMENT_MS) {
+      throw new ApiError('expired' satisfies ApiErrorCode, 'That rate has expired. Get a new one.');
+    }
+    if (await store.transaction((tx) => tx.get(signaturePath(signature)))) {
+      throw new ApiError('failed-precondition', 'That USDC payment has already been used.');
+    }
+    const paid = await this.deps.paidOnChain(
+      signature,
+      wallet,
+      await usdc.floatAddress(),
+      quote.fromMinor,
+    );
+    if (!paid) {
+      throw new ApiError(
+        'failed-precondition',
+        'Faara can’t see that USDC payment yet. Try again in a moment.',
+      );
+    }
+    await store.transaction(async (tx) => {
+      const fresh = await tx.get<QuoteDoc>(quotePath(quoteId));
+      if (fresh?.status !== 'open') return;
+      if (await tx.get(signaturePath(signature))) {
+        throw new ApiError('failed-precondition', 'That USDC payment has already been used.');
+      }
+      const account = await tx.get<AccountDoc>(accountPath(uid));
+      tx.set(accountPath(uid), {
+        ...account,
+        balanceKobo: balancesOf(account).NGN + quote.toMinor,
+        updatedAt: now(),
+      } satisfies AccountDoc);
+      tx.update(quotePath(quoteId), { status: 'used' });
+      tx.set(signaturePath(signature), { uid, quoteId, at: now() });
+      tx.set(conversionPath(uid, quoteId), { ...this.record(quote, 'done'), signature });
+    });
+    return this.settle(uid, quoteId);
+  }
+
+  private record(quote: QuoteDoc, status: ConversionStatus) {
+    return {
+      from: quote.from,
+      to: quote.to,
+      fromMinor: quote.fromMinor,
+      toMinor: quote.toMinor,
+      feeMinor: quote.feeMinor,
+      rate: quote.rate,
+      status,
+      createdAt: this.deps.now(),
+    };
   }
 
   /** Checks a conversion's transfer and finishes it: credits naira, or refunds it on failure. */

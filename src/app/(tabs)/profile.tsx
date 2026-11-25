@@ -5,12 +5,7 @@ import { Platform, Share, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { AppText, Avatar, Button, Card, IconButton, ListRow, Screen } from '@/components/ui';
-import {
-  ASSISTANT_ENABLED,
-  CONVERT_ENABLED,
-  DOLLARS_ENABLED,
-  OFFLINE_ENABLED,
-} from '@/config/features';
+import { ASSISTANT_ENABLED, DOLLARS_ENABLED, OFFLINE_ENABLED } from '@/config/features';
 import { useAuth, useProfile } from '@/features/auth';
 import { useIsAdmin } from '@/features/admin';
 import { useVendorStatus } from '@/features/vendors';
@@ -95,9 +90,6 @@ export default function ProfileScreen() {
           value={`Tier ${profile.verificationTier}`}
           onPress={() => router.push('/limits')}
         />
-        {CONVERT_ENABLED ? (
-          <ListRow label="USDC wallet" onPress={() => router.push('/usdc-wallet')} />
-        ) : null}
         <ListRow
           label={vendor.status?.vendor ? 'Vendor dashboard' : 'Become a vendor'}
           value={

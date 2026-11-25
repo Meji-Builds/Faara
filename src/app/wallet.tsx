@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, Header, ListRow, OtpField, Screen } from '@/components/ui';
+import { ExternalWallet, LeftoverUsdc } from '@/components/usdc';
 import { friendlyError } from '@/lib/errors';
 import { useProfile } from '@/features/auth';
 import {
@@ -20,7 +21,10 @@ import { formatMoney } from '@/lib/money';
 import { useAsyncValue } from '@/lib/useAsyncValue';
 import { fonts, radii, useTheme } from '@/theme';
 
-/** Dollar wallet: address, devnet balances, test funds and the recovery phrase. */
+/**
+ * The dollar wallet: the person's own USDC wallet on Solana, kept on this phone. Everything
+ * in dollars lives here: hums, Convert, the money agent, and other Solana wallets.
+ */
 export default function WalletScreen() {
   const { colors } = useTheme();
   const profile = useProfile();
@@ -104,11 +108,13 @@ export default function WalletScreen() {
               : '—'}
         </AppText>
         <AppText variant="label" color="onBrandMuted">
-          {balances.value
-            ? `${balances.value.sol.toFixed(4)} SOL for network fees`
-            : (balances.error ?? ' ')}
+          {balances.value ? 'Yours alone. Faara pays the network fees.' : (balances.error ?? ' ')}
         </AppText>
       </Card>
+
+      {address ? (
+        <LeftoverUsdc to={address} onMoved={() => setTimeout(balances.reload, 4000)} />
+      ) : null}
 
       <Card padded style={styles.addressCard}>
         <AppText variant="label" color="textMuted">
@@ -137,6 +143,16 @@ export default function WalletScreen() {
         </View>
       </Card>
 
+      {address ? (
+        <View style={styles.section}>
+          <ExternalWallet
+            faaraAddress={address}
+            faaraCents={Math.floor((balances.value?.usdc ?? 0) * 100 + 1e-6)}
+            onChanged={() => setTimeout(balances.reload, 4000)}
+          />
+        </View>
+      ) : null}
+
       <AppText variant="overline" color="textMuted" style={styles.section}>
         TEST FUNDS (DEVNET)
       </AppText>
@@ -155,8 +171,8 @@ export default function WalletScreen() {
         </AppText>
       ) : null}
       <AppText variant="caption" color="textMuted" style={styles.note}>
-        On the Circle faucet choose Solana Devnet and paste your address. Sending USDC needs a
-        little SOL for the network fee.
+        On the Circle faucet choose Solana Devnet and paste your address. These are test tokens with
+        no real value.
       </AppText>
 
       <AppText variant="overline" color="textMuted" style={styles.section}>
