@@ -12,6 +12,8 @@ import {
   encodeHumPayment,
   noteMessage,
   parseOpenPocket,
+  parseReclaim,
+  parseReserve,
   parseTopUpPocket,
   shapesForNonce,
   type SignedCertificate,
@@ -447,5 +449,53 @@ describe('shop names on name cards', () => {
     expect(decodeHumOffer(encodeHumOffer({ identity: vendor, nonce: 'n1' }))?.identity).toEqual(
       vendor,
     );
+  });
+});
+
+describe('restoring a pocket after a reinstall', () => {
+  it('gives the same phone its pocket back, with what is left, and payments still settle', async () => {
+    const s = setup();
+    const device = makeDevice();
+    const opened = await s.service.openPocket('ada', {
+      amountKobo: 1_000_000,
+      devicePublicKey: device.publicKey,
+    });
+    await s.service.settleNotes('tolu', [makeNote(device, opened, { amountKobo: 300_000 })]);
+
+    const back = await s.service.reclaim('ada', device.publicKey);
+    expect(back.remainingKobo).toBe(700_000);
+    expect(back.certificate.certificate).toEqual(opened.certificate);
+    expect(
+      verifySignature(
+        s.signer.publicKey,
+        certificateMessage(back.certificate.certificate),
+        back.certificate.signature,
+      ),
+    ).toBe(true);
+    // A payment made with the restored certificate settles from the same locked money.
+    const results = await s.service.settleNotes('tolu', [
+      makeNote(device, back.certificate, { amountKobo: 200_000 }),
+    ]);
+    expect(results[0]?.status).toBe('settled');
+    expect((await s.service.status('ada'))?.remainingKobo).toBe(500_000);
+  });
+
+  it('won’t hand the pocket to another phone, or restore one that isn’t there', async () => {
+    const s = setup();
+    await expectApiError(s.service.reclaim('ada', makeDevice().publicKey), 'not-found');
+    const device = makeDevice();
+    await s.service.openPocket('ada', { amountKobo: 500_000, devicePublicKey: device.publicKey });
+    await expectApiError(s.service.reclaim('ada', makeDevice().publicKey), 'failed-precondition');
+    await expectApiError(s.service.reclaim('tolu', device.publicKey), 'not-found');
+  });
+
+  it('keeps how much to keep ready on the account', async () => {
+    const s = setup();
+    expect(await s.service.reserve('ada')).toBeNull();
+    await s.service.setReserve('ada', 1_000_000);
+    expect(await s.service.reserve('ada')).toBe(1_000_000);
+    expect(() => parseReserve({ reserveKobo: -5 })).toThrow();
+    expect(() => parseReserve({ reserveKobo: OFFLINE_LIMITS.maxPocketKobo + 1 })).toThrow();
+    expect(() => parseReclaim({ devicePublicKey: 'nope' })).toThrow();
   });
 });

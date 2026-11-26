@@ -26,7 +26,7 @@ export interface Preferences {
   notifyOffers: boolean;
   /** When the notifications screen was last opened (epoch ms). */
   notificationsSeenAt: number;
-  /** Naira (kobo) kept ready for paying with no network; 0 is off. */
+  /** Naira (kobo) kept ready for paying with no network; 0 is off, -1 not chosen on this phone. */
   offlineReserveKobo: number;
   /** How the vendor till reads payments out. */
   tillVoice: 'off' | 'english' | 'pidgin';
@@ -44,7 +44,7 @@ const DEFAULTS: Preferences = {
   notifyMoneyReceived: true,
   notifyOffers: false,
   notificationsSeenAt: 0,
-  offlineReserveKobo: 0,
+  offlineReserveKobo: -1,
   tillVoice: 'english',
   tillSound: true,
 };

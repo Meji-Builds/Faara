@@ -535,3 +535,28 @@ export function shapesForNonce(nonce: string): ShapeTriple {
     return hash % n;
   });
 }
+
+/** Reads a request to restore a pocket on this phone: the phone's key. */
+export function parseReclaim(body: unknown): { devicePublicKey: string } {
+  const key = ((typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>)
+    .devicePublicKey;
+  if (typeof key !== 'string' || !/^[A-Za-z0-9+/]{43}=$/.test(key)) {
+    throw new OfflineValidationError('The phone’s key isn’t valid.');
+  }
+  return { devicePublicKey: key };
+}
+
+/** Reads how much someone wants to keep ready offline: 0 (off) up to a pocket's limit. */
+export function parseReserve(body: unknown): { reserveKobo: number } {
+  const value = ((typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>)
+    .reserveKobo;
+  if (
+    typeof value !== 'number' ||
+    !Number.isSafeInteger(value) ||
+    value < 0 ||
+    value > OFFLINE_LIMITS.maxPocketKobo
+  ) {
+    throw new OfflineValidationError('Choose an amount up to the offline limit.');
+  }
+  return { reserveKobo: value };
+}

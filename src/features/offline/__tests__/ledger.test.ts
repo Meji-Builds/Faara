@@ -11,6 +11,7 @@ import {
   maxPayment,
   payOffline,
   receiveOffline,
+  restorePocket,
   toBase64,
   waitingNotes,
   type OfflineLedger,
@@ -209,5 +210,31 @@ describe('keeping money ready', () => {
       5_000,
     );
     expect(fresh.pocket?.spentKobo).toBe(0);
+  });
+});
+
+describe('restoring a pocket after a reinstall', () => {
+  it('counts everything the server has not got left as spent, and pays from the rest', () => {
+    const signed = pocketLedger(500_000).pocket?.signed;
+    if (!signed) throw new Error('no pocket');
+    const restored = restorePocket(
+      { ...EMPTY_LEDGER, serverPublicKey: receiver.serverPublicKey },
+      signed,
+      200_000,
+      1_500,
+    );
+    expect(restored.pocket?.spentKobo).toBe(300_000);
+    expect(maxPayment(restored.pocket, 2_000)).toBe(200_000);
+    expect(() => pay(restored, 250_000)).toThrow();
+    const paid = pay(restored, 200_000);
+    const got = receiveOffline(receiver, {
+      note: paid.note,
+      fromName: 'Ada',
+      request,
+      now: 2_000,
+    });
+    expect(got.ledger.received).toHaveLength(1);
+    // A pocket already on the phone is never replaced.
+    expect(restorePocket(paid.ledger, signed, 500_000, 3_000)).toBe(paid.ledger);
   });
 });

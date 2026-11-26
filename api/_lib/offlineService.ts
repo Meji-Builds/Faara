@@ -344,6 +344,58 @@ export class OfflineService {
     return settled;
   }
 
+  /**
+   * Gives a phone back the certificate of the person's open pocket, after it lost its copy
+   * (a reinstall clears the app's storage). Only the phone holding the pocket's key can
+   * reclaim it, so a pocket opened on another phone stays there. Returns how much is left,
+   * so the phone treats everything else as already spent.
+   */
+  async reclaim(
+    uid: string,
+    devicePublicKey: string,
+  ): Promise<{ certificate: SignedCertificate; remainingKobo: number }> {
+    const signer = await this.requireSigner();
+    const pocket = await this.deps.store.transaction(async (tx) => {
+      const active = await tx.get<{ pocketId: string }>(activePocketPath(uid));
+      return active ? tx.get<PocketDoc>(pocketPath(active.pocketId)) : undefined;
+    });
+    if (!pocket || pocket.status !== 'open') {
+      throw new ApiError('not-found', 'You have no offline pocket to restore.');
+    }
+    if (pocket.devicePublicKey !== devicePublicKey) {
+      throw new ApiError('failed-precondition', 'Your offline pocket is on another phone.');
+    }
+    const certificate: PocketCertificate = {
+      pocketId: pocket.pocketId,
+      uid: pocket.uid,
+      devicePublicKey: pocket.devicePublicKey,
+      limitKobo: pocket.limitKobo,
+      maxNoteKobo: pocket.maxNoteKobo,
+      issuedAt: pocket.issuedAt,
+      expiresAt: pocket.expiresAt,
+    };
+    return {
+      certificate: { certificate, signature: signer.sign(certificateMessage(certificate)) },
+      remainingKobo: pocket.remainingKobo,
+    };
+  }
+
+  /** How much the person chose to keep ready offline, in kobo (null if never chosen). */
+  async reserve(uid: string): Promise<number | null> {
+    const saved = await this.deps.store.transaction((tx) =>
+      tx.get<{ reserveKobo: number }>(`offlineReserves/${uid}`),
+    );
+    return saved?.reserveKobo ?? null;
+  }
+
+  /** Saves how much to keep ready offline, so a reinstall or a new phone keeps the choice. */
+  async setReserve(uid: string, reserveKobo: number): Promise<void> {
+    const { store, now } = this.deps;
+    await store.transaction(async (tx) => {
+      tx.set(`offlineReserves/${uid}`, { reserveKobo, updatedAt: now() });
+    });
+  }
+
   /** The caller's open pocket, if any. */
   async status(uid: string): Promise<PocketStatus | null> {
     return this.deps.store.transaction(async (tx) => {

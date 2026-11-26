@@ -289,3 +289,26 @@ export function applyTopUp(
         : { signed, spentKobo: 0, nextSequence: 0, openedAt: now },
   };
 }
+
+/**
+ * Puts back a pocket this phone lost (a reinstall clears the app's storage). Whatever the
+ * server hasn't got left counts as already spent, so nothing can be paid out twice.
+ */
+export function restorePocket(
+  ledger: OfflineLedger,
+  signed: SignedCertificate,
+  remainingKobo: number,
+  now: number,
+): OfflineLedger {
+  if (ledger.pocket) return ledger;
+  const limit = signed.certificate.limitKobo;
+  return {
+    ...ledger,
+    pocket: {
+      signed,
+      spentKobo: Math.min(limit, Math.max(0, limit - remainingKobo)),
+      nextSequence: 0,
+      openedAt: now,
+    },
+  };
+}

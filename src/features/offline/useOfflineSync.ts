@@ -8,8 +8,15 @@ import { useWallet } from '@/features/wallet';
 import { useAppActive } from '@/lib/useAppActive';
 import { useOnline } from '@/lib/connectivity';
 
-import { applySettlement, applyTopUp, topUpNeeded, waitingNotes } from './ledger';
-import { fetchIdentity, pocketStatus, settleNotes, topUpPocket } from './offlineApi';
+import {
+  applySettlement,
+  applyTopUp,
+  restorePocket,
+  topUpNeeded,
+  waitingNotes,
+  type OfflineLedger,
+} from './ledger';
+import { fetchIdentity, pocketStatus, reclaimPocket, settleNotes, topUpPocket } from './offlineApi';
 import { loadLedger, updateLedger } from './store';
 
 const RETRY_MS = 30_000;
@@ -24,6 +31,8 @@ export interface SyncOptions {
   reserveKobo?: number;
   /** This phone's wallet address; its key is the pocket's key. */
   walletAddress?: string | null;
+  /** Told the reserve saved on the account, when this phone has none of its own yet. */
+  onSavedReserve?: (reserveKobo: number) => void;
 }
 
 /** The pocket key for a wallet address: the same Ed25519 key, as base64. */
@@ -44,8 +53,9 @@ export async function syncOffline(uid: string, options: SyncOptions = {}): Promi
     await updateLedger(uid, (l) => ({ ledger: applySettlement(l, results), result: null }));
   }
   const askedAt = Date.now();
-  const { pocket, serverPublicKey } = await pocketStatus();
-  const synced = await updateLedger(uid, (l) => {
+  const { pocket, serverPublicKey, reserveKobo: savedReserve } = await pocketStatus();
+  if (typeof savedReserve === 'number') options.onSavedReserve?.(savedReserve);
+  let synced: OfflineLedger = await updateLedger(uid, (l) => {
     const local = l.pocket;
     const matches = local !== null && local.signed.certificate.pocketId === pocket?.pocketId;
     // A pocket stored after this check started is newer than the answer: keep it.
@@ -59,7 +69,21 @@ export async function syncOffline(uid: string, options: SyncOptions = {}): Promi
     if (identity) await updateLedger(uid, (l) => ({ ledger: { ...l, identity }, result: null }));
   }
 
-  const { reserveKobo = 0, walletAddress } = options;
+  const { walletAddress } = options;
+  // This phone lost its copy of the pocket (say, the app was reinstalled): get it back,
+  // as long as the pocket's key is this phone's.
+  if (synced.pocket === null && synced.remote && walletAddress) {
+    const key = keyFromAddress(walletAddress);
+    const back = await reclaimPocket(key).catch(() => null);
+    if (back && back.certificate.certificate.devicePublicKey === key) {
+      synced = await updateLedger(uid, (l) => {
+        const next = restorePocket(l, back.certificate, back.remainingKobo, Date.now());
+        return { ledger: next, result: next };
+      });
+    }
+  }
+
+  const reserveKobo = Math.max(0, options.reserveKobo ?? savedReserve ?? 0);
   const add = topUpNeeded(synced, reserveKobo, Date.now());
   if (add === null || !walletAddress || Date.now() - refillFailedAt < REFILL_BACKOFF_MS) return;
   try {
@@ -81,17 +105,22 @@ export function useOfflineSync(): void {
   const uid = user?.uid;
   const online = useOnline();
   const active = useAppActive();
-  const reserveKobo = usePreferences().preferences.offlineReserveKobo;
+  const { preferences, setPreference } = usePreferences();
+  const chosen = preferences.offlineReserveKobo;
+  // -1 means this phone hasn't been told yet: use what's saved on the account.
+  const reserveKobo = chosen >= 0 ? chosen : undefined;
   const walletAddress = useWallet().deviceAddress;
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!uid) return;
     void loadLedger(uid);
     if (!active) return;
-    syncOffline(uid, { reserveKobo, walletAddress }).catch(() => {
+    const onSavedReserve =
+      chosen < 0 ? (saved: number) => setPreference('offlineReserveKobo', saved) : undefined;
+    syncOffline(uid, { reserveKobo, walletAddress, onSavedReserve }).catch(() => {
       // Offline or the server is unavailable: try again shortly (below).
     });
-  }, [uid, online, active, attempt, reserveKobo, walletAddress]);
+  }, [uid, online, active, attempt, reserveKobo, chosen, walletAddress, setPreference]);
   // While offline, check back now and then; a successful sync also marks the app online.
   useEffect(() => {
     if (online || !active) return;

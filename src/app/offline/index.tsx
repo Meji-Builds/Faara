@@ -9,6 +9,7 @@ import { useAuth } from '@/features/auth';
 import {
   maxPayment,
   releasePocket,
+  saveReserve,
   spendable,
   syncOffline,
   useLedger,
@@ -75,11 +76,13 @@ export default function OfflineScreen() {
   const { pocket, remote } = ledger;
   const left = spendable(pocket, now);
   const canRelease = remote !== null && now >= remote.releasableAt;
-  const reserve = String(preferences.offlineReserveKobo) as Reserve;
+  const reserve = String(Math.max(0, preferences.offlineReserveKobo)) as Reserve;
   const bluetoothHum = Platform.OS === 'android';
 
   const keepReady = async (kobo: number) => {
     setPreference('offlineReserveKobo', kobo);
+    // Kept on the account too, so a reinstall or a new phone keeps the choice.
+    void saveReserve(kobo).catch(() => undefined);
     await syncOffline(uid, { reserveKobo: kobo, walletAddress });
   };
 
