@@ -499,3 +499,51 @@ describe('restoring a pocket after a reinstall', () => {
     expect(() => parseReclaim({ devicePublicKey: 'nope' })).toThrow();
   });
 });
+
+describe('moving a pocket to a new phone key', () => {
+  it('moves it, and old and new payments share the same locked money', async () => {
+    const s = setup();
+    const oldPhone = makeDevice();
+    const opened = await s.service.openPocket('ada', {
+      amountKobo: 1_000_000,
+      devicePublicKey: oldPhone.publicKey,
+    });
+    // Signed before the reinstall, not yet settled.
+    const before = makeNote(oldPhone, opened, { amountKobo: 400_000 });
+
+    const newPhone = makeDevice();
+    // A different key can't simply reclaim it; it has to be moved.
+    await expectApiError(s.service.reclaim('ada', newPhone.publicKey), 'failed-precondition');
+    const moved = await s.service.move('ada', newPhone.publicKey);
+    expect(moved.remainingKobo).toBe(1_000_000);
+    expect(moved.certificate.certificate.devicePublicKey).toBe(newPhone.publicKey);
+    expect(moved.certificate.certificate.pocketId).toBe(opened.certificate.pocketId);
+    expect((await s.service.status('ada'))?.devicePublicKey).toBe(newPhone.publicKey);
+
+    const after = makeNote(newPhone, moved.certificate, { amountKobo: 500_000 });
+    const tooMuch = makeNote(newPhone, moved.certificate, { amountKobo: 300_000 });
+    const results = await s.service.settleNotes('tolu', [after, before, tooMuch]);
+    expect(results.map((r) => r.status)).toEqual(['settled', 'settled', 'rejected']);
+    expect((await s.service.status('ada'))?.remainingKobo).toBe(100_000);
+    // The new phone can now restore it after another reinstall.
+    expect((await s.service.reclaim('ada', newPhone.publicKey)).remainingKobo).toBe(100_000);
+  });
+
+  it('needs an open pocket, and a key nobody used can’t settle', async () => {
+    const s = setup();
+    await expectApiError(s.service.move('ada', makeDevice().publicKey), 'not-found');
+    const device = makeDevice();
+    const opened = await s.service.openPocket('ada', {
+      amountKobo: 500_000,
+      devicePublicKey: device.publicKey,
+    });
+    await s.service.move('ada', makeDevice().publicKey);
+    const stranger = makeDevice();
+    const forged = makeNote(stranger, {
+      ...opened,
+      certificate: { ...opened.certificate, devicePublicKey: stranger.publicKey },
+    });
+    const results = await s.service.settleNotes('tolu', [forged]);
+    expect(results[0]?.status).not.toBe('settled');
+  });
+});

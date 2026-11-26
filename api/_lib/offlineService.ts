@@ -41,6 +41,11 @@ interface AccountDoc {
 interface PocketDoc extends PocketCertificate {
   remainingKobo: number;
   status: 'open' | 'released';
+  /**
+   * Keys the pocket was on before it moved to this phone. Payments those keys signed before
+   * the move still settle, from the same locked money.
+   */
+  formerKeys?: string[];
 }
 
 interface NoteDoc {
@@ -63,12 +68,18 @@ export interface PocketStatus {
   expiresAt: number;
   /** When the unspent part can be released back to the balance. */
   releasableAt: number;
+  /** The key of the phone the pocket is on, so a phone can tell whether it's this one. */
+  devicePublicKey: string;
 }
 
 const accountPath = (uid: string) => `ledgerAccounts/${uid}`;
 const pocketPath = (id: string) => `pockets/${id}`;
 const activePocketPath = (uid: string) => `activePockets/${uid}`;
 const notePath = (id: string) => `offlineNotes/${id}`;
+
+/** Whether `key` is the pocket's key now, or was before it moved to another phone. */
+const keyOf = (pocket: PocketDoc, key: string) =>
+  pocket.devicePublicKey === key || (pocket.formerKeys ?? []).includes(key);
 const activityPath = (uid: string, id: string) => `users/${uid}/activity/${id}`;
 
 /**
@@ -295,7 +306,7 @@ export class OfflineService {
       if (
         !pocket ||
         pocket.uid !== note.fromUid ||
-        pocket.devicePublicKey !== signed.certificate.certificate.devicePublicKey
+        !keyOf(pocket, signed.certificate.certificate.devicePublicKey)
       ) {
         throw new ApiError('not-found', 'That pocket wasn’t found.');
       }
@@ -380,6 +391,45 @@ export class OfflineService {
     };
   }
 
+  /**
+   * Moves the person's open pocket to this phone's key, when the phone that held it lost its
+   * key (a reinstall with a new wallet) or the person changed phones. Payments the old key
+   * already signed still settle, all from the same locked money, so nothing is paid twice;
+   * the phone treats whatever the server no longer holds as spent.
+   */
+  async move(
+    uid: string,
+    devicePublicKey: string,
+  ): Promise<{ certificate: SignedCertificate; remainingKobo: number }> {
+    const signer = await this.requireSigner();
+    const pocket = await this.deps.store.transaction(async (tx) => {
+      const active = await tx.get<{ pocketId: string }>(activePocketPath(uid));
+      const found = active ? await tx.get<PocketDoc>(pocketPath(active.pocketId)) : undefined;
+      if (!found || found.status !== 'open') {
+        throw new ApiError('not-found', 'You have no offline pocket to move.');
+      }
+      if (found.devicePublicKey === devicePublicKey) return found;
+      const formerKeys = [...(found.formerKeys ?? []), found.devicePublicKey].filter(
+        (key) => key !== devicePublicKey,
+      );
+      tx.update(pocketPath(found.pocketId), { devicePublicKey, formerKeys });
+      return { ...found, devicePublicKey, formerKeys };
+    });
+    const certificate: PocketCertificate = {
+      pocketId: pocket.pocketId,
+      uid: pocket.uid,
+      devicePublicKey: pocket.devicePublicKey,
+      limitKobo: pocket.limitKobo,
+      maxNoteKobo: pocket.maxNoteKobo,
+      issuedAt: pocket.issuedAt,
+      expiresAt: pocket.expiresAt,
+    };
+    return {
+      certificate: { certificate, signature: signer.sign(certificateMessage(certificate)) },
+      remainingKobo: pocket.remainingKobo,
+    };
+  }
+
   /** How much the person chose to keep ready offline, in kobo (null if never chosen). */
   async reserve(uid: string): Promise<number | null> {
     const saved = await this.deps.store.transaction((tx) =>
@@ -409,6 +459,7 @@ export class OfflineService {
         remainingKobo: pocket.remainingKobo,
         expiresAt: pocket.expiresAt,
         releasableAt: pocket.expiresAt + OFFLINE_LIMITS.graceMs,
+        devicePublicKey: pocket.devicePublicKey,
       };
     });
   }

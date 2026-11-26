@@ -62,3 +62,8 @@ export const reserve = authedRoute(parseReserve, async ({ uid, services }, reque
   await services.offline.setReserve(uid, request.reserveKobo);
   return { ok: true };
 });
+
+/** POST /api/offline/move: move the open pocket to this phone (its old key was lost). */
+export const move = authedRoute(parseReclaim, ({ uid, services }, request) =>
+  services.offline.move(uid, request.devicePublicKey),
+);

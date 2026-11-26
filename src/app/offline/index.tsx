@@ -7,11 +7,15 @@ import { Approve } from '@/components/security/Approve';
 import { AppText, Button, Card, Header, ListRow, Screen, TextTabs } from '@/components/ui';
 import { useAuth } from '@/features/auth';
 import {
+  keyFromAddress,
   maxPayment,
+  movePocket,
   releasePocket,
+  restorePocket,
   saveReserve,
   spendable,
   syncOffline,
+  updateLedger,
   useLedger,
   type ReceivedPayment,
   type SentPayment,
@@ -86,6 +90,23 @@ export default function OfflineScreen() {
     await syncOffline(uid, { reserveKobo: kobo, walletAddress });
   };
 
+  // The pocket is set aside with a key this phone doesn't hold: from before a reinstall that
+  // made a new wallet, or on another phone. It can be moved here.
+  const myKey = walletAddress ? keyFromAddress(walletAddress) : null;
+  const elsewhere = !pocket && remote !== null && !canRelease;
+  const canMove = elsewhere && myKey !== null && remote?.devicePublicKey !== myKey;
+  const [moving, setMoving] = useState(false);
+
+  const moveHere = async () => {
+    if (!myKey) return;
+    const back = await movePocket(myKey);
+    await updateLedger(uid, (l) => {
+      const next = restorePocket(l, back.certificate, back.remainingKobo, Date.now());
+      return { ledger: next, result: null };
+    });
+    await syncOffline(uid, { walletAddress });
+  };
+
   const release = async () => {
     setBusy(true);
     setMessage(null);
@@ -100,6 +121,40 @@ export default function OfflineScreen() {
       setBusy(false);
     }
   };
+
+  if (moving && remote) {
+    return (
+      <Screen
+        footer={
+          <Approve
+            reason={`Use your ${naira(remote.remainingKobo)} offline pocket on this phone.`}
+            onApproved={async () => {
+              await moveHere();
+              haptics.success();
+              setMoving(false);
+              setMessage('Your offline pocket is on this phone now.');
+            }}
+          />
+        }
+      >
+        <Header
+          onBack={() => setMoving(false)}
+          center={<AppText variant="subheading">Use it on this phone</AppText>}
+        />
+        <View style={styles.body}>
+          <AppText color="textMuted">
+            Your pocket was set aside with a key this phone doesn’t have, usually because the app
+            was reinstalled with a new wallet, or you changed phones.
+          </AppText>
+          <AppText color="textMuted">
+            Moving it lets you pay from the {naira(remote.remainingKobo)} left here. Payments
+            already made from it still go through. If you still use another phone, it can no longer
+            pay offline from this pocket.
+          </AppText>
+        </View>
+      </Screen>
+    );
+  }
 
   // Setting money aside needs the person's approval once; turning it off doesn't.
   if (choosing && choosing !== '0') {
@@ -164,7 +219,11 @@ export default function OfflineScreen() {
               <AppText color="onBrandMuted">
                 {canRelease
                   ? 'This pocket has ended. Move what’s left back to your balance.'
-                  : `Set aside on another phone. What’s left returns on ${day(remote.releasableAt)}.`}
+                  : canMove
+                    ? `Set aside with a key this phone doesn’t have (a reinstall or another phone). Move it here, or it returns to your balance on ${day(remote.releasableAt)}.`
+                    : walletAddress
+                      ? 'Getting your pocket back on this phone…'
+                      : `Set up your wallet to use it here. Otherwise it returns on ${day(remote.releasableAt)}.`}
               </AppText>
             </>
           ) : (
@@ -204,6 +263,17 @@ export default function OfflineScreen() {
           <AppText variant="label" color="gold" align="center">
             {message}
           </AppText>
+        ) : null}
+
+        {canMove ? (
+          <Button
+            label="Use it on this phone"
+            disabled={!online}
+            onPress={() => {
+              setMessage(null);
+              setMoving(true);
+            }}
+          />
         ) : null}
 
         {canRelease ? (

@@ -34,6 +34,8 @@ export interface RemotePocket {
   remainingKobo: number;
   expiresAt: number;
   releasableAt: number;
+  /** The key of the phone it's on (missing from servers before this was added). */
+  devicePublicKey?: string;
 }
 
 export interface SentPayment {

@@ -15,7 +15,7 @@ export {
   type ReceivedPayment,
   type SentPayment,
 } from './ledger';
-export { openPocket, releasePocket, saveReserve, topUpPocket } from './offlineApi';
+export { movePocket, openPocket, releasePocket, saveReserve, topUpPocket } from './offlineApi';
 export { loadLedger, updateLedger, useLedger } from './store';
 export { keyFromAddress, syncOffline, useOfflineSync } from './useOfflineSync';
 export { randomId } from './ids';

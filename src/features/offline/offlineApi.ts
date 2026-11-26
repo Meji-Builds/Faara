@@ -47,3 +47,10 @@ export function reclaimPocket(devicePublicKey: string) {
 export function saveReserve(reserveKobo: number) {
   return postJson<{ ok: true }>('/api/offline/reserve', { reserveKobo });
 }
+
+/** Moves the open pocket to this phone, when the phone it was on lost its key. */
+export function movePocket(devicePublicKey: string) {
+  return postJson<{ certificate: SignedCertificate; remainingKobo: number }>('/api/offline/move', {
+    devicePublicKey,
+  });
+}
